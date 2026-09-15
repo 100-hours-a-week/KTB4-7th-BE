@@ -32,7 +32,7 @@ ModuleNotFoundError: No module named 'yaml'
 Root cause: the supplied validator imports PyYAML, which is unavailable in the project/runtime. No dependency was installed because library selection is deferred.
 
 ```text
-$ ruby -ryaml -e '<frontmatter structural validation>'
+$ ruby -ryaml -e 'text = File.read(".agents/skills/mammae-backend-development/SKILL.md"); frontmatter = text.match(/\A---\n(.*?)\n---/m)&.[](1); abort("missing frontmatter") unless frontmatter; data = YAML.safe_load(frontmatter); abort("unexpected keys") unless data.keys.sort == %w[description name]; abort("invalid name") unless data["name"].match?(/\A[a-z0-9]+(?:-[a-z0-9]+)*\z/) && data["name"].length <= 64; abort("invalid description") unless data["description"].start_with?("Use when") && data["description"].length <= 500; puts "metadata valid: #{data["name"]}"'
 metadata valid: mammae-backend-development
 
 $ git diff --check
@@ -44,13 +44,13 @@ $ wc -w AGENTS.md .agents/skills/mammae-backend-development/SKILL.md
 473 total
 ```
 
-The fallback validates YAML parsing, exactly the two expected metadata keys, hyphen-case/max-length name, and a `Use when` discovery description under 500 characters. `git diff --check` found no whitespace errors.
+The recorded Ruby command is dependency-free with respect to the project: it uses macOS Ruby's standard YAML library, parses the front matter, requires exactly `name` and `description`, checks the hyphen-case/max-length name, and checks a `Use when` discovery description under 500 characters. `git diff --check` found no whitespace errors.
 
 ## Commit
 
-Initial verified Task 1 commit: `36de9b8` (`docs: add backend governance skill`). This report is amended into that same Task 1 commit with the final commit record below.
+The original Task 1 governance artifacts and report were created in root commit `e595037` (`docs: add backend governance skill`). This Round 1 report-only correction is committed separately to preserve an accurate, auditable history.
 
 ## Concerns
 
-- The canonical `quick_validate.py` cannot run until PyYAML is available. The dependency-free Ruby YAML check passed instead; this task intentionally does not add a dependency.
+- The canonical `quick_validate.py` cannot run until PyYAML is available. The complete dependency-free Ruby YAML command above passed instead; this task intentionally does not add a dependency.
 - Existing untracked `.idea/` and `docs/` content was left untouched and must not be included in the Task 1 commit.
