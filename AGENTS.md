@@ -1,22 +1,53 @@
-# 맴매 Backend Conventions
+# memme 백엔드 개발 규약
 
-Use `.agents/skills/mammae-backend-development/SKILL.md` before planning, changing, or reviewing backend work.
+백엔드의 계획, 구현, 변경, 리뷰에는 `.agents/skills/memme-backend-development/SKILL.md`를 적용한다.
 
-## Fixed foundation
+## 공식 문서와 충돌 처리
 
-- Java 25 LTS; Spring Boot 4.1.1; MySQL 8.4 LTS with InnoDB.
-- Preserve a Controller → Service → Repository separation when application code is introduced.
-- The technology-stack decision defers libraries, build tooling, deployment, and monitoring. Do not select or add them until an approved document does.
+- 기능 범위·비즈니스 로직은 요구사항 분석, API 구현은 API 정의서, DB·Entity·JPA는 ERD 정의서, 기술·환경은 기술검토 및 스택을 최우선으로 한다.
+- 기능 작업은 요구사항 분석 → API 정의서 → ERD 정의서 → 기존 코드 순서로 최신 내용을 확인한다.
+- 공식 문서와 코드, 또는 문서끼리 충돌하거나 필요한 항목이 빠져 있으면 임의로 결정·수정하지 않는다. 충돌 항목과 영향을 사용자에게 알리고 승인받는다.
+- 문서에 없는 API, 테이블, 컬럼, 외부 연동, V2/V3 기능을 추가하지 않는다.
 
-## Source of truth and scope
+## 기술과 프로젝트 구조
 
-- Requirements `3cd7f3fa-ed48-80a1-a3be-f35e9ee20db3` define behavior and release scope.
-- ERD `3d07f3fa-ed48-807a-a1e0-efe32abd2283` defines approved persistence shapes.
-- API contract `3d57f3fa-ed48-806b-b27f-d7f04ba53d5a` defines approved interfaces.
-- Never infer an API, table, column, route, integration, or V2/V3 feature from adjacent requirements. Stop and request an approved specification when a required contract is absent or conflicts.
+- Java 25 LTS, Spring Boot 4.1.1, MySQL 8.4 LTS(InnoDB), Spring Data JPA를 사용한다.
+- 기본 패키지는 `controller`, `service`, `repository`, `entity`, `dto`, `exception`, `config`이다. 기존 구조가 생기면 기존 구조를 우선한다.
+- Controller는 HTTP 요청·응답과 DTO 변환만 담당한다. Service는 비즈니스 로직과 트랜잭션을, Repository는 DB 접근을 담당한다.
+- Entity는 ERD에만 맞추고 API 요청·응답으로 직접 노출하지 않는다. DTO는 Request와 Response를 구분한다.
 
-## Safety and quality
+## API·DB·예외 규칙
 
-- Keep secrets out of version control; use only example names such as `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, and `APP_SECRET` in tracked files.
-- Do not log passwords, tokens, or personal data. Validate and authorize server-side; preserve the error and status behavior defined by the API contract.
-- For each change, cite the applicable requirement/API/ERD identifier in the plan or PR description, add focused tests, and run the relevant verification before handoff.
+- URI, HTTP 메서드, 요청·응답 필드, 타입, 상태 코드, 오류 응답은 API 정의서와 일치시킨다.
+- 테이블·컬럼·타입·PK/FK·UNIQUE·NULL·관계는 ERD 정의서와 일치시킨다. 불필요한 양방향 연관관계를 만들지 않고, Fetch 전략과 N+1 가능성을 검토한다.
+- DB 변경은 트랜잭션 범위를 검토한다.
+- 공통 예외는 `GlobalExceptionHandler`로 처리한다. API 정의서에 오류 형식이 있을 때만 그 형식으로 구현하며, 무분별하게 `IllegalArgumentException`으로 처리하지 않는다.
+
+## 코드·보안·테스트
+
+- Java 표준 네이밍을 사용하며, 의미 없는 축약어·불필요한 주석·요청 범위 밖 리팩터링을 피한다.
+- Git에는 비밀값을 저장하지 않는다. `.env`는 로컬 전용이고 `.env.example`에는 키 이름과 안전한 예시만 둔다. 비밀번호·토큰·개인정보를 로그에 남기지 않는다.
+- 기능 변경에는 정상·주요 예외 케이스 테스트를 작성한다. Service 단위 테스트를 우선하고 Controller/API 또는 복잡한 Repository 쿼리에는 필요한 테스트를 추가한다.
+- 테스트를 통과시키기 위해 비즈니스 로직이나 검증 조건을 완화하지 않는다. 실행하지 못한 테스트는 실행한 것처럼 보고하지 않는다.
+
+## 브랜치·커밋·PR
+
+- 모든 기능 개발은 GitHub Issue 생성 또는 기존 Issue 확인으로 시작한다. Issue에는 작업 범위와 완료 기준을 작성한다.
+- Issue가 준비되면 최신 `dev`에서 `feat/이슈번호-기능명` 브랜치를 생성하고 개발·테스트·빌드를 진행한 뒤 `dev` 대상으로 PR을 만든다. `main`을 대상으로 PR을 만들지 않는다.
+- 구현 PR은 개발 시작 전에 만든 하나의 GitHub Issue와 연결한다. PR 본문에 `Closes #이슈번호`를 작성해 병합 시 Issue가 자동으로 닫히게 한다.
+- 하나의 PR은 하나의 작고 명확한 목적만 가진다. 독립 기능이나 관련 없는 파일을 하나의 PR에 섞지 않는다.
+- 커밋은 의미 있는 작업 단위로 나누고, 한글 Conventional Commit 형식으로 작성한다. 예: `feat: 회원가입 API 구현`, `test: 회원가입 서비스 테스트 추가`.
+- PR 제목은 한글로 작성한다. 본문에는 주요 변경사항, 구현 기능, 테스트 내용·결과, API 변경 여부, DB 변경 여부와 `Closes #이슈번호`를 포함한다.
+- PR 전에는 수정·신규 테스트와 관련 기존 테스트, 빌드가 모두 통과해야 한다. 실패 시 원인을 해결하기 전 PR을 만들지 않는다.
+
+## CI/CD·운영
+
+- `feat/*`에서 `dev`로 향하는 PR은 테스트와 빌드 CI를 통과해야 한다. 실패한 CI를 우회하거나 검증을 제거하지 않는다.
+- `dev` 병합 후 Backend/AI Docker Image를 생성해 AWS ECR에 저장하는 흐름을 기준으로 한다. 이미지 태그를 임의로 덮어쓰지 않는다.
+- `dev` 병합은 운영 배포가 아니다. 운영 배포는 Cloud 담당자가 기록된 정확한 버전으로 수동 실행하며, 배포 후 Health Check 실패 시 기존 정상 버전 유지 또는 롤백을 고려한다.
+
+## 에이전트 작업 원칙
+
+- 작업 전 기존 코드와 최신 공식 문서를 확인하고, 기존 컨벤션을 우선한다.
+- 기능 개발 요청을 받으면 먼저 연결할 GitHub Issue를 확인하거나 생성한다. 사용자가 PR 생성을 요청하면 기존 Issue·브랜치·변경 범위·공식 문서 준수·테스트·빌드·PR 대상 `dev`를 검증한다.
+- 커밋·푸시·PR 생성 직전에 생성 예정 내용과 한글 커밋 메시지를 간단히 제시하고 최종 승인 1회를 받는다. 승인 후 commit → push → `dev` PR 생성을 연속 진행한다.
