@@ -1,0 +1,10 @@
+.env
+.git
+.gradle
+.idea
+.superpowers
+build
+docs
+out
+*.iml
+*.md
