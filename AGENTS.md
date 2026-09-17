@@ -33,12 +33,12 @@
 ## 브랜치·커밋·PR
 
 - 모든 개발 작업은 GitHub Issue 생성 또는 기존 Issue 확인으로 시작한다. Issue에는 하나의 계층·역할 목적, 작업 범위, 완료 기준을 작성한다.
-- Issue도 계층·역할 단위로 분리한다. 하나의 API를 구현할 때 DTO, Entity·Repository, Service, Controller, 테스트·설정은 각각 별도 Issue로 관리한다.
+- Issue도 계층·역할 단위로 분리한다. 하나의 API를 구현할 때 DTO, Entity·Repository, Service, 예외 처리, Controller는 각각 별도 Issue로 관리한다. 각 Issue에는 해당 계층의 테스트와 필요한 설정을 함께 포함한다.
 - Issue가 준비되면 최신 `dev`에서 `feat/이슈번호-기능명` 브랜치를 생성하고 개발·테스트·빌드를 진행한 뒤 `dev` 대상으로 PR을 만든다. `main`을 대상으로 PR을 만들지 않는다.
 - 구현 PR은 개발 시작 전에 만든 하나의 GitHub Issue와 연결한다. PR 본문에 `Closes #이슈번호`를 작성해 병합 시 Issue가 자동으로 닫히게 한다.
-- PR은 기능 안에서도 계층·역할 단위로 분리한다. 예를 들어 회원가입 계정정보 API는 DTO PR, Entity·Repository PR, Service PR, Controller PR, 테스트 PR로 나눈다. 독립 기능이나 관련 없는 파일을 하나의 PR에 섞지 않는다.
-- 커밋은 계층·역할별 의미 있는 작업 단위로 나눈다. 하나의 API를 구현할 때 DTO, Entity·Repository(새 스키마 모델이 필요할 때), Service, Controller, 테스트·설정은 각각 별도 커밋으로 분리한다. 해당 계층 변경이 없으면 빈 커밋을 만들지 않는다.
-- 한 커밋에는 서로 다른 역할의 변경을 섞지 않는다. 예를 들어 Controller와 Service 구현을 한 커밋에 넣거나, 기능 구현과 무관한 리팩터링·문서·환경 변경을 함께 넣지 않는다. 단, 해당 기능의 테스트는 `test:` 커밋으로 분리한다.
+- PR은 기능 안에서도 계층·역할 단위로 분리한다. 예를 들어 회원가입 계정정보 API는 DTO PR, Entity·Repository PR, Service PR, 예외 처리 PR, Controller PR로 나눈다. 각 PR에는 그 계층의 테스트와 필요한 설정을 함께 포함한다. 독립 기능이나 관련 없는 파일을 하나의 PR에 섞지 않는다.
+- 커밋은 계층·역할별 의미 있는 작업 단위로 나눈다. 하나의 API를 구현할 때 DTO, Entity·Repository(새 스키마 모델이 필요할 때), Service, 예외 처리, Controller는 각각 별도 커밋으로 분리하고, 해당 계층의 테스트·설정은 같은 커밋에 포함한다. 해당 계층 변경이 없으면 빈 커밋을 만들지 않는다.
+- 한 커밋에는 서로 다른 역할의 변경을 섞지 않는다. 예를 들어 Controller와 Service 구현을 한 커밋에 넣거나, 기능 구현과 무관한 리팩터링·문서·환경 변경을 함께 넣지 않는다.
 - 커밋 메시지는 한글 Conventional Commit 형식으로 작성한다. 예: `feat: 회원가입 요청 DTO 추가`, `feat: 회원가입 서비스 구현`, `test: 회원가입 서비스 테스트 추가`.
 - 각 PR은 같은 계층·역할의 Issue 하나를 연결하고, PR 본문에 `Closes #이슈번호`를 작성해 병합 시 해당 Issue를 닫는다.
 - PR 제목은 한글로 작성한다. 본문에는 주요 변경사항, 구현 기능, 테스트 내용·결과, API 변경 여부, DB 변경 여부와 `Closes #이슈번호`를 포함한다.
