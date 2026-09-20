@@ -1,6 +1,8 @@
 package com.memme.service.store;
 
 import java.util.List;
+
+import com.memme.exception.BusinessVerificationFailedException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -35,7 +37,7 @@ public class NtsBusinessStatusClient implements BusinessStatusClient {
                 .body(NtsStatusResponse.class);
 
         if (response == null || response.data() == null || response.data().isEmpty()) {
-            throw new IllegalStateException("국세청 사업자 상태 조회 응답이 비어 있습니다.");
+            throw new BusinessVerificationFailedException();
         }
 
         return ACTIVE_STATUS_CODE.equals(response.data().getFirst().b_stt_cd());
