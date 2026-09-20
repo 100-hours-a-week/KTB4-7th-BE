@@ -1,14 +1,41 @@
 package com.memme.dto.auth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.OffsetDateTime;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 
 class SignupAccountDtoTest {
+
+    private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+
+    @Test
+    void 이메일_휴대폰_비밀번호_약관_버전_형식은_Bean_Validation으로_검증한다() {
+        SignupAccountRequest request = new SignupAccountRequest(
+                "invalid-email",
+                "password1!",
+                "different",
+                "01112345678",
+                new SignupAccountRequest.Agreements(true, "", true, "")
+        );
+
+        assertFalse(validator.validate(request).isEmpty());
+    }
+
+    @Test
+    void 약관_객체가_없으면_Bean_Validation으로_검증한다() {
+        SignupAccountRequest request = new SignupAccountRequest(
+                "owner@memme.com", "Password1!", "Password1!", "01012345678", null
+        );
+
+        assertFalse(validator.validate(request).isEmpty());
+    }
 
     @Test
     void 회원가입_1단계_요청_DTO는_API_필드를_가진다() {

@@ -4,6 +4,7 @@ import com.memme.dto.auth.BusinessVerificationRequest;
 import com.memme.dto.auth.BusinessVerificationResponse;
 import com.memme.dto.common.ApiResponse;
 import com.memme.service.auth.BusinessVerificationService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,7 +24,7 @@ public class BusinessVerificationController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<BusinessVerificationResponse>> verify(
-            @RequestBody BusinessVerificationRequest request
+            @Valid @RequestBody BusinessVerificationRequest request
     ) {
         BusinessVerificationResponse response = businessVerificationService.verify(request);
         return ResponseEntity.status(HttpStatus.OK)
