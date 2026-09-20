@@ -20,4 +20,26 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
                 .body(new ApiResponse<>(exception.getMessage(), null));
     }
+
+    @ExceptionHandler(InvalidBusinessNumberException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidBusinessNumber(InvalidBusinessNumberException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
+    @ExceptionHandler(BusinessStatusNotEligibleException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBusinessStatusNotEligible(
+            BusinessStatusNotEligibleException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
+                .body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
+    @ExceptionHandler(BusinessVerificationFailedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBusinessVerificationFailed(
+            BusinessVerificationFailedException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(new ApiResponse<>(exception.getMessage(), null));
+    }
 }

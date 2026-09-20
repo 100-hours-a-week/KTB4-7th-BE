@@ -33,4 +33,37 @@ class GlobalExceptionHandlerTest {
         assertEquals("입력값 또는 필수 약관 동의를 확인해 주세요.", response.getBody().message());
         assertNull(response.getBody().data());
     }
+
+    @Test
+    void 사업자등록번호_형식_예외는_400_응답으로_변환한다() {
+        ResponseEntity<ApiResponse<Void>> response = exceptionHandler.handleInvalidBusinessNumber(
+                new InvalidBusinessNumberException()
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("invalid_business_number", response.getBody().message());
+        assertNull(response.getBody().data());
+    }
+
+    @Test
+    void 사업자_상태_부적합_예외는_422_응답으로_변환한다() {
+        ResponseEntity<ApiResponse<Void>> response = exceptionHandler.handleBusinessStatusNotEligible(
+                new BusinessStatusNotEligibleException()
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_CONTENT, response.getStatusCode());
+        assertEquals("business_status_not_eligible", response.getBody().message());
+        assertNull(response.getBody().data());
+    }
+
+    @Test
+    void 국세청_연동_실패_예외는_502_응답으로_변환한다() {
+        ResponseEntity<ApiResponse<Void>> response = exceptionHandler.handleBusinessVerificationFailed(
+                new BusinessVerificationFailedException()
+        );
+
+        assertEquals(HttpStatus.BAD_GATEWAY, response.getStatusCode());
+        assertEquals("business_verification_failed", response.getBody().message());
+        assertNull(response.getBody().data());
+    }
 }
