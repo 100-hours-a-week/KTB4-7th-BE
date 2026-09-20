@@ -91,44 +91,32 @@ class SignupServiceTest {
     }
 
     @Test
-    void 이미_가입된_이메일이면_중복_예외를_던진다() {
+    void 이미_가입된_이메일이면_이메일_필드_중복_예외를_던진다() {
         SignupAccountRequest request = validRequest();
         when(userRepository.existsByEmail(request.email())).thenReturn(true);
 
-        assertThrows(DuplicateSignupException.class, () -> signupService.signupAccount(request));
+        DuplicateSignupException exception = assertThrows(
+                DuplicateSignupException.class,
+                () -> signupService.signupAccount(request)
+        );
+
+        assertEquals("email", exception.getFieldErrors().getFirst().field());
 
         verify(signupDraftRepository, never()).save(any());
     }
 
     @Test
-    void 이미_가입된_휴대폰_번호면_중복_예외를_던진다() {
+    void 이미_가입된_휴대폰_번호면_휴대폰_필드_중복_예외를_던진다() {
         SignupAccountRequest request = validRequest();
         when(userRepository.existsByEmail(request.email())).thenReturn(false);
         when(userRepository.existsByPhone(request.phone())).thenReturn(true);
 
-        assertThrows(DuplicateSignupException.class, () -> signupService.signupAccount(request));
-
-        verify(signupDraftRepository, never()).save(any());
-    }
-
-    @Test
-    void 이메일_형식이_올바르지_않으면_검증_예외를_던진다() {
-        SignupAccountRequest request = new SignupAccountRequest(
-                "owner-memme.com", "Password1!", "Password1!", "01012345678", validAgreements()
+        DuplicateSignupException exception = assertThrows(
+                DuplicateSignupException.class,
+                () -> signupService.signupAccount(request)
         );
 
-        assertThrows(InvalidSignupRequestException.class, () -> signupService.signupAccount(request));
-
-        verify(signupDraftRepository, never()).save(any());
-    }
-
-    @Test
-    void 비밀번호_정책을_만족하지_않으면_검증_예외를_던진다() {
-        SignupAccountRequest request = new SignupAccountRequest(
-                "owner@memme.com", "password1!", "password1!", "01012345678", validAgreements()
-        );
-
-        assertThrows(InvalidSignupRequestException.class, () -> signupService.signupAccount(request));
+        assertEquals("phone", exception.getFieldErrors().getFirst().field());
 
         verify(signupDraftRepository, never()).save(any());
     }
@@ -139,49 +127,12 @@ class SignupServiceTest {
                 "owner@memme.com", "Password1!", "Password2!", "01012345678", validAgreements()
         );
 
-        assertThrows(InvalidSignupRequestException.class, () -> signupService.signupAccount(request));
-
-        verify(signupDraftRepository, never()).save(any());
-    }
-
-    @Test
-    void 휴대폰_번호가_010으로_시작하는_열한자리가_아니면_검증_예외를_던진다() {
-        SignupAccountRequest request = new SignupAccountRequest(
-                "owner@memme.com", "Password1!", "Password1!", "01112345678", validAgreements()
+        InvalidSignupRequestException exception = assertThrows(
+                InvalidSignupRequestException.class,
+                () -> signupService.signupAccount(request)
         );
 
-        assertThrows(InvalidSignupRequestException.class, () -> signupService.signupAccount(request));
-
-        verify(signupDraftRepository, never()).save(any());
-    }
-
-    @Test
-    void 필수_약관에_동의하지_않으면_검증_예외를_던진다() {
-        SignupAccountRequest request = new SignupAccountRequest(
-                "owner@memme.com",
-                "Password1!",
-                "Password1!",
-                "01012345678",
-                new SignupAccountRequest.Agreements(false, "2026-09", true, "2026-09")
-        );
-
-        assertThrows(InvalidSignupRequestException.class, () -> signupService.signupAccount(request));
-
-        verify(signupDraftRepository, never()).save(any());
-    }
-
-    @Test
-    void 필수_약관_버전이_비어있으면_검증_예외를_던진다() {
-        SignupAccountRequest request = new SignupAccountRequest(
-                "owner@memme.com",
-                "Password1!",
-                "Password1!",
-                "01012345678",
-                new SignupAccountRequest.Agreements(true, "", true, "2026-09")
-        );
-
-        assertThrows(InvalidSignupRequestException.class, () -> signupService.signupAccount(request));
-
+        assertEquals("passwordConfirm", exception.getFieldErrors().getFirst().field());
         verify(signupDraftRepository, never()).save(any());
     }
 

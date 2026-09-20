@@ -2,6 +2,7 @@ package com.memme.service.auth;
 
 import com.memme.dto.auth.SignupAccountRequest;
 import com.memme.dto.auth.SignupAccountResponse;
+import com.memme.dto.common.FieldError;
 import com.memme.entity.auth.SignupDraft;
 import com.memme.exception.DuplicateSignupException;
 import com.memme.exception.InvalidSignupRequestException;
@@ -13,21 +14,17 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HexFormat;
-import java.util.regex.Pattern;
+import java.util.List;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SignupService {
-
-    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
-    private static final Pattern PHONE_PATTERN = Pattern.compile("^010\\d{8}$");
-    private static final Pattern PASSWORD_PATTERN = Pattern.compile(
-            "^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,20}$"
-    );
 
     private final UserRepository userRepository;
     private final SignupDraftRepository signupDraftRepository;
@@ -49,10 +46,12 @@ public class SignupService {
 
     @Transactional
     public SignupAccountResponse signupAccount(SignupAccountRequest request) {
-        validate(request);
+        validatePasswordConfirmation(request);
 
-        if (userRepository.existsByEmail(request.email()) || userRepository.existsByPhone(request.phone())) {
-            throw new DuplicateSignupException();
+        boolean emailExists = userRepository.existsByEmail(request.email());
+        boolean phoneExists = userRepository.existsByPhone(request.phone());
+        if (emailExists || phoneExists) {
+            throw new DuplicateSignupException(duplicateFieldErrors(emailExists, phoneExists));
         }
 
         OffsetDateTime now = OffsetDateTime.now(clock);
@@ -77,39 +76,23 @@ public class SignupService {
         return new SignupAccountResponse(signupToken, expiresAt);
     }
 
-    private void validate(SignupAccountRequest request) {
-        if (request == null
-                || isInvalidEmail(request.email())
-                || isInvalidPassword(request.password())
-                || !request.password().equals(request.passwordConfirm())
-                || isInvalidPhone(request.phone())
-                || isInvalidAgreements(request.agreements())) {
-            throw new InvalidSignupRequestException();
+    private void validatePasswordConfirmation(SignupAccountRequest request) {
+        if (!request.password().equals(request.passwordConfirm())) {
+            throw new InvalidSignupRequestException(List.of(
+                    new FieldError("passwordConfirm", "비밀번호와 일치하지 않습니다.")
+            ));
         }
     }
 
-    private boolean isInvalidPassword(String password) {
-        return password == null || !PASSWORD_PATTERN.matcher(password).matches();
-    }
-
-    private boolean isInvalidEmail(String email) {
-        return email == null || !EMAIL_PATTERN.matcher(email).matches();
-    }
-
-    private boolean isInvalidPhone(String phone) {
-        return phone == null || !PHONE_PATTERN.matcher(phone).matches();
-    }
-
-    private boolean isInvalidAgreements(SignupAccountRequest.Agreements agreements) {
-        return agreements == null
-                || !agreements.termsOfService()
-                || isBlank(agreements.termsOfServiceVersion())
-                || !agreements.privacyPolicy()
-                || isBlank(agreements.privacyPolicyVersion());
-    }
-
-    private boolean isBlank(String value) {
-        return value == null || value.isBlank();
+    private List<FieldError> duplicateFieldErrors(boolean emailExists, boolean phoneExists) {
+        List<FieldError> fieldErrors = new ArrayList<>();
+        if (emailExists) {
+            fieldErrors.add(new FieldError("email", "이미 사용 중인 이메일입니다."));
+        }
+        if (phoneExists) {
+            fieldErrors.add(new FieldError("phone", "이미 사용 중인 휴대폰 번호입니다."));
+        }
+        return fieldErrors;
     }
 
     private String generateSignupToken() {

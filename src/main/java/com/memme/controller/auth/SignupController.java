@@ -4,6 +4,7 @@ import com.memme.dto.auth.SignupAccountRequest;
 import com.memme.dto.auth.SignupAccountResponse;
 import com.memme.dto.common.ApiResponse;
 import com.memme.service.auth.SignupService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,7 +24,7 @@ public class SignupController {
 
     @PostMapping("/account")
     public ResponseEntity<ApiResponse<SignupAccountResponse>> signupAccount(
-            @RequestBody SignupAccountRequest request
+            @Valid @RequestBody SignupAccountRequest request
     ) {
         SignupAccountResponse response = signupService.signupAccount(request);
         return ResponseEntity.status(HttpStatus.CREATED)
