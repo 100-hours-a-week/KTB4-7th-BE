@@ -52,4 +52,8 @@ public class BusinessVerification {
         businessVerification.createdAt = createdAt;
         return businessVerification;
     }
+
+    public Long getId() {
+        return id;
+    }
 }
