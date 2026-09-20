@@ -1,4 +1,4 @@
-package com.memme.entity.auth;
+package com.memme.entity.store;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

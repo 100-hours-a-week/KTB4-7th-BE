@@ -1,13 +1,13 @@
-package com.memme.controller.auth;
+package com.memme.controller.store;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.memme.dto.auth.BusinessVerificationRequest;
-import com.memme.dto.auth.BusinessVerificationResponse;
+import com.memme.dto.store.BusinessVerificationRequest;
+import com.memme.dto.store.BusinessVerificationResponse;
 import com.memme.dto.common.ApiResponse;
-import com.memme.service.auth.BusinessVerificationService;
+import com.memme.service.store.BusinessVerificationService;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;

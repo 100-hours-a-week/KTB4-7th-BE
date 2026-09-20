@@ -1,4 +1,4 @@
-package com.memme.service.auth;
+package com.memme.service.store;
 
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
