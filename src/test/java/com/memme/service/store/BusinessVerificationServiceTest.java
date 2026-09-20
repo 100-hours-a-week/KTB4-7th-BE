@@ -1,4 +1,4 @@
-package com.memme.service.auth;
+package com.memme.service.store;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -8,13 +8,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.memme.dto.auth.BusinessVerificationRequest;
-import com.memme.dto.auth.BusinessVerificationResponse;
-import com.memme.entity.auth.BusinessVerification;
+import com.memme.dto.store.BusinessVerificationRequest;
+import com.memme.dto.store.BusinessVerificationResponse;
+import com.memme.entity.store.BusinessVerification;
 import com.memme.exception.BusinessStatusNotEligibleException;
 import com.memme.exception.BusinessVerificationFailedException;
 import com.memme.exception.InvalidBusinessNumberException;
-import com.memme.repository.auth.BusinessVerificationRepository;
+import com.memme.repository.store.BusinessVerificationRepository;
 import java.lang.reflect.Field;
 import java.time.Clock;
 import java.time.Instant;

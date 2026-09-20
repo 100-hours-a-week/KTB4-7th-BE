@@ -1,4 +1,4 @@
-package com.memme.entity.auth;
+package com.memme.entity.store;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -14,7 +14,7 @@ class BusinessVerificationEntityMappingTest {
 
     @Test
     void erd에_정의된_business_verifications_테이블을_매핑한다() throws Exception {
-        Class<?> businessVerificationClass = Class.forName("com.memme.entity.auth.BusinessVerification");
+        Class<?> businessVerificationClass = Class.forName("com.memme.entity.store.BusinessVerification");
 
         assertThat(businessVerificationClass.isAnnotationPresent(Entity.class)).isTrue();
 
@@ -33,7 +33,7 @@ class BusinessVerificationEntityMappingTest {
 
     @Test
     void 사업자_인증_결과의_시각_필드는_LocalDateTime이다() throws Exception {
-        Class<?> businessVerificationClass = Class.forName("com.memme.entity.auth.BusinessVerification");
+        Class<?> businessVerificationClass = Class.forName("com.memme.entity.store.BusinessVerification");
 
         assertThat(businessVerificationClass.getDeclaredField("verifiedAt").getType()).isEqualTo(LocalDateTime.class);
         assertThat(businessVerificationClass.getDeclaredField("expiresAt").getType()).isEqualTo(LocalDateTime.class);

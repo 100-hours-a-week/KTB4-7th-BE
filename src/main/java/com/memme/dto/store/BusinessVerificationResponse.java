@@ -1,4 +1,4 @@
-package com.memme.dto.auth;
+package com.memme.dto.store;
 
 import java.time.OffsetDateTime;
 

@@ -1,4 +1,4 @@
-package com.memme.service.auth;
+package com.memme.service.store;
 
 public interface BusinessStatusClient {
 

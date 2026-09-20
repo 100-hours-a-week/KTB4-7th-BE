@@ -1,12 +1,12 @@
-package com.memme.service.auth;
+package com.memme.service.store;
 
-import com.memme.dto.auth.BusinessVerificationRequest;
-import com.memme.dto.auth.BusinessVerificationResponse;
-import com.memme.entity.auth.BusinessVerification;
+import com.memme.dto.store.BusinessVerificationRequest;
+import com.memme.dto.store.BusinessVerificationResponse;
+import com.memme.entity.store.BusinessVerification;
 import com.memme.exception.BusinessStatusNotEligibleException;
 import com.memme.exception.BusinessVerificationFailedException;
 import com.memme.exception.InvalidBusinessNumberException;
-import com.memme.repository.auth.BusinessVerificationRepository;
+import com.memme.repository.store.BusinessVerificationRepository;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.regex.Pattern;
