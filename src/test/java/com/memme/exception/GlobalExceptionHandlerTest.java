@@ -77,4 +77,26 @@ class GlobalExceptionHandlerTest {
         assertEquals("주소 검색 서비스를 이용할 수 없습니다. 다시 시도해주세요.", response.getBody().message());
         assertNull(response.getBody().data());
     }
+
+    @Test
+    void 회원가입_임시정보_만료_예외는_410_응답으로_변환한다() {
+        ResponseEntity<ApiResponse<Void>> response = exceptionHandler.handleSignupCompletionExpired(
+                new SignupCompletionExpiredException(SignupCompletionExpiredException.Reason.SIGNUP_DRAFT)
+        );
+
+        assertEquals(HttpStatus.GONE, response.getStatusCode());
+        assertEquals("회원가입 임시 정보가 만료되었습니다. 다시 가입해 주세요.", response.getBody().message());
+        assertNull(response.getBody().data());
+    }
+
+    @Test
+    void 사업자_인증_결과_만료_예외는_410_응답으로_변환한다() {
+        ResponseEntity<ApiResponse<Void>> response = exceptionHandler.handleSignupCompletionExpired(
+                new SignupCompletionExpiredException(SignupCompletionExpiredException.Reason.BUSINESS_VERIFICATION)
+        );
+
+        assertEquals(HttpStatus.GONE, response.getStatusCode());
+        assertEquals("사업자 인증 결과가 만료되었습니다. 다시 인증해 주세요.", response.getBody().message());
+        assertNull(response.getBody().data());
+    }
 }

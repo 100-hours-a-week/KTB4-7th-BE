@@ -41,6 +41,14 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse<>(exception.getMessage(), new FieldErrors(exception.getFieldErrors())));
     }
 
+    @ExceptionHandler(SignupCompletionExpiredException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSignupCompletionExpired(
+            SignupCompletionExpiredException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.GONE)
+                .body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
     @ExceptionHandler(BusinessStatusNotEligibleException.class)
     public ResponseEntity<ApiResponse<FieldErrors>> handleBusinessStatusNotEligible(
             BusinessStatusNotEligibleException exception
