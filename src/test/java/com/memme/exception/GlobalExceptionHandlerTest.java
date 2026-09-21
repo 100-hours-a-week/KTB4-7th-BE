@@ -51,7 +51,7 @@ class GlobalExceptionHandlerTest {
         );
 
         assertEquals(HttpStatus.UNPROCESSABLE_CONTENT, response.getStatusCode());
-        assertEquals("business_status_not_eligible", response.getBody().message());
+        assertEquals("입력값을 확인해 주세요.", response.getBody().message());
         assertNotNull(response.getBody().data());
         assertEquals("businessRegNumber", response.getBody().data().fieldErrors().getFirst().field());
     }

@@ -6,7 +6,7 @@ import java.util.List;
 public class BusinessStatusNotEligibleException extends RuntimeException {
 
     public BusinessStatusNotEligibleException() {
-        super("business_status_not_eligible");
+        super("입력값을 확인해 주세요.");
     }
 
     public List<FieldError> getFieldErrors() {
