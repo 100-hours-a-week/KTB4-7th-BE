@@ -39,3 +39,30 @@ CREATE TABLE business_verifications (
   PRIMARY KEY (id),
   KEY idx_business_verifications_expires_at (expires_at)
 ) ENGINE=InnoDB;
+
+CREATE TABLE stores (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  owner_user_id BIGINT UNSIGNED NOT NULL,
+  business_registration_no CHAR(10) NOT NULL,
+  business_verified_at DATETIME NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  postal_code CHAR(5) NOT NULL,
+  address VARCHAR(255) NOT NULL,
+  address_detail VARCHAR(255) NULL,
+  latitude DECIMAL(10,7) NULL,
+  longitude DECIMAL(10,7) NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_stores_owner_user_id (owner_user_id),
+  UNIQUE KEY uk_stores_business_registration_no (business_registration_no),
+  CONSTRAINT fk_stores_owner_user
+    FOREIGN KEY (owner_user_id) REFERENCES users(id),
+  CONSTRAINT chk_stores_latitude
+    CHECK (latitude BETWEEN -90 AND 90),
+  CONSTRAINT chk_stores_longitude
+    CHECK (longitude BETWEEN -180 AND 180),
+  CONSTRAINT chk_stores_status
+    CHECK (status IN ('ACTIVE', 'INACTIVE', 'SUSPENDED'))
+) ENGINE=InnoDB;
