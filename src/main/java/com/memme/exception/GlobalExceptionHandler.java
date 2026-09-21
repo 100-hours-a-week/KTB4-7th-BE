@@ -13,6 +13,22 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(SalesAnalysisRequestException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSalesAnalysisRequest(
+            SalesAnalysisRequestException exception
+    ) {
+        HttpStatus status = exception.getReason() == SalesAnalysisRequestException.Reason.STORE_OWNER_REQUIRED
+                ? HttpStatus.FORBIDDEN
+                : HttpStatus.BAD_REQUEST;
+        return ResponseEntity.status(status).body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
+    @ExceptionHandler(AuthenticationRequiredException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingSession(AuthenticationRequiredException exception) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiResponse<>("로그인이 필요합니다.", null));
+    }
+
     @ExceptionHandler(DuplicateSignupException.class)
     public ResponseEntity<ApiResponse<FieldErrors>> handleDuplicateSignup(DuplicateSignupException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
