@@ -12,6 +12,7 @@ import com.memme.exception.TossPosWorkbookValidationException;
 import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.service.sales.TossPosWorkbookData;
 import com.memme.service.sales.TossPosWorkbookParser;
+import com.memme.service.sales.analysis.SalesAnalysisService;
 import com.memme.service.sales.storage.SalesFileStorage;
 import org.springframework.stereotype.Service;
 
@@ -23,17 +24,20 @@ public class SalesUploadProcessingService {
     private final TossPosWorkbookParser workbookParser;
     private final SalesUploadLifecycleService lifecycleService;
     private final SalesUploadPersistenceService persistenceService;
+    private final SalesAnalysisService analysisService;
 
     public SalesUploadProcessingService(SalesUploadRepository uploadRepository,
                                         SalesFileStorage fileStorage,
                                         TossPosWorkbookParser workbookParser,
                                         SalesUploadLifecycleService lifecycleService,
-                                        SalesUploadPersistenceService persistenceService) {
+                                        SalesUploadPersistenceService persistenceService,
+                                        SalesAnalysisService analysisService) {
         this.uploadRepository = uploadRepository;
         this.fileStorage = fileStorage;
         this.workbookParser = workbookParser;
         this.lifecycleService = lifecycleService;
         this.persistenceService = persistenceService;
+        this.analysisService = analysisService;
     }
 
     public SalesUploadResult process(Long uploadId) {
@@ -47,6 +51,8 @@ public class SalesUploadProcessingService {
             lifecycleService.updateCoverage(uploadId, data.periodStart(), data.periodEnd(), data.items().size());
             lifecycleService.advancePhase(uploadId, SalesUploadProcessingPhase.AGGREGATING);
             SalesUploadResult result = persistenceService.replaceCoverage(uploadId, upload.getStoreId(), data);
+            lifecycleService.advancePhase(uploadId, SalesUploadProcessingPhase.ANALYZING);
+            analysisService.analyze(upload.getStoreId(), "CUSTOM", data.periodStart(), data.periodEnd());
             lifecycleService.markCompleted(uploadId, result.appliedRecordCount());
             return result;
         } catch (TossPosWorkbookValidationException exception) {
