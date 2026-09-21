@@ -47,4 +47,19 @@ class MysqlInitScriptTest {
                 .contains("is_closed BOOLEAN NOT NULL DEFAULT FALSE")
                 .contains("UNIQUE KEY uk_store_business_hours_store_day (store_id, day_of_week)");
     }
+
+    @Test
+    void 사용자별_알림_설정_테이블을_false_기본값으로_초기화한다() throws IOException {
+        String sql = Files.readString(Path.of("docker/mysql/init/01-auth-signup.sql"));
+
+        assertThat(sql)
+                .contains("CREATE TABLE notification_preferences")
+                .contains("user_id BIGINT UNSIGNED NOT NULL")
+                .contains("solution_enabled BOOLEAN NOT NULL DEFAULT FALSE")
+                .contains("sales_upload_reminder_enabled BOOLEAN NOT NULL DEFAULT FALSE")
+                .contains("UNIQUE KEY uk_notification_preferences_user_id (user_id)")
+                .contains("CONSTRAINT fk_notification_preferences_user");
+
+        assertThat(sql).doesNotContain("ranking_change_enabled");
+    }
 }

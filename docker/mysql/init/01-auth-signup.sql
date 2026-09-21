@@ -83,3 +83,16 @@ CREATE TABLE store_business_hours (
   CONSTRAINT chk_store_business_hours_day_of_week
     CHECK (day_of_week BETWEEN 1 AND 7)
 ) ENGINE=InnoDB;
+
+CREATE TABLE notification_preferences (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  solution_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  sales_upload_reminder_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_notification_preferences_user_id (user_id),
+  CONSTRAINT fk_notification_preferences_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB;
