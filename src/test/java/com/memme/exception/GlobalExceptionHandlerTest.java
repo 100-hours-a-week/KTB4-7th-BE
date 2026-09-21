@@ -85,7 +85,7 @@ class GlobalExceptionHandlerTest {
         );
 
         assertEquals(HttpStatus.BAD_GATEWAY, response.getStatusCode());
-        assertEquals("address_search_failed", response.getBody().message());
+        assertEquals("주소 검색 서비스를 이용할 수 없습니다. 다시 시도해주세요.", response.getBody().message());
         assertNull(response.getBody().data());
     }
 }
