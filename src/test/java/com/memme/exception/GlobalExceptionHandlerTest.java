@@ -77,4 +77,15 @@ class GlobalExceptionHandlerTest {
         assertEquals("business_verification_failed", response.getBody().message());
         assertNull(response.getBody().data());
     }
+
+    @Test
+    void 주소_검색_외부_API_실패_예외는_502_응답으로_변환한다() {
+        ResponseEntity<ApiResponse<Void>> response = exceptionHandler.handleAddressSearchFailed(
+                new AddressSearchFailedException()
+        );
+
+        assertEquals(HttpStatus.BAD_GATEWAY, response.getStatusCode());
+        assertEquals("address_search_failed", response.getBody().message());
+        assertNull(response.getBody().data());
+    }
 }

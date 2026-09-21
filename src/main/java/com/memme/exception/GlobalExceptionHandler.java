@@ -47,6 +47,12 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse<>(exception.getMessage(), null));
     }
 
+    @ExceptionHandler(AddressSearchFailedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAddressSearchFailed(AddressSearchFailedException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<FieldErrors>> handleMethodArgumentNotValid(
             MethodArgumentNotValidException exception
