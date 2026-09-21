@@ -2,6 +2,11 @@ package com.memme;
 
 import com.memme.repository.auth.SignupDraftRepository;
 import com.memme.repository.auth.UserRepository;
+import com.memme.repository.sales.AnalysisRunRepository;
+import com.memme.repository.sales.SalesDailySummaryRepository;
+import com.memme.repository.sales.SalesOrderItemRepository;
+import com.memme.repository.sales.SalesOrderRepository;
+import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.repository.store.BusinessVerificationRepository;
 import com.memme.repository.store.StoreOwnershipRepository;
 import com.memme.service.store.BusinessStatusClient;
@@ -20,6 +25,21 @@ class MemmeApplicationTests {
 
     @MockitoBean
     private BusinessVerificationRepository businessVerificationRepository;
+
+    @MockitoBean
+    private SalesDailySummaryRepository salesDailySummaryRepository;
+
+    @MockitoBean
+    private SalesOrderRepository salesOrderRepository;
+
+    @MockitoBean
+    private SalesOrderItemRepository salesOrderItemRepository;
+
+    @MockitoBean
+    private SalesUploadRepository salesUploadRepository;
+
+    @MockitoBean
+    private AnalysisRunRepository analysisRunRepository;
 
     @MockitoBean
     private StoreOwnershipRepository storeOwnershipRepository;
