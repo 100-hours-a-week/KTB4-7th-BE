@@ -1,0 +1,865 @@
+[
+  {
+    "cell": "I50",
+    "wrapper": "com.memme.dto.common.StatusResponse",
+    "dataType": "com.memme.dto.sales.SalesUploadResponse",
+    "json": {
+      "message": "매출 파일 업로드가 완료되었습니다.",
+      "status": "COMPLETED",
+      "data": {
+        "uploadId": 12,
+        "analysisRunId": 34
+      }
+    }
+  },
+  {
+    "cell": "I54",
+    "wrapper": "com.memme.dto.sales.SalesUploadValidationErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "파일 검증에 실패했습니다.",
+      "failReason": "PLATFORM_SCHEMA_MISMATCH",
+      "details": {
+        "missingColumns": []
+      },
+      "data": null
+    }
+  },
+  {
+    "cell": "I56",
+    "wrapper": "com.memme.dto.common.ApiResponse",
+    "dataType": "com.memme.dto.sales.SalesUploadHistoryResponse",
+    "json": {
+      "message": "조회에 성공했습니다.",
+      "data": {
+        "connection": {
+          "lastUploadedAt": "2026-09-08T14:20:00+09:00",
+          "totalAppliedRecordCount": 12540,
+          "latestStatus": "PROCESSING"
+        },
+        "items": [
+          {
+            "uploadId": 12,
+            "fileName": "sales_2026.xls",
+            "uploadedAt": "2026-09-08T14:20:00+09:00",
+            "recordCount": 840,
+            "appliedRecordCount": 812,
+            "status": "PROCESSING",
+            "failReason": null
+          }
+        ],
+        "page": 1,
+        "size": 10,
+        "totalPages": 5,
+        "totalCount": 48
+      }
+    }
+  },
+  {
+    "cell": "I57",
+    "wrapper": "com.memme.dto.common.ApiResponse",
+    "dataType": "com.memme.dto.sales.SalesUploadHistoryResponse",
+    "json": {
+      "message": "업로드 이력이 없습니다.",
+      "data": {
+        "connection": {
+          "lastUploadedAt": null,
+          "totalAppliedRecordCount": 0,
+          "latestStatus": null
+        },
+        "items": [],
+        "page": 1,
+        "size": 10,
+        "totalPages": 0,
+        "totalCount": 0
+      }
+    }
+  },
+  {
+    "cell": "I59",
+    "wrapper": "com.memme.dto.common.ApiResponse",
+    "dataType": "com.memme.dto.sales.SalesForecastBatchResponse",
+    "json": {
+      "message": "예측을 생성했습니다.",
+      "data": {
+        "predictions": [
+          {
+            "storeId": 301,
+            "targetDate": "2026-09-08",
+            "basisDate": "2026-09-07",
+            "predictedSalesAmount": 1380000,
+            "modelVersion": "ridge-2026-09-16",
+            "generatedAt": "2026-09-08T00:00:05+09:00"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "cell": "I60",
+    "wrapper": "com.memme.dto.common.StatusResponse",
+    "dataType": "com.memme.dto.common.InsufficientDataResponse",
+    "json": {
+      "message": "솔루션 생성을 위해 최소 3개월 이상의 데이터가 필요합니다.",
+      "status": "INSUFFICIENT_DATA",
+      "data": {
+        "missingData": [
+          "INSUFFICIENT_HISTORY"
+        ]
+      }
+    }
+  },
+  {
+    "cell": "I63",
+    "wrapper": "com.memme.dto.common.ApiResponse",
+    "dataType": "com.memme.dto.sales.SalesSolutionGenerationResponse",
+    "json": {
+      "message": "솔루션을 생성했습니다.",
+      "data": {
+        "solutionCards": [
+          {
+            "rankNo": 1,
+            "title": "점심 시간대 할인",
+            "summaryText": "점심 할인 프로모션을 제안합니다.",
+            "detailText": "12시부터 14시까지 할인 행사를 진행하세요."
+          }
+        ],
+        "modelVersion": "v1",
+        "promptVersion": "v1"
+      }
+    }
+  },
+  {
+    "cell": "I67",
+    "wrapper": "com.memme.dto.common.ApiResponse",
+    "dataType": "com.memme.dto.sales.SalesSolutionGenerationResponse",
+    "json": {
+      "message": "솔루션을 생성했습니다.",
+      "data": {
+        "targetDate": "2026-09-06",
+        "solutionCards": [
+          {
+            "rankNo": 1,
+            "title": "점심 시간대 할인",
+            "summaryText": "점심 할인 프로모션을 제안합니다.",
+            "detailText": "12시부터 14시까지 할인 행사를 진행하세요."
+          }
+        ],
+        "modelVersion": "v1",
+        "promptVersion": "v1"
+      }
+    }
+  },
+  {
+    "cell": "I71",
+    "wrapper": "com.memme.dto.sales.SalesUploadStatusResponse",
+    "dataType": null,
+    "json": {
+      "message": "매출 패턴을 분석하고 있습니다.",
+      "status": "PROCESSING",
+      "failReason": null,
+      "data": {
+        "uploadId": 12,
+        "analysisRunId": 34,
+        "progress": {
+          "step": "SALES_ANALYSIS",
+          "percent": 65
+        },
+        "analysisId": null,
+        "retryable": false
+      }
+    }
+  },
+  {
+    "cell": "I72",
+    "wrapper": "com.memme.dto.sales.SalesUploadStatusResponse",
+    "dataType": null,
+    "json": {
+      "message": "매출 분석이 완료되었습니다.",
+      "status": "COMPLETED",
+      "failReason": null,
+      "data": {
+        "uploadId": 12,
+        "analysisRunId": 34,
+        "progress": {
+          "step": "COMPLETED",
+          "percent": 100
+        },
+        "analysisId": 51,
+        "retryable": false
+      }
+    }
+  },
+  {
+    "cell": "I73",
+    "wrapper": "com.memme.dto.sales.SalesUploadStatusResponse",
+    "dataType": null,
+    "json": {
+      "message": "매출 분석에 실패했습니다.",
+      "status": "FAILED",
+      "failReason": "ANALYSIS_ENGINE_ERROR",
+      "data": {
+        "uploadId": 12,
+        "analysisRunId": 34,
+        "progress": {
+          "step": "FAILED",
+          "percent": 100
+        },
+        "analysisId": null,
+        "retryable": true
+      }
+    }
+  },
+  {
+    "cell": "I77",
+    "wrapper": "com.memme.dto.common.StatusResponse",
+    "dataType": "com.memme.dto.sales.SalesAnalysisRetryResponse",
+    "json": {
+      "message": "매출 분석을 다시 완료했습니다.",
+      "status": "COMPLETED",
+      "data": {
+        "uploadId": 12,
+        "analysisRunId": 35,
+        "analysisId": 57
+      }
+    }
+  },
+  {
+    "cell": "I79",
+    "wrapper": "com.memme.dto.common.FailureResponse",
+    "dataType": null,
+    "json": {
+      "message": "이 업로드는 다시 분석할 수 없습니다. 새 파일을 업로드해 주세요.",
+      "failReason": "INVALID_SALES_SCHEMA",
+      "data": null
+    }
+  },
+  {
+    "cell": "I82",
+    "wrapper": "com.memme.dto.common.StatusResponse",
+    "dataType": "com.memme.dto.sales.SalesAnalysisDetailResponse",
+    "json": {
+      "status": "COMPLETED",
+      "data": {
+        "period": "2026-08",
+        "kpis": {
+          "netSales": 3200000,
+          "orderCount": 420,
+          "averageOrderValue": 7619
+        },
+        "dailySales": [
+          {
+            "date": "2026-08-01",
+            "netSales": 120000
+          }
+        ],
+        "menuRankings": [
+          {
+            "menuName": "아메리카노",
+            "netSales": 800000,
+            "quantity": 250
+          }
+        ]
+      }
+    }
+  },
+  {
+    "cell": "I83",
+    "wrapper": "com.memme.dto.common.StatusResponse",
+    "dataType": "com.memme.dto.common.InsufficientDataResponse",
+    "json": {
+      "message": "분석에 필요한 누적 매출 데이터가 부족합니다.",
+      "status": "INSUFFICIENT_DATA",
+      "data": {
+        "missingData": [
+          "SALES_DATA"
+        ]
+      }
+    }
+  },
+  {
+    "cell": "I88",
+    "wrapper": "com.memme.dto.common.ApiResponse",
+    "dataType": "com.memme.dto.sales.SalesSummaryResponse",
+    "json": {
+      "message": "조회에 성공했습니다.",
+      "data": {
+        "period": {
+          "type": "THIS_MONTH",
+          "startDate": "2026-09-01",
+          "endDate": "2026-09-08"
+        },
+        "netSales": 3200000,
+        "orderCount": 420,
+        "averageOrderValue": 7619,
+        "changeRate": 12.5
+      }
+    }
+  },
+  {
+    "cell": "I90",
+    "wrapper": "com.memme.dto.common.ApiResponse",
+    "dataType": "com.memme.dto.sales.SalesCategoriesResponse",
+    "json": {
+      "message": "조회에 성공했습니다.",
+      "data": {
+        "categories": [
+          {
+            "categoryName": "커피",
+            "netSales": 1800000,
+            "ratio": 56.3
+          }
+        ],
+        "menuRankings": [
+          {
+            "rank": 1,
+            "menuName": "아메리카노",
+            "netSales": 800000,
+            "quantity": 250
+          }
+        ]
+      }
+    }
+  },
+  {
+    "cell": "I92",
+    "wrapper": "com.memme.dto.common.ApiResponse",
+    "dataType": "com.memme.dto.sales.SalesHourlyProfilesResponse",
+    "json": {
+      "message": "조회에 성공했습니다.",
+      "data": {
+        "hourlyProfiles": [
+          {
+            "hour": 12,
+            "netSales": 420000,
+            "orderCount": 55
+          },
+          {
+            "hour": 13,
+            "netSales": 380000,
+            "orderCount": 49
+          }
+        ]
+      }
+    }
+  },
+  {
+    "cell": "I94",
+    "wrapper": "com.memme.dto.common.ApiResponse",
+    "dataType": "com.memme.dto.sales.SalesForecastsResponse",
+    "json": {
+      "message": "조회에 성공했습니다.",
+      "data": {
+        "forecasts": [
+          {
+            "targetDate": "2026-09-09",
+            "predictedSalesAmount": 420000,
+            "lowerBound": 360000,
+            "upperBound": 480000
+          }
+        ],
+        "generatedAt": "2026-09-08T00:10:00+09:00"
+      }
+    }
+  },
+  {
+    "cell": "I96",
+    "wrapper": "com.memme.dto.common.ApiResponse",
+    "dataType": "com.memme.dto.sales.SalesProfitAnalysisResponse",
+    "json": {
+      "message": "조회에 성공했습니다.",
+      "data": {
+        "netSales": 3200000,
+        "ingredientCost": 1040000,
+        "fixedCost": 1200000,
+        "netProfit": 960000,
+        "composition": [
+          {
+            "type": "NET_PROFIT",
+            "amount": 960000,
+            "ratio": 30
+          }
+        ]
+      }
+    }
+  },
+  {
+    "cell": "I98",
+    "wrapper": "com.memme.dto.common.ApiResponse",
+    "dataType": "com.memme.dto.sales.SalesReviewSummaryResponse",
+    "json": {
+      "message": "조회에 성공했습니다.",
+      "data": {
+        "summary": "커피 맛과 친절한 응대에 대한 긍정 반응이 많습니다.",
+        "sentiment": {
+          "positive": 82,
+          "neutral": 14,
+          "negative": 4
+        },
+        "keywords": [
+          "커피",
+          "친절",
+          "대기시간"
+        ]
+      }
+    }
+  },
+  {
+    "cell": "I101",
+    "wrapper": "com.memme.dto.common.StatusResponse",
+    "dataType": "com.memme.dto.sales.SalesAnalysisResponse",
+    "json": {
+      "message": "조회에 성공했습니다.",
+      "status": "COMPLETED",
+      "data": {
+        "period": {
+          "type": "THIS_MONTH",
+          "startDate": "2026-09-01",
+          "endDate": "2026-09-08"
+        },
+        "comparisonPeriod": {
+          "startDate": "2026-08-01",
+          "endDate": "2026-08-08"
+        },
+        "kpis": {
+          "totalSales": 3200000,
+          "orderCount": 420,
+          "averageOrderValue": 7619,
+          "changes": {
+            "totalSalesRate": 12.5,
+            "orderCountRate": 8.2,
+            "averageOrderValueRate": 3.9
+          }
+        },
+        "dailySales": [
+          {
+            "date": "2026-09-01",
+            "salesAmount": 120000
+          }
+        ],
+        "menuRankings": [
+          {
+            "rank": 1,
+            "menuName": "아메리카노",
+            "salesAmount": 800000,
+            "quantity": 250
+          }
+        ],
+        "hourlySales": [
+          {
+            "hour": 12,
+            "salesAmount": 420000
+          }
+        ],
+        "weekdaySales": [
+          {
+            "dayOfWeek": "MONDAY",
+            "salesAmount": 610000
+          }
+        ],
+        "aiInsight": {
+          "summary": "점심 시간대 매출 증가와 인기 메뉴 판매량이 함께 늘어난 영향일 가능성이 있습니다.",
+          "generatedAt": "2026-09-08T00:00:00+09:00"
+        }
+      }
+    }
+  },
+  {
+    "cell": "I102",
+    "wrapper": "com.memme.dto.common.StatusResponse",
+    "dataType": "com.memme.dto.sales.SalesAnalysisResponse$InsufficientData",
+    "json": {
+      "message": "AI 인사이트를 확인하려면 최소 2주(14일) 이상의 매출 데이터가 필요합니다.",
+      "status": "INSUFFICIENT_DATA",
+      "data": {
+        "aiInsight": null
+      }
+    }
+  },
+  {
+    "cell": "I103",
+    "wrapper": "com.memme.dto.common.StatusResponse",
+    "dataType": "com.memme.dto.sales.SalesAnalysisResponse$EmptyData",
+    "json": {
+      "message": "선택 기간에 매출 데이터가 없습니다.",
+      "status": "EMPTY",
+      "data": {
+        "period": {
+          "type": "TODAY",
+          "startDate": "2026-09-08",
+          "endDate": "2026-09-08"
+        },
+        "kpis": null,
+        "dailySales": [],
+        "menuRankings": [],
+        "hourlySales": [],
+        "weekdaySales": [],
+        "aiInsight": null
+      }
+    }
+  },
+  {
+    "cell": "I104",
+    "wrapper": "com.memme.dto.common.StatusResponse",
+    "dataType": "com.memme.dto.sales.SalesAnalysisResponse",
+    "json": {
+      "message": "매출 분석 결과를 생성하지 못했습니다.",
+      "status": "FAILED",
+      "data": null
+    }
+  },
+  {
+    "cell": "I108",
+    "wrapper": "com.memme.dto.common.StatusResponse",
+    "dataType": "com.memme.dto.sales.SalesInsightResponse",
+    "json": {
+      "message": "매출 AI 인사이트를 생성했습니다.",
+      "status": "COMPLETED",
+      "data": {
+        "targetMonth": "2026-09",
+        "insights": [
+          "최근 화요일 매출이 3주 연속 감소하고 있어요.",
+          "오후 3~5시는 다른 시간대보다 매출이 크게 낮아요."
+        ]
+      }
+    }
+  },
+  {
+    "cell": "I109",
+    "wrapper": "com.memme.dto.common.StatusResponse",
+    "dataType": "com.memme.dto.common.InsufficientDataResponse",
+    "json": {
+      "message": "AI 인사이트를 확인하려면 최소 2주(14일) 이상의 매출 데이터가 필요합니다.",
+      "status": "INSUFFICIENT_DATA",
+      "data": {
+        "missingData": [
+          "SALES_DATA"
+        ]
+      }
+    }
+  },
+  {
+    "cell": "I51",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "업로드 요청값이 올바르지 않습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I52",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "파일 크기가 10MB를 초과했습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I53",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "지원하지 않는 파일 형식입니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I55",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "업로드 처리에 실패했습니다. 기존 데이터는 유지됩니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I58",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "로그인이 필요합니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I61",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "예측 처리 중 오류가 발생했습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I62",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "예측 처리 시간이 초과되었습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I65",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "솔루션 생성 중 오류가 발생했습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I66",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "솔루션 생성 시간이 초과되었습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I69",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "솔루션 생성 중 오류가 발생했습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I70",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "솔루션 생성 시간이 초과되었습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I74",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "로그인이 필요합니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I75",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "업로드 정보를 찾을 수 없습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I76",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "분석 상태를 불러오지 못했습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I78",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "이미 분석이 진행 중입니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I80",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "업로드 정보를 찾을 수 없습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I81",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "분석을 다시 요청하는 데 실패했습니다. 잠시 후 다시 시도해주세요.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I84",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "로그인이 필요합니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I85",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "해당 분석 결과에 접근할 권한이 없습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I86",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "분석 결과를 찾을 수 없습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I89",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "조회할 데이터가 없습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I91",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "조회할 데이터가 없습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I93",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "조회할 데이터가 없습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I95",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "조회할 데이터가 없습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I97",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "조회할 데이터가 없습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I99",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "조회할 데이터가 없습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I105",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "조회 기간이 올바르지 않습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I106",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "로그인이 필요합니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I107",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
+      "data": null
+    }
+  },
+  {
+    "cell": "I110",
+    "wrapper": "com.memme.dto.common.ErrorResponse",
+    "dataType": null,
+    "json": {
+      "message": "매출 분석 인사이트를 생성하지 못했습니다.",
+      "data": null
+    }
+  },
+  {
+    "cell": "F59",
+    "wrapper": "com.memme.dto.sales.SalesForecastBatchRequest",
+    "dataType": null,
+    "json": {
+      "storeId": 1,
+      "uploadId": 1,
+      "dailySales": "string",
+      "targetMonth": "2026-09"
+    }
+  },
+  {
+    "cell": "F63",
+    "wrapper": "com.memme.dto.sales.SalesSolutionGenerationRequest",
+    "dataType": null,
+    "json": {
+      "storeId": 1,
+      "salesAnalysisId": 56,
+      "targetDate": "2026-09-08",
+      "triggerType": "UPLOAD",
+      "metrics": {}
+    }
+  },
+  {
+    "cell": "F67",
+    "wrapper": "com.memme.dto.sales.SalesSolutionGenerationRequest",
+    "dataType": null,
+    "json": {
+      "storeId": 1,
+      "targetDate": "2026-09-08",
+      "triggerType": "string",
+      "metrics": {}
+    }
+  },
+  {
+    "cell": "F108",
+    "wrapper": "com.memme.dto.sales.SalesInsightRequest",
+    "dataType": null,
+    "json": {
+      "storeId": 1,
+      "salesAnalysisId": 56,
+      "targetMonth": "2026-09",
+      "triggerType": "UPLOAD",
+      "metrics": {
+        "totalSales": 7920000,
+        "orderCount": 923,
+        "averageOrderValue": 8582,
+        "salesTrend": [],
+        "weekdaySales": [],
+        "hourlySales": []
+      },
+      "maxInsightCount": 3
+    }
+  }
+]
