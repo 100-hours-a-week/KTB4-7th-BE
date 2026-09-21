@@ -10,6 +10,7 @@ import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.repository.store.BusinessVerificationRepository;
 import com.memme.repository.store.StoreOwnershipRepository;
 import com.memme.service.store.BusinessStatusClient;
+import com.memme.service.auth.SignupBusinessService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -46,6 +47,9 @@ class MemmeApplicationTests {
 
     @MockitoBean
     private BusinessStatusClient businessStatusClient;
+
+    @MockitoBean
+    private SignupBusinessService signupBusinessService;
 
     @Test
     void contextLoads() {
