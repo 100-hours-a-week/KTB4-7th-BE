@@ -75,4 +75,20 @@ public class SignupDraft {
         signupDraft.createdAt = createdAt;
         return signupDraft;
     }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public boolean isExpiredAt(LocalDateTime now) {
+        return !expiresAt.isAfter(now);
+    }
 }

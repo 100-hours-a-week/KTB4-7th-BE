@@ -52,4 +52,23 @@ public class StoreBusinessHours {
 
     protected StoreBusinessHours() {
     }
+
+    public static StoreBusinessHours create(
+            Store store,
+            Integer dayOfWeek,
+            LocalTime opensAt,
+            LocalTime closesAt,
+            Boolean closed,
+            LocalDateTime createdAt
+    ) {
+        StoreBusinessHours businessHours = new StoreBusinessHours();
+        businessHours.store = store;
+        businessHours.dayOfWeek = dayOfWeek;
+        businessHours.opensAt = opensAt;
+        businessHours.closesAt = closesAt;
+        businessHours.closed = closed;
+        businessHours.createdAt = createdAt;
+        businessHours.updatedAt = createdAt;
+        return businessHours;
+    }
 }

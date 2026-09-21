@@ -40,4 +40,22 @@ public class User {
 
     protected User() {
     }
+
+    public static User create(String email, String passwordHash, String phone, LocalDateTime createdAt) {
+        User user = new User();
+        user.email = email;
+        user.passwordHash = passwordHash;
+        user.phone = phone;
+        user.createdAt = createdAt;
+        user.updatedAt = createdAt;
+        return user;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public String getEmail() {
+        return email;
+    }
 }

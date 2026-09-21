@@ -56,4 +56,24 @@ public class BusinessVerification {
     public Long getId() {
         return id;
     }
+
+    public boolean matchesBusinessRegNumber(String businessRegNumber) {
+        return this.businessRegNumber.equals(businessRegNumber);
+    }
+
+    public boolean isExpiredAt(LocalDateTime now) {
+        return !expiresAt.isAfter(now);
+    }
+
+    public boolean isUsed() {
+        return usedAt != null;
+    }
+
+    public void markUsedAt(LocalDateTime usedAt) {
+        this.usedAt = usedAt;
+    }
+
+    public LocalDateTime getVerifiedAt() {
+        return verifiedAt;
+    }
 }
