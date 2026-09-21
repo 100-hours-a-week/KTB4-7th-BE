@@ -5,17 +5,24 @@ import java.io.IOException;
 import com.memme.controller.auth.AuthenticatedUserSession;
 import com.memme.exception.AuthenticationRequiredException;
 import com.memme.dto.common.StatusResponse;
+import com.memme.dto.sales.SalesUploadHistoryRequest;
+import com.memme.dto.sales.SalesUploadHistoryResponse;
 import com.memme.dto.sales.SalesUploadRequest;
 import com.memme.dto.sales.SalesUploadResponse;
+import com.memme.dto.sales.SalesUploadStatusResponse;
 import com.memme.exception.SalesUploadProcessingException;
 import com.memme.exception.SalesUploadRequestException;
 import com.memme.service.sales.upload.SalesUploadCommand;
+import com.memme.service.sales.upload.SalesUploadQueryService;
 import com.memme.service.sales.upload.SalesUploadReceipt;
 import com.memme.service.sales.upload.SalesUploadService;
+import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,9 +34,42 @@ import org.springframework.web.multipart.MultipartHttpServletRequest;
 public class SalesUploadController {
 
     private final SalesUploadService salesUploadService;
+    private final SalesUploadQueryService salesUploadQueryService;
 
-    public SalesUploadController(SalesUploadService salesUploadService) {
+    public SalesUploadController(
+            SalesUploadService salesUploadService,
+            SalesUploadQueryService salesUploadQueryService
+    ) {
         this.salesUploadService = salesUploadService;
+        this.salesUploadQueryService = salesUploadQueryService;
+    }
+
+    @GetMapping
+    public SalesUploadHistoryResponse getHistory(
+            @SessionAttribute(value = AuthenticatedUserSession.SESSION_ATTRIBUTE, required = false)
+            AuthenticatedUserSession authenticatedUser,
+            @Valid @ModelAttribute SalesUploadHistoryRequest request
+    ) {
+        requireAuthentication(authenticatedUser);
+        return salesUploadQueryService.getHistory(
+                authenticatedUser.userId(),
+                authenticatedUser.storeId(),
+                request
+        );
+    }
+
+    @GetMapping("/{uploadId}")
+    public SalesUploadStatusResponse getStatus(
+            @SessionAttribute(value = AuthenticatedUserSession.SESSION_ATTRIBUTE, required = false)
+            AuthenticatedUserSession authenticatedUser,
+            @PathVariable Long uploadId
+    ) {
+        requireAuthentication(authenticatedUser);
+        return salesUploadQueryService.getStatus(
+                authenticatedUser.userId(),
+                authenticatedUser.storeId(),
+                uploadId
+        );
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -39,7 +79,7 @@ public class SalesUploadController {
             @ModelAttribute SalesUploadRequest request,
             MultipartHttpServletRequest multipartRequest
     ) {
-        if (authenticatedUser == null) throw new AuthenticationRequiredException();
+        requireAuthentication(authenticatedUser);
         validateFileCount(multipartRequest);
         SalesUploadReceipt receipt = salesUploadService.upload(toCommand(authenticatedUser, request));
         return ResponseEntity.status(HttpStatus.OK).body(new StatusResponse<>(
@@ -47,6 +87,12 @@ public class SalesUploadController {
                 receipt.status(),
                 new SalesUploadResponse(receipt.uploadId(), receipt.analysisRunId())
         ));
+    }
+
+    private void requireAuthentication(AuthenticatedUserSession authenticatedUser) {
+        if (authenticatedUser == null) {
+            throw new AuthenticationRequiredException();
+        }
     }
 
     private void validateFileCount(MultipartHttpServletRequest request) {
