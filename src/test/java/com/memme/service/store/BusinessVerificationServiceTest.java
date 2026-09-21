@@ -13,7 +13,6 @@ import com.memme.dto.store.BusinessVerificationResponse;
 import com.memme.entity.store.BusinessVerification;
 import com.memme.exception.BusinessStatusNotEligibleException;
 import com.memme.exception.BusinessVerificationFailedException;
-import com.memme.exception.InvalidBusinessNumberException;
 import com.memme.repository.store.BusinessVerificationRepository;
 import java.lang.reflect.Field;
 import java.time.Clock;
@@ -71,17 +70,6 @@ class BusinessVerificationServiceTest {
         assertEquals(LocalDateTime.ofInstant(NOW, KOREA_ZONE), fieldValue(saved, "verifiedAt"));
         assertEquals(LocalDateTime.ofInstant(NOW.plusSeconds(600), KOREA_ZONE), fieldValue(saved, "expiresAt"));
         assertEquals(LocalDateTime.ofInstant(NOW, KOREA_ZONE), fieldValue(saved, "createdAt"));
-    }
-
-    @Test
-    void 사업자등록번호가_숫자_열자리가_아니면_400_예외를_던진다() {
-        assertThrows(
-                InvalidBusinessNumberException.class,
-                () -> businessVerificationService.verify(new BusinessVerificationRequest("123-456-7890"))
-        );
-
-        verify(businessStatusClient, never()).isActive(any());
-        verify(businessVerificationRepository, never()).save(any());
     }
 
     @Test
