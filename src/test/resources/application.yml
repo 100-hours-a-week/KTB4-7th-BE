@@ -2,3 +2,5 @@ spring:
   autoconfigure:
     exclude:
       - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+
+JUSO_CONFM_KEY: test-confirmation-key
