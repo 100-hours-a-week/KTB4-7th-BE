@@ -33,4 +33,18 @@ class MysqlInitScriptTest {
                 .contains("longitude DECIMAL(10,7) NULL")
                 .contains("CONSTRAINT fk_stores_owner_user");
     }
+
+    @Test
+    void 매장_요일별_영업시간_테이블을_초기화한다() throws IOException {
+        String sql = Files.readString(Path.of("docker/mysql/init/01-auth-signup.sql"));
+
+        assertThat(sql)
+                .contains("CREATE TABLE store_business_hours")
+                .contains("store_id BIGINT UNSIGNED NOT NULL")
+                .contains("day_of_week TINYINT UNSIGNED NOT NULL")
+                .contains("opens_at TIME NULL")
+                .contains("closes_at TIME NULL")
+                .contains("is_closed BOOLEAN NOT NULL DEFAULT FALSE")
+                .contains("UNIQUE KEY uk_store_business_hours_store_day (store_id, day_of_week)");
+    }
 }
