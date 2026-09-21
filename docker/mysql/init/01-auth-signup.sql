@@ -66,3 +66,20 @@ CREATE TABLE stores (
   CONSTRAINT chk_stores_status
     CHECK (status IN ('ACTIVE', 'INACTIVE', 'SUSPENDED'))
 ) ENGINE=InnoDB;
+
+CREATE TABLE store_business_hours (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  store_id BIGINT UNSIGNED NOT NULL,
+  day_of_week TINYINT UNSIGNED NOT NULL,
+  opens_at TIME NULL,
+  closes_at TIME NULL,
+  is_closed BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_store_business_hours_store_day (store_id, day_of_week),
+  CONSTRAINT fk_store_business_hours_store
+    FOREIGN KEY (store_id) REFERENCES stores(id),
+  CONSTRAINT chk_store_business_hours_day_of_week
+    CHECK (day_of_week BETWEEN 1 AND 7)
+) ENGINE=InnoDB;
