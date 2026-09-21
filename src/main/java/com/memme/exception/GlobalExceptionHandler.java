@@ -25,12 +25,6 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse<>(exception.getMessage(), new FieldErrors(exception.getFieldErrors())));
     }
 
-    @ExceptionHandler(InvalidBusinessNumberException.class)
-    public ResponseEntity<ApiResponse<Void>> handleInvalidBusinessNumber(InvalidBusinessNumberException exception) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ApiResponse<>(exception.getMessage(), null));
-    }
-
     @ExceptionHandler(BusinessStatusNotEligibleException.class)
     public ResponseEntity<ApiResponse<FieldErrors>> handleBusinessStatusNotEligible(
             BusinessStatusNotEligibleException exception

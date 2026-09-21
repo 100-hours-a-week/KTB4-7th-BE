@@ -45,17 +45,6 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void 사업자등록번호_형식_예외는_400_응답으로_변환한다() {
-        ResponseEntity<ApiResponse<Void>> response = exceptionHandler.handleInvalidBusinessNumber(
-                new InvalidBusinessNumberException()
-        );
-
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertEquals("invalid_business_number", response.getBody().message());
-        assertNull(response.getBody().data());
-    }
-
-    @Test
     void 사업자_상태_부적합_예외는_422_응답으로_변환한다() {
         ResponseEntity<ApiResponse<FieldErrors>> response = exceptionHandler.handleBusinessStatusNotEligible(
                 new BusinessStatusNotEligibleException()
