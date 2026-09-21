@@ -64,4 +64,35 @@ public class Store {
 
     protected Store() {
     }
+
+    public static Store create(
+            User owner,
+            String businessRegistrationNo,
+            LocalDateTime businessVerifiedAt,
+            String name,
+            String postalCode,
+            String address,
+            String addressDetail,
+            LocalDateTime createdAt
+    ) {
+        Store store = new Store();
+        store.owner = owner;
+        store.businessRegistrationNo = businessRegistrationNo;
+        store.businessVerifiedAt = businessVerifiedAt;
+        store.name = name;
+        store.postalCode = postalCode;
+        store.address = address;
+        store.addressDetail = addressDetail;
+        store.createdAt = createdAt;
+        store.updatedAt = createdAt;
+        return store;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public String getStoreName() {
+        return name;
+    }
 }
