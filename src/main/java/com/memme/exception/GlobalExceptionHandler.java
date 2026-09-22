@@ -29,6 +29,12 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse<>("로그인이 필요합니다.", null));
     }
 
+    @ExceptionHandler(InvalidLoginException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidLogin(InvalidLoginException exception) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
     @ExceptionHandler(DuplicateSignupException.class)
     public ResponseEntity<ApiResponse<FieldErrors>> handleDuplicateSignup(DuplicateSignupException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
