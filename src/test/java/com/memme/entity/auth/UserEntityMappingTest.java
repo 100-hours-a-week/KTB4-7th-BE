@@ -6,6 +6,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import java.lang.reflect.Field;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 
 class UserEntityMappingTest {
@@ -20,6 +21,18 @@ class UserEntityMappingTest {
         assertColumn(userClass, "email", "email", 100, false, true);
         assertColumn(userClass, "passwordHash", "password_hash", 255, false, false);
         assertColumn(userClass, "phone", "phone", 20, false, true);
+    }
+
+    @Test
+    void 로그인_비밀번호_검증을_위해_비밀번호_해시를_조회할_수_있다() {
+        User user = User.create(
+                "owner@memme.com",
+                "encoded-password",
+                "01012345678",
+                LocalDateTime.of(2026, 9, 22, 20, 0)
+        );
+
+        assertThat(user.getPasswordHash()).isEqualTo("encoded-password");
     }
 
     private void assertColumn(
