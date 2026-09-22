@@ -5,6 +5,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -23,7 +24,7 @@ public class LocalSalesFileStorage implements SalesFileStorage {
     @Override
     public StoredSalesFile store(SalesFile file) {
         String storageKey = file.storeId() + "/" + file.checksum().substring(0, 2)
-                + "/" + file.checksum() + ".xlsx";
+                + "/" + UUID.randomUUID() + "-" + file.checksum() + ".xlsx";
         Path target = rootDirectory.resolve(storageKey).normalize();
         if (!target.startsWith(rootDirectory)) {
             throw new IllegalArgumentException("invalid storage key");
