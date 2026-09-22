@@ -1,5 +1,9 @@
 .env
+**/.env
+**/.env.*
 .git
+.agents
+.DS_Store
 .gradle
 .idea
 .superpowers
