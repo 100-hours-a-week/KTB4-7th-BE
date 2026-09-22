@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
@@ -21,6 +22,32 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 class LoginControllerTest {
+
+    @Test
+    void 로그인_세션을_무효화하고_204_응답을_반환한다() {
+        LoginService loginService = org.mockito.Mockito.mock(LoginService.class);
+        LoginController loginController = new LoginController(loginService);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpSession session = new MockHttpSession();
+        request.setSession(session);
+
+        ResponseEntity<Void> response = loginController.logout(request);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        assertEquals(true, session.isInvalid());
+        assertEquals(null, response.getBody());
+    }
+
+    @Test
+    void 로그인_세션이_없어도_204_응답을_반환한다() {
+        LoginService loginService = org.mockito.Mockito.mock(LoginService.class);
+        LoginController loginController = new LoginController(loginService);
+
+        ResponseEntity<Void> response = loginController.logout(new MockHttpServletRequest());
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        assertEquals(null, response.getBody());
+    }
 
     @Test
     void 로그인에_성공하면_세션에_인증사용자를_저장하고_200_응답을_반환한다() {
