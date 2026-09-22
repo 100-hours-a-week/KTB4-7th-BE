@@ -62,4 +62,9 @@ public class User {
     public String getPasswordHash() {
         return passwordHash;
     }
+
+    public void withdraw(LocalDateTime withdrawnAt) {
+        deletedAt = withdrawnAt;
+        updatedAt = withdrawnAt;
+    }
 }
