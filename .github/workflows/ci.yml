@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev]
+  push:
+    branches: [dev]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Test and application build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+      - name: Build application
+        run: ./gradlew bootJar --no-daemon
+
+  publish-image:
+    name: Build, verify, and publish image
+    needs: verify
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: memme
+          MYSQL_USER: memme
+          MYSQL_PASSWORD: memme-ci-password
+          MYSQL_ROOT_PASSWORD: root-ci-password
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -uroot -proot-ci-password"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 3306:3306
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        env:
+          LOCAL_IMAGE: memme-backend:${{ github.sha }}
+        run: docker build --tag "$LOCAL_IMAGE" .
+      - name: Verify container health
+        env:
+          LOCAL_IMAGE: memme-backend:${{ github.sha }}
+        run: |
+          docker run -d --name backend --add-host host.docker.internal:host-gateway -p 8080:8080             -e DB_URL='jdbc:mysql://host.docker.internal:3306/memme?useSSL=false&allowPublicKeyRetrieval=true'             -e DB_USERNAME=memme             -e DB_PASSWORD=memme-ci-password             -e SPRING_JPA_HIBERNATE_DDL_AUTO=create-drop             -e JUSO_CONFM_KEY=ci-placeholder             -e NTS_SERVICE_KEY=ci-placeholder             "$LOCAL_IMAGE"
+
+          for _ in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:8080/health; then
+              docker rm --force backend
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker logs backend
+          docker rm --force backend || true
+          exit 1
+      - name: Verify ECR configuration
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+        run: |
+          test -n "$AWS_ACCOUNT_ID"
+          test -n "$AWS_REGION"
+          test -n "$AWS_ROLE_TO_ASSUME"
+          test -n "$ECR_REPOSITORY"
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Log in to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Publish immutable image and record digest
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          LOCAL_IMAGE: memme-backend:${{ github.sha }}
+        run: |
+          registry="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+          image_uri="$registry/$ECR_REPOSITORY:$GITHUB_SHA"
+
+          if aws ecr describe-images               --repository-name "$ECR_REPOSITORY"               --image-ids imageTag="$GITHUB_SHA" >/dev/null 2>&1; then
+            echo "Image tag already exists; reusing its immutable digest."
+          else
+            docker tag "$LOCAL_IMAGE" "$image_uri"
+            docker push "$image_uri"
+          fi
+
+          digest="$(aws ecr describe-images             --repository-name "$ECR_REPOSITORY"             --image-ids imageTag="$GITHUB_SHA"             --query 'imageDetails[0].imageDigest'             --output text)"
+          {
+            echo "## ECR image published"
+            echo
+            echo "- Source commit: `$GITHUB_SHA`"
+            echo "- Image tag: `$image_uri`"
+            echo "- Image digest: `$digest`"
+          } >> "$GITHUB_STEP_SUMMARY"
