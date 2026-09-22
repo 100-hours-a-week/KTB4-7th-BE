@@ -20,7 +20,7 @@ class UserRepositoryContractTest {
 
         Method existsByEmail = repositoryClass.getMethod("existsByEmail", String.class);
         Method existsByPhone = repositoryClass.getMethod("existsByPhone", String.class);
-        Method findByEmail = repositoryClass.getMethod("findByEmail", String.class);
+        Method findByEmail = repositoryClass.getMethod("findByEmailAndDeletedAtIsNull", String.class);
 
         assertThat(existsByEmail.getReturnType()).isEqualTo(boolean.class);
         assertThat(existsByPhone.getReturnType()).isEqualTo(boolean.class);

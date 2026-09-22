@@ -27,7 +27,7 @@ public class LoginService {
     }
 
     public LoginResult login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.email())
+        User user = userRepository.findByEmailAndDeletedAtIsNull(request.email())
                 .orElseThrow(InvalidLoginException::new);
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new InvalidLoginException();

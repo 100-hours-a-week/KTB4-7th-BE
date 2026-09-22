@@ -38,7 +38,7 @@ class LoginServiceTest {
     void 이메일과_비밀번호가_일치하면_사용자와_매장_정보를_반환한다() throws Exception {
         User user = user(1L);
         Store store = store(user, 10L);
-        when(userRepository.findByEmail("owner@memme.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailAndDeletedAtIsNull("owner@memme.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password", "encoded-password")).thenReturn(true);
         when(storeRepository.findByOwnerId(1L)).thenReturn(Optional.of(store));
 
@@ -51,7 +51,7 @@ class LoginServiceTest {
 
     @Test
     void 이메일에_해당하는_사용자가_없으면_로그인_실패_예외를_던진다() {
-        when(userRepository.findByEmail("missing@memme.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailAndDeletedAtIsNull("missing@memme.com")).thenReturn(Optional.empty());
 
         assertThrows(
                 InvalidLoginException.class,
@@ -62,7 +62,7 @@ class LoginServiceTest {
     @Test
     void 비밀번호가_일치하지_않으면_로그인_실패_예외를_던진다() throws Exception {
         User user = user(1L);
-        when(userRepository.findByEmail("owner@memme.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailAndDeletedAtIsNull("owner@memme.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong-password", "encoded-password")).thenReturn(false);
 
         assertThrows(

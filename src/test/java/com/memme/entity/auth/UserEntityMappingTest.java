@@ -35,6 +35,23 @@ class UserEntityMappingTest {
         assertThat(user.getPasswordHash()).isEqualTo("encoded-password");
     }
 
+    @Test
+    void 회원_탈퇴_시각을_기록할_수_있다() throws Exception {
+        User user = User.create(
+                "owner@memme.com",
+                "encoded-password",
+                "01012345678",
+                LocalDateTime.of(2026, 9, 22, 20, 0)
+        );
+        LocalDateTime withdrawnAt = LocalDateTime.of(2026, 9, 22, 21, 0);
+
+        user.withdraw(withdrawnAt);
+
+        Field field = User.class.getDeclaredField("deletedAt");
+        field.setAccessible(true);
+        assertThat(field.get(user)).isEqualTo(withdrawnAt);
+    }
+
     private void assertColumn(
             Class<?> userClass,
             String fieldName,
