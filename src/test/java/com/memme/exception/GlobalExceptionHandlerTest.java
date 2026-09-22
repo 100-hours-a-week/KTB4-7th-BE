@@ -99,4 +99,13 @@ class GlobalExceptionHandlerTest {
         assertEquals("사업자 인증 결과가 만료되었습니다. 다시 인증해 주세요.", response.getBody().message());
         assertNull(response.getBody().data());
     }
+
+    @Test
+    void 로그인_실패_예외는_401_응답으로_변환한다() {
+        ResponseEntity<ApiResponse<Void>> response = exceptionHandler.handleInvalidLogin(new InvalidLoginException());
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        assertEquals("이메일 또는 비밀번호가 올바르지 않습니다.", response.getBody().message());
+        assertNull(response.getBody().data());
+    }
 }
