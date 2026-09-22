@@ -4,6 +4,7 @@ import com.memme.dto.auth.LoginRequest;
 import com.memme.dto.auth.LoginResponse;
 import com.memme.dto.common.ApiResponse;
 import com.memme.service.auth.LoginService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -37,5 +38,14 @@ public class LoginController {
         LoginResponse response = new LoginResponse(new LoginResponse.User(result.userId(), result.email()));
         return ResponseEntity.status(HttpStatus.OK)
                 .body(new ApiResponse<>("로그인에 성공했습니다.", response));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+        return ResponseEntity.noContent().build();
     }
 }
