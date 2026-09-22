@@ -64,8 +64,8 @@ class SalesRepositoryTest {
 
         assertThat(august.getContent()).singleElement()
                 .extracting(SalesUploadEntity::getAppliedRecordCount)
-                .isEqualTo(812);
-        assertThat(uploadRepository.sumAppliedRecordCount(1L, SalesUploadStatus.COMPLETED))
+                .isEqualTo(812L);
+        assertThat(uploadRepository.sumValidRowCount(1L, SalesUploadStatus.COMPLETED))
                 .isEqualTo(912);
         assertThat(uploadRepository.findAllByStoreIdAndFileChecksumOrderByUploadedAtDesc(
                 1L, "same-checksum"
