@@ -39,13 +39,17 @@ public interface SalesUploadRepository extends JpaRepository<SalesUploadEntity, 
     );
 
     @Query("""
-            select coalesce(sum(upload.appliedRecordCount), 0)
+            select coalesce(sum(upload.validRowCount), 0)
             from SalesUploadEntity upload
             where upload.storeId = :storeId
               and upload.status = :status
             """)
-    long sumAppliedRecordCount(
+    long sumValidRowCount(
             @Param("storeId") Long storeId,
             @Param("status") SalesUploadStatus status
     );
+
+    default long sumAppliedRecordCount(Long storeId, SalesUploadStatus status) {
+        return sumValidRowCount(storeId, status);
+    }
 }

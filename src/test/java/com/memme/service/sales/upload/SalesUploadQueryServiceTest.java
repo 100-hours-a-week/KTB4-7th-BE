@@ -135,8 +135,8 @@ class SalesUploadQueryServiceTest {
         when(upload.getUploadedAt()).thenReturn(LocalDateTime.of(2026, 9, 21, 12, 30));
         when(upload.getPeriodStart()).thenReturn(LocalDate.of(2026, 9, 1));
         when(upload.getPeriodEnd()).thenReturn(LocalDate.of(2026, 9, 30));
-        when(upload.getTotalRowCount()).thenReturn(20);
-        when(upload.getAppliedRecordCount()).thenReturn(18);
+        when(upload.getTotalRowCount()).thenReturn(20L);
+        when(upload.getAppliedRecordCount()).thenReturn(18L);
         when(upload.getStatus()).thenReturn(status);
         return upload;
     }

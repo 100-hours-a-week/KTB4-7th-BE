@@ -19,6 +19,7 @@ class SalesEntityTest {
                 .extracting(index -> index.name() + ":" + index.columnList())
                 .containsExactlyInAnyOrder(
                         "idx_sales_uploads_store_uploaded_at:store_id, uploaded_at",
+                        "idx_sales_uploads_store_period:store_id, period_start, period_end",
                         "idx_sales_uploads_store_checksum:store_id, file_checksum"
                 );
     }
@@ -110,7 +111,8 @@ class SalesEntityTest {
         upload.complete(812);
 
         assertThat(upload.getStatus()).isEqualTo(SalesUploadStatus.COMPLETED);
-        assertThat(upload.getAppliedRecordCount()).isEqualTo(812);
+        assertThat(upload.getValidRowCount()).isEqualTo(812L);
+        assertThat(upload.getInvalidRowCount()).isEqualTo(28L);
         assertThat(upload.getProcessingPhase()).isEqualTo(SalesUploadProcessingPhase.AGGREGATING);
     }
 

@@ -12,6 +12,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
+import jakarta.persistence.Lob;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
@@ -20,6 +21,7 @@ import jakarta.persistence.Table;
         name = "sales_uploads",
         indexes = {
                 @Index(name = "idx_sales_uploads_store_uploaded_at", columnList = "store_id, uploaded_at"),
+                @Index(name = "idx_sales_uploads_store_period", columnList = "store_id, period_start, period_end"),
                 @Index(name = "idx_sales_uploads_store_checksum", columnList = "store_id, file_checksum")
         }
 )
@@ -35,14 +37,10 @@ public class SalesUploadEntity {
     @Column(name = "requested_by_user_id", nullable = false)
     private Long requestedByUserId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "source_type", nullable = false, length = 30)
-    private SalesUploadSourceType sourceType;
-
     @Column(name = "original_file_name", nullable = false, length = 255)
     private String originalFileName;
 
-    @Column(name = "storage_key", nullable = false, length = 500)
+    @Column(name = "storage_key", nullable = false, unique = true, length = 512)
     private String storageKey;
 
     @Column(name = "file_checksum", nullable = false, length = 64)
@@ -62,19 +60,20 @@ public class SalesUploadEntity {
     @Column(name = "period_end")
     private LocalDate periodEnd;
 
-    @Column(name = "total_row_count")
-    private Integer totalRowCount;
+    @Column(name = "total_row_count", nullable = false)
+    private Long totalRowCount;
 
-    @Column(name = "applied_record_count")
-    private Integer appliedRecordCount;
+    @Column(name = "valid_row_count", nullable = false)
+    private Long validRowCount;
 
-    @Column(name = "invalid_row_count")
-    private Integer invalidRowCount;
+    @Column(name = "invalid_row_count", nullable = false)
+    private Long invalidRowCount;
 
-    @Column(name = "fail_reason", length = 50)
-    private String failReason;
+    @Column(name = "error_code", length = 50)
+    private String errorCode;
 
-    @Column(name = "error_message", length = 500)
+    @Lob
+    @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
     @Column(name = "uploaded_at", nullable = false, updatable = false)
@@ -95,11 +94,13 @@ public class SalesUploadEntity {
     ) {
         this.storeId = Objects.requireNonNull(storeId, "storeId");
         this.requestedByUserId = Objects.requireNonNull(requestedByUserId, "requestedByUserId");
-        this.sourceType = SalesUploadSourceType.TOSS_POS;
         this.originalFileName = requireText(originalFileName, "originalFileName");
         this.storageKey = requireText(storageKey, "storageKey");
         this.fileChecksum = requireText(fileChecksum, "fileChecksum");
         this.status = SalesUploadStatus.PENDING;
+        this.totalRowCount = 0L;
+        this.validRowCount = 0L;
+        this.invalidRowCount = 0L;
     }
 
     public static SalesUploadEntity pending(
@@ -129,7 +130,7 @@ public class SalesUploadEntity {
         this.processingPhase = Objects.requireNonNull(phase, "phase");
     }
 
-    public void setCoverage(LocalDate periodStart, LocalDate periodEnd, int totalRowCount) {
+    public void setCoverage(LocalDate periodStart, LocalDate periodEnd, long totalRowCount) {
         requireStatus(SalesUploadStatus.PROCESSING);
         validatePeriod(periodStart, periodEnd);
         if (totalRowCount < 0) {
@@ -140,27 +141,30 @@ public class SalesUploadEntity {
         this.totalRowCount = totalRowCount;
     }
 
-    public void complete(int appliedRecordCount) {
+    public void complete(long validRowCount) {
         requireStatus(SalesUploadStatus.PROCESSING);
-        if (appliedRecordCount < 0) {
-            throw new IllegalArgumentException("record counts must not be negative");
+        if (validRowCount < 0 || validRowCount > totalRowCount) {
+            throw new IllegalArgumentException("validRowCount must be between zero and totalRowCount");
         }
-        this.appliedRecordCount = appliedRecordCount;
-        this.invalidRowCount = 0;
+        this.validRowCount = validRowCount;
+        this.invalidRowCount = totalRowCount - validRowCount;
         this.status = SalesUploadStatus.COMPLETED;
         this.processedAt = LocalDateTime.now();
     }
 
-    public void fail(String failReason, String errorMessage, Integer invalidRowCount) {
+    public void fail(String errorCode, String errorMessage, Long invalidRowCount) {
         if (status == SalesUploadStatus.COMPLETED || status == SalesUploadStatus.FAILED) {
             throw new IllegalStateException("completed upload cannot transition to failed");
         }
         if (invalidRowCount != null && invalidRowCount < 0) {
             throw new IllegalArgumentException("invalidRowCount must not be negative");
         }
-        this.failReason = requireText(failReason, "failReason");
+        this.errorCode = requireText(errorCode, "errorCode");
         this.errorMessage = requireText(errorMessage, "errorMessage");
-        this.invalidRowCount = invalidRowCount;
+        if (invalidRowCount != null) {
+            this.invalidRowCount = invalidRowCount;
+            this.validRowCount = Math.max(0L, totalRowCount - invalidRowCount);
+        }
         this.status = SalesUploadStatus.FAILED;
         this.processedAt = LocalDateTime.now();
     }
@@ -205,10 +209,6 @@ public class SalesUploadEntity {
         return requestedByUserId;
     }
 
-    public SalesUploadSourceType getSourceType() {
-        return sourceType;
-    }
-
     public String getOriginalFileName() {
         return originalFileName;
     }
@@ -237,20 +237,28 @@ public class SalesUploadEntity {
         return periodEnd;
     }
 
-    public Integer getTotalRowCount() {
+    public Long getTotalRowCount() {
         return totalRowCount;
     }
 
-    public Integer getAppliedRecordCount() {
-        return appliedRecordCount;
+    public Long getValidRowCount() {
+        return validRowCount;
     }
 
-    public Integer getInvalidRowCount() {
+    public Long getAppliedRecordCount() {
+        return validRowCount;
+    }
+
+    public Long getInvalidRowCount() {
         return invalidRowCount;
     }
 
+    public String getErrorCode() {
+        return errorCode;
+    }
+
     public String getFailReason() {
-        return failReason;
+        return errorCode;
     }
 
     public String getErrorMessage() {

@@ -169,7 +169,7 @@ public class SalesUploadQueryService {
         };
     }
 
-    private int zeroIfNull(Integer value) {
+    private long zeroIfNull(Long value) {
         return value == null ? 0 : value;
     }
 
