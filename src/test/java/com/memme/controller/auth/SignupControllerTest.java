@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.memme.dto.auth.SignupAccountRequest;
 import com.memme.dto.auth.SignupAccountResponse;
@@ -29,8 +32,8 @@ class SignupControllerTest {
 
     @Test
     void 잘못된_회원가입_2단계_입력값은_422_fieldErrors로_반환한다() throws Exception {
-        SignupService signupService = org.mockito.Mockito.mock(SignupService.class);
-        SignupBusinessService signupBusinessService = org.mockito.Mockito.mock(SignupBusinessService.class);
+        SignupService signupService = mock(SignupService.class);
+        SignupBusinessService signupBusinessService = mock(SignupBusinessService.class);
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new SignupController(signupService, signupBusinessService))
@@ -51,9 +54,9 @@ class SignupControllerTest {
                                   "businessHours": []
                                 }
                                 """))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
+                .andExpect(status()
                         .isUnprocessableContent())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(jsonPath(
                         "$.data.fieldErrors[?(@.field == 'storeName')]"
                 ).exists());
 
@@ -62,8 +65,8 @@ class SignupControllerTest {
 
     @Test
     void 회원가입_2단계_요청을_처리하고_201_응답을_반환한다() {
-        SignupService signupService = org.mockito.Mockito.mock(SignupService.class);
-        SignupBusinessService signupBusinessService = org.mockito.Mockito.mock(SignupBusinessService.class);
+        SignupService signupService = mock(SignupService.class);
+        SignupBusinessService signupBusinessService = mock(SignupBusinessService.class);
         SignupController signupController = new SignupController(signupService, signupBusinessService);
         SignupBusinessRequest request = validBusinessRequest();
         SignupBusinessResponse serviceResponse = new SignupBusinessResponse(
@@ -85,8 +88,8 @@ class SignupControllerTest {
 
     @Test
     void 잘못된_회원가입_입력값은_422_fieldErrors로_반환한다() throws Exception {
-        SignupService signupService = org.mockito.Mockito.mock(SignupService.class);
-        SignupBusinessService signupBusinessService = org.mockito.Mockito.mock(SignupBusinessService.class);
+        SignupService signupService = mock(SignupService.class);
+        SignupBusinessService signupBusinessService = mock(SignupBusinessService.class);
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new SignupController(signupService, signupBusinessService))
@@ -110,12 +113,12 @@ class SignupControllerTest {
                                   }
                                 }
                                 """))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
+                .andExpect(status()
                         .isUnprocessableContent())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(jsonPath(
                         "$.data.fieldErrors[?(@.field == 'email')]"
                 ).exists())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(jsonPath(
                         "$.data.fieldErrors[?(@.field == 'agreements.termsOfService')]"
                 ).exists());
 
@@ -124,8 +127,8 @@ class SignupControllerTest {
 
     @Test
     void 회원가입_1단계_요청을_처리하고_201_응답을_반환한다() {
-        SignupService signupService = org.mockito.Mockito.mock(SignupService.class);
-        SignupBusinessService signupBusinessService = org.mockito.Mockito.mock(SignupBusinessService.class);
+        SignupService signupService = mock(SignupService.class);
+        SignupBusinessService signupBusinessService = mock(SignupBusinessService.class);
         SignupController signupController = new SignupController(signupService, signupBusinessService);
         SignupAccountRequest request = new SignupAccountRequest(
                 "owner@memme.com",

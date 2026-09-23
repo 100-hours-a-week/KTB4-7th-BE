@@ -3,6 +3,9 @@ package com.memme.controller.store;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.memme.dto.store.AddressSearchRequest;
 import com.memme.dto.store.AddressSearchResponse;
@@ -24,7 +27,7 @@ class AddressSearchControllerTest {
 
     @BeforeEach
     void setUp() {
-        addressSearchService = org.mockito.Mockito.mock(AddressSearchService.class);
+        addressSearchService = mock(AddressSearchService.class);
 
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
@@ -49,12 +52,12 @@ class AddressSearchControllerTest {
                         .queryParam("query", "판교역로")
                         .queryParam("cursor", "2")
                         .queryParam("size", "5"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
                         "$.message").value("조회에 성공했습니다."))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(jsonPath(
                         "$.data.addresses[0].postalCode").value("13494"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(jsonPath(
                         "$.data.nextCursor").value("3"));
 
         verify(addressSearchService).search(new AddressSearchRequest("판교역로", "2", 5));
@@ -64,9 +67,9 @@ class AddressSearchControllerTest {
     void 빈_주소_검색어는_422_fieldErrors로_반환한다() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/v1/addresses/search")
                         .queryParam("query", ""))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
+                .andExpect(status()
                         .isUnprocessableContent())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(jsonPath(
                         "$.data.fieldErrors[?(@.field == 'query')]").exists());
 
         verifyNoInteractions(addressSearchService);
@@ -77,9 +80,9 @@ class AddressSearchControllerTest {
         mockMvc.perform(MockMvcRequestBuilders.get("/v1/addresses/search")
                         .queryParam("query", "판교역로")
                         .queryParam("cursor", "0"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
+                .andExpect(status()
                         .isUnprocessableContent())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(jsonPath(
                         "$.data.fieldErrors[?(@.field == 'cursor')]").exists());
 
         verifyNoInteractions(addressSearchService);
@@ -90,9 +93,9 @@ class AddressSearchControllerTest {
         mockMvc.perform(MockMvcRequestBuilders.get("/v1/addresses/search")
                         .queryParam("query", "판교역로")
                         .queryParam("size", "11"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
+                .andExpect(status()
                         .isUnprocessableContent())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(jsonPath(
                         "$.data.fieldErrors[?(@.field == 'size')]").exists());
 
         verifyNoInteractions(addressSearchService);
@@ -105,10 +108,10 @@ class AddressSearchControllerTest {
 
         mockMvc.perform(MockMvcRequestBuilders.get("/v1/addresses/search")
                         .queryParam("query", "판교역로"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadGateway())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath(
                         "$.message").value("주소 검색 서비스를 이용할 수 없습니다. 다시 시도해주세요."))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(jsonPath(
                         "$.data").doesNotExist());
     }
 }

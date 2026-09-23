@@ -2,6 +2,7 @@ package com.memme.controller.auth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.memme.exception.AuthenticationRequiredException;
@@ -16,7 +17,7 @@ class UserControllerTest {
 
     @Test
     void 로그인한_사용자를_탈퇴시키고_세션을_무효화한_뒤_204를_반환한다() {
-        WithdrawalService withdrawalService = org.mockito.Mockito.mock(WithdrawalService.class);
+        WithdrawalService withdrawalService = mock(WithdrawalService.class);
         UserController userController = new UserController(withdrawalService);
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpSession session = new MockHttpSession();
@@ -32,7 +33,7 @@ class UserControllerTest {
 
     @Test
     void 인증_세션이_없으면_인증_예외를_던진다() {
-        WithdrawalService withdrawalService = org.mockito.Mockito.mock(WithdrawalService.class);
+        WithdrawalService withdrawalService = mock(WithdrawalService.class);
         UserController userController = new UserController(withdrawalService);
 
         assertThrows(AuthenticationRequiredException.class, () -> userController.withdraw(new MockHttpServletRequest()));
