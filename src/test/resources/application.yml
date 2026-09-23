@@ -15,3 +15,6 @@ spring:
 
 JUSO_CONFM_KEY: test-confirmation-key
 NTS_SERVICE_KEY: test-service-key
+
+password-reset:
+  url: http://localhost:5173/password-reset
