@@ -13,7 +13,7 @@ class UserEntityMappingTest {
 
     @Test
     void erd에_정의된_users_테이블을_매핑한다() throws Exception {
-        Class<?> userClass = Class.forName("com.memme.entity.auth.User");
+        Class<?> userClass = User.class;
 
         assertThat(userClass.isAnnotationPresent(Entity.class)).isTrue();
         assertThat(userClass.getAnnotation(Table.class).name()).isEqualTo("users");

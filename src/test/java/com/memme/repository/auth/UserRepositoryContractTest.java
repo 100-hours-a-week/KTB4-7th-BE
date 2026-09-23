@@ -12,7 +12,7 @@ class UserRepositoryContractTest {
 
     @Test
     void 회원가입과_로그인에_필요한_Jpa_Repository를_제공한다() throws Exception {
-        Class<?> repositoryClass = Class.forName("com.memme.repository.auth.UserRepository");
+        Class<?> repositoryClass = UserRepository.class;
 
         assertThat(JpaRepository.class.isAssignableFrom(repositoryClass)).isTrue();
         assertThat(repositoryClass.getGenericInterfaces())

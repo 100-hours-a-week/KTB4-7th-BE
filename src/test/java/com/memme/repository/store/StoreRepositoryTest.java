@@ -12,7 +12,7 @@ class StoreRepositoryTest {
 
     @Test
     void 매장_조회와_사업자등록번호_중복_확인을_위한_Repository를_제공한다() throws Exception {
-        Class<?> repositoryClass = Class.forName("com.memme.repository.store.StoreRepository");
+        Class<?> repositoryClass = StoreRepository.class;
 
         assertThat(JpaRepository.class.isAssignableFrom(repositoryClass)).isTrue();
 

@@ -11,7 +11,7 @@ class StoreBusinessHoursRepositoryTest {
 
     @Test
     void 매장별_요일순_영업시간_조회를_위한_Repository를_제공한다() throws Exception {
-        Class<?> repositoryClass = Class.forName("com.memme.repository.store.StoreBusinessHoursRepository");
+        Class<?> repositoryClass = StoreBusinessHoursRepository.class;
 
         assertThat(JpaRepository.class.isAssignableFrom(repositoryClass)).isTrue();
 

@@ -10,7 +10,7 @@ class BusinessVerificationRepositoryContractTest {
 
     @Test
     void 사업자_인증_결과를_저장하고_조회하는_Jpa_Repository를_제공한다() throws Exception {
-        Class<?> repositoryClass = Class.forName("com.memme.repository.store.BusinessVerificationRepository");
+        Class<?> repositoryClass = BusinessVerificationRepository.class;
 
         assertThat(JpaRepository.class.isAssignableFrom(repositoryClass)).isTrue();
         assertThat(repositoryClass.getGenericInterfaces())

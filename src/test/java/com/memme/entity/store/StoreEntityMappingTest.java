@@ -16,7 +16,7 @@ class StoreEntityMappingTest {
 
     @Test
     void erd에_정의된_stores_테이블을_매핑한다() throws Exception {
-        Class<?> storeClass = Class.forName("com.memme.entity.store.Store");
+        Class<?> storeClass = Store.class;
 
         assertThat(storeClass.isAnnotationPresent(Entity.class)).isTrue();
         assertThat(storeClass.getAnnotation(Table.class).name()).isEqualTo("stores");
@@ -34,7 +34,7 @@ class StoreEntityMappingTest {
 
     @Test
     void 매장_위치와_시각_필드를_erd_타입에_맞게_매핑한다() throws Exception {
-        Class<?> storeClass = Class.forName("com.memme.entity.store.Store");
+        Class<?> storeClass = Store.class;
 
         assertThat(storeClass.getDeclaredField("businessVerifiedAt").getType()).isEqualTo(LocalDateTime.class);
         assertThat(storeClass.getDeclaredField("latitude").getType()).isEqualTo(BigDecimal.class);
