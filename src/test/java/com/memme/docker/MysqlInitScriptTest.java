@@ -10,6 +10,19 @@ import org.junit.jupiter.api.Test;
 class MysqlInitScriptTest {
 
     @Test
+    void 비밀번호_재설정_토큰_테이블을_초기화한다() throws IOException {
+        String sql = Files.readString(Path.of("docker/mysql/init/01-auth-signup.sql"));
+
+        assertThat(sql)
+                .contains("CREATE TABLE password_reset_tokens")
+                .contains("user_id BIGINT UNSIGNED NOT NULL")
+                .contains("token_hash CHAR(64) NOT NULL")
+                .contains("expires_at DATETIME NOT NULL")
+                .contains("used_at DATETIME NULL")
+                .contains("CONSTRAINT fk_password_reset_tokens_user");
+    }
+
+    @Test
     void 사업자_인증_결과_테이블을_초기화한다() throws IOException {
         String sql = Files.readString(Path.of("docker/mysql/init/01-auth-signup.sql"));
 
