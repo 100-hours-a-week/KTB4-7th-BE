@@ -74,7 +74,7 @@ class LoginControllerTest {
     }
 
     @Test
-    void 잘못된_로그인_입력값은_422_fieldErrors로_반환한다() throws Exception {
+    void 잘못된_로그인_입력값은_400_fieldErrors로_반환한다() throws Exception {
         LoginService loginService = mock(LoginService.class);
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
@@ -92,7 +92,7 @@ class LoginControllerTest {
                                 }
                                 """))
                 .andExpect(status()
-                        .isUnprocessableContent())
+                        .isBadRequest())
                 .andExpect(jsonPath(
                         "$.data.fieldErrors[?(@.field == 'email')]"
                 ).exists())

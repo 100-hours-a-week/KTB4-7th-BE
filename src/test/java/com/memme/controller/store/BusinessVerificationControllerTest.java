@@ -26,7 +26,7 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 class BusinessVerificationControllerTest {
 
     @Test
-    void 숫자_열자리가_아닌_사업자등록번호는_422_fieldErrors로_반환한다() throws Exception {
+    void 숫자_열자리가_아닌_사업자등록번호는_400_fieldErrors로_반환한다() throws Exception {
         BusinessVerificationService businessVerificationService = mock(
                 BusinessVerificationService.class
         );
@@ -45,7 +45,7 @@ class BusinessVerificationControllerTest {
                                 }
                                 """))
                 .andExpect(status()
-                        .isUnprocessableContent())
+                        .isBadRequest())
                 .andExpect(jsonPath(
                         "$.message").value("입력값을 확인해 주세요."))
                 .andExpect(jsonPath(
@@ -55,7 +55,7 @@ class BusinessVerificationControllerTest {
     }
 
     @Test
-    void 빈_사업자등록번호는_입력_오류_하나만_반환한다() throws Exception {
+    void 빈_사업자등록번호는_400_입력_오류_하나만_반환한다() throws Exception {
         BusinessVerificationService businessVerificationService = mock(
                 BusinessVerificationService.class
         );
@@ -74,7 +74,7 @@ class BusinessVerificationControllerTest {
                                 }
                                 """))
                 .andExpect(status()
-                        .isUnprocessableContent())
+                        .isBadRequest())
                 .andExpect(jsonPath(
                         "$.data.fieldErrors.length()").value(1))
                 .andExpect(jsonPath(

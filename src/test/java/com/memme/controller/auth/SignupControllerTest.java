@@ -31,7 +31,7 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 class SignupControllerTest {
 
     @Test
-    void 잘못된_회원가입_2단계_입력값은_422_fieldErrors로_반환한다() throws Exception {
+    void 잘못된_회원가입_2단계_입력값은_400_fieldErrors로_반환한다() throws Exception {
         SignupService signupService = mock(SignupService.class);
         SignupBusinessService signupBusinessService = mock(SignupBusinessService.class);
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
@@ -55,7 +55,7 @@ class SignupControllerTest {
                                 }
                                 """))
                 .andExpect(status()
-                        .isUnprocessableContent())
+                        .isBadRequest())
                 .andExpect(jsonPath(
                         "$.data.fieldErrors[?(@.field == 'storeName')]"
                 ).exists());
@@ -87,7 +87,7 @@ class SignupControllerTest {
     }
 
     @Test
-    void 잘못된_회원가입_입력값은_422_fieldErrors로_반환한다() throws Exception {
+    void 잘못된_회원가입_입력값은_400_fieldErrors로_반환한다() throws Exception {
         SignupService signupService = mock(SignupService.class);
         SignupBusinessService signupBusinessService = mock(SignupBusinessService.class);
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
@@ -114,7 +114,7 @@ class SignupControllerTest {
                                 }
                                 """))
                 .andExpect(status()
-                        .isUnprocessableContent())
+                        .isBadRequest())
                 .andExpect(jsonPath(
                         "$.data.fieldErrors[?(@.field == 'email')]"
                 ).exists())

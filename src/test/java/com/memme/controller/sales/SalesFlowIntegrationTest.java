@@ -149,7 +149,7 @@ class SalesFlowIntegrationTest {
         mvc.perform(get("/v1/sales/uploads")
                         .param("page", "6")
                         .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE, USER))
-                .andExpect(status().isUnprocessableContent());
+                .andExpect(status().isBadRequest());
         mvc.perform(get("/v1/sales/analyses").param("periodType", "CUSTOM")
                         .param("startDate", "2026-02-30").param("endDate", "2026-03-01")
                         .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE, USER))

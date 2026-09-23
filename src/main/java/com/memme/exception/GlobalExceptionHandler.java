@@ -96,19 +96,19 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<FieldErrors>> handleMethodArgumentNotValid(
+    public ResponseEntity<?> handleMethodArgumentNotValid(
             MethodArgumentNotValidException exception
     ) {
         if (exception.getBindingResult().getFieldErrors().stream().anyMatch(
-                org.springframework.validation.FieldError::isBindingFailure
+                fieldError -> fieldError.isBindingFailure()
         )) {
-            return badRequestFieldErrorsResponse();
+            return badRequestResponse();
         }
 
         List<FieldError> fieldErrors = exception.getBindingResult().getFieldErrors().stream()
                 .map(fieldError -> new FieldError(fieldError.getField(), fieldError.getDefaultMessage()))
                 .toList();
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiResponse<>("입력값을 확인해 주세요.", new FieldErrors(fieldErrors)));
     }
 
@@ -117,8 +117,4 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse<>(INVALID_REQUEST_FORMAT_MESSAGE, null));
     }
 
-    private ResponseEntity<ApiResponse<FieldErrors>> badRequestFieldErrorsResponse() {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ApiResponse<>(INVALID_REQUEST_FORMAT_MESSAGE, null));
-    }
 }
