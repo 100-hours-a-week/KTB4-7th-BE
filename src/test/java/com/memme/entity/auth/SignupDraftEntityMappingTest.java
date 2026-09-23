@@ -12,7 +12,7 @@ class SignupDraftEntityMappingTest {
 
     @Test
     void erd에_정의된_signup_drafts_테이블을_매핑한다() throws Exception {
-        Class<?> signupDraftClass = Class.forName("com.memme.entity.auth.SignupDraft");
+        Class<?> signupDraftClass = SignupDraft.class;
 
         assertThat(signupDraftClass.isAnnotationPresent(Entity.class)).isTrue();
         assertThat(signupDraftClass.getAnnotation(Table.class).name()).isEqualTo("signup_drafts");

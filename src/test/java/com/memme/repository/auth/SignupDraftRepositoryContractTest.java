@@ -12,7 +12,7 @@ class SignupDraftRepositoryContractTest {
 
     @Test
     void 토큰_해시로_임시_가입_정보를_조회하는_Jpa_Repository를_제공한다() throws Exception {
-        Class<?> repositoryClass = Class.forName("com.memme.repository.auth.SignupDraftRepository");
+        Class<?> repositoryClass = SignupDraftRepository.class;
 
         assertThat(JpaRepository.class.isAssignableFrom(repositoryClass)).isTrue();
         assertThat(repositoryClass.getGenericInterfaces())

@@ -16,7 +16,7 @@ class NotificationPreferenceEntityMappingTest {
 
     @Test
     void 사용자별_기본_알림_설정을_notification_preferences_테이블에_매핑한다() throws Exception {
-        Class<?> preferenceClass = Class.forName("com.memme.entity.noti.NotificationPreference");
+        Class<?> preferenceClass = NotificationPreference.class;
 
         assertThat(preferenceClass.isAnnotationPresent(Entity.class)).isTrue();
         assertThat(preferenceClass.getAnnotation(Table.class).name()).isEqualTo("notification_preferences");
@@ -39,7 +39,7 @@ class NotificationPreferenceEntityMappingTest {
 
     @Test
     void 모든_알림_수신값은_회원가입_시_false로_초기화된다() throws Exception {
-        Class<?> preferenceClass = Class.forName("com.memme.entity.noti.NotificationPreference");
+        Class<?> preferenceClass = NotificationPreference.class;
         Constructor<?> constructor = preferenceClass.getDeclaredConstructor();
         constructor.setAccessible(true);
         Object preference = constructor.newInstance();

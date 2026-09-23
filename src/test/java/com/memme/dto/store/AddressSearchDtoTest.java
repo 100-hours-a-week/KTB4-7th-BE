@@ -17,7 +17,7 @@ class AddressSearchDtoTest {
 
     @Test
     void 주소_검색_요청_DTO는_정의된_쿼리_파라미터를_가진다() throws Exception {
-        Class<?> requestType = Class.forName("com.memme.dto.store.AddressSearchRequest");
+        Class<?> requestType = AddressSearchRequest.class;
 
         assertTrue(requestType.isRecord());
         assertEquals(
@@ -28,7 +28,7 @@ class AddressSearchDtoTest {
 
     @Test
     void 주소_검색_응답_DTO는_주소목록과_다음_커서를_가진다() throws Exception {
-        Class<?> responseType = Class.forName("com.memme.dto.store.AddressSearchResponse");
+        Class<?> responseType = AddressSearchResponse.class;
 
         assertTrue(responseType.isRecord());
         assertEquals(

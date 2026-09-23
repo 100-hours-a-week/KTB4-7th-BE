@@ -17,7 +17,7 @@ class StoreBusinessHoursEntityMappingTest {
 
     @Test
     void erd에_정의된_store_business_hours_테이블을_매핑한다() throws Exception {
-        Class<?> businessHoursClass = Class.forName("com.memme.entity.store.StoreBusinessHours");
+        Class<?> businessHoursClass = StoreBusinessHours.class;
 
         assertThat(businessHoursClass.isAnnotationPresent(Entity.class)).isTrue();
 
@@ -36,7 +36,7 @@ class StoreBusinessHoursEntityMappingTest {
 
     @Test
     void 영업시간의_시간_필드를_erd_타입에_맞게_매핑한다() throws Exception {
-        Class<?> businessHoursClass = Class.forName("com.memme.entity.store.StoreBusinessHours");
+        Class<?> businessHoursClass = StoreBusinessHours.class;
 
         assertThat(businessHoursClass.getDeclaredField("dayOfWeek").getType()).isEqualTo(Integer.class);
         assertThat(businessHoursClass.getDeclaredField("opensAt").getType()).isEqualTo(LocalTime.class);
