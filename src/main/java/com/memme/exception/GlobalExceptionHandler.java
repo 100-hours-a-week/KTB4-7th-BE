@@ -6,12 +6,30 @@ import com.memme.dto.common.FieldErrors;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final String INVALID_REQUEST_FORMAT_MESSAGE = "요청 형식이 올바르지 않습니다.";
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException exception
+    ) {
+        return badRequestResponse();
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodArgumentTypeMismatch(
+            MethodArgumentTypeMismatchException exception
+    ) {
+        return badRequestResponse();
+    }
 
     @ExceptionHandler(SalesAnalysisRequestException.class)
     public ResponseEntity<ApiResponse<Void>> handleSalesAnalysisRequest(
@@ -81,10 +99,26 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<FieldErrors>> handleMethodArgumentNotValid(
             MethodArgumentNotValidException exception
     ) {
+        if (exception.getBindingResult().getFieldErrors().stream().anyMatch(
+                org.springframework.validation.FieldError::isBindingFailure
+        )) {
+            return badRequestFieldErrorsResponse();
+        }
+
         List<FieldError> fieldErrors = exception.getBindingResult().getFieldErrors().stream()
                 .map(fieldError -> new FieldError(fieldError.getField(), fieldError.getDefaultMessage()))
                 .toList();
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
                 .body(new ApiResponse<>("입력값을 확인해 주세요.", new FieldErrors(fieldErrors)));
+    }
+
+    private ResponseEntity<ApiResponse<Void>> badRequestResponse() {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(INVALID_REQUEST_FORMAT_MESSAGE, null));
+    }
+
+    private ResponseEntity<ApiResponse<FieldErrors>> badRequestFieldErrorsResponse() {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(INVALID_REQUEST_FORMAT_MESSAGE, null));
     }
 }
