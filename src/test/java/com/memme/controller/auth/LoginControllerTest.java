@@ -102,4 +102,26 @@ class LoginControllerTest {
 
         verifyNoInteractions(loginService);
     }
+
+    @Test
+    void 잘못된_JSON_로그인_요청은_400_공통_응답으로_반환한다() throws Exception {
+        LoginService loginService = org.mockito.Mockito.mock(LoginService.class);
+        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+        validator.afterPropertiesSet();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new LoginController(loginService))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .setValidator(validator)
+                .build();
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": \"owner@memme.com\""))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                        "$.message").value("요청 형식이 올바르지 않습니다."))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                        "$.data").doesNotExist());
+
+        verifyNoInteractions(loginService);
+    }
 }
