@@ -53,4 +53,19 @@ public class PasswordResetToken {
         return passwordResetToken;
     }
 
+    public User getUser() {
+        return user;
+    }
+
+    public boolean isExpiredAt(LocalDateTime now) {
+        return !expiresAt.isAfter(now);
+    }
+
+    public boolean isUsed() {
+        return usedAt != null;
+    }
+
+    public void markUsedAt(LocalDateTime usedAt) {
+        this.usedAt = usedAt;
+    }
 }
