@@ -1,9 +1,14 @@
 package com.memme.dto.sales;
 
-import java.time.YearMonth;
-import java.util.List;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record SalesInsightResponse(
-        YearMonth targetMonth,
-        List<String> insights
+        String message,
+        @NotNull SalesInsightStatus status,
+        @Valid SalesInsightResponseData data,
+        @Valid SalesInsightError error
 ) {}

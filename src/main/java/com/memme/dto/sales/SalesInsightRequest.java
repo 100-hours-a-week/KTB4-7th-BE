@@ -1,25 +1,19 @@
 package com.memme.dto.sales;
 
-import java.math.BigDecimal;
 import java.time.YearMonth;
-import java.util.List;
-import java.util.Map;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 
 public record SalesInsightRequest(
-        Long storeId,
-        Long salesAnalysisId,
-        YearMonth targetMonth,
-        String triggerType,
-        Metrics metrics,
-        int maxInsightCount
-) {
-
-    public record Metrics(
-            BigDecimal totalSales,
-            long orderCount,
-            BigDecimal averageOrderValue,
-            List<Map<String, Object>> salesTrend,
-            List<Map<String, Object>> weekdaySales,
-            List<Map<String, Object>> hourlySales
-    ) {}
-}
+        @NotNull @Positive Long storeId,
+        @NotNull @Positive Long salesAnalysisId,
+        @NotNull @Positive Long analysisRunId,
+        @NotNull YearMonth targetMonth,
+        @NotNull SalesInsightTriggerType triggerType,
+        @NotNull @Valid SalesInsightMetrics metrics,
+        @Min(1) @Max(3) int maxInsightCount
+) {}
