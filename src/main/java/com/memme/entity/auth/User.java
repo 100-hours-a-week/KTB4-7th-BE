@@ -63,6 +63,11 @@ public class User {
         return passwordHash;
     }
 
+    public void changePassword(String passwordHash, LocalDateTime changedAt) {
+        this.passwordHash = passwordHash;
+        this.updatedAt = changedAt;
+    }
+
     public void withdraw(LocalDateTime withdrawnAt) {
         deletedAt = withdrawnAt;
         updatedAt = withdrawnAt;
