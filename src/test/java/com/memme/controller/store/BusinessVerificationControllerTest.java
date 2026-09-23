@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.memme.dto.store.BusinessVerificationRequest;
 import com.memme.dto.store.BusinessVerificationResponse;
@@ -24,7 +27,7 @@ class BusinessVerificationControllerTest {
 
     @Test
     void 숫자_열자리가_아닌_사업자등록번호는_422_fieldErrors로_반환한다() throws Exception {
-        BusinessVerificationService businessVerificationService = org.mockito.Mockito.mock(
+        BusinessVerificationService businessVerificationService = mock(
                 BusinessVerificationService.class
         );
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
@@ -41,11 +44,11 @@ class BusinessVerificationControllerTest {
                                   "businessRegNumber": "123-456-7890"
                                 }
                                 """))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
+                .andExpect(status()
                         .isUnprocessableContent())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(jsonPath(
                         "$.message").value("입력값을 확인해 주세요."))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(jsonPath(
                         "$.data.fieldErrors[?(@.field == 'businessRegNumber')]").exists());
 
         verifyNoInteractions(businessVerificationService);
@@ -53,7 +56,7 @@ class BusinessVerificationControllerTest {
 
     @Test
     void 빈_사업자등록번호는_입력_오류_하나만_반환한다() throws Exception {
-        BusinessVerificationService businessVerificationService = org.mockito.Mockito.mock(
+        BusinessVerificationService businessVerificationService = mock(
                 BusinessVerificationService.class
         );
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
@@ -70,11 +73,11 @@ class BusinessVerificationControllerTest {
                                   "businessRegNumber": ""
                                 }
                                 """))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
+                .andExpect(status()
                         .isUnprocessableContent())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(jsonPath(
                         "$.data.fieldErrors.length()").value(1))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(jsonPath(
                         "$.data.fieldErrors[0].message").value("사업자등록번호를 입력해 주세요."));
 
         verifyNoInteractions(businessVerificationService);
@@ -82,7 +85,7 @@ class BusinessVerificationControllerTest {
 
     @Test
     void 사업자등록번호_인증_요청을_처리하고_200_응답을_반환한다() {
-        BusinessVerificationService businessVerificationService = org.mockito.Mockito.mock(
+        BusinessVerificationService businessVerificationService = mock(
                 BusinessVerificationService.class
         );
         BusinessVerificationController businessVerificationController = new BusinessVerificationController(

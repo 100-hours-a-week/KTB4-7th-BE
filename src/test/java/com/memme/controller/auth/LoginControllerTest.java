@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.memme.dto.auth.LoginRequest;
 import com.memme.dto.auth.LoginResponse;
@@ -25,7 +28,7 @@ class LoginControllerTest {
 
     @Test
     void 로그인_세션을_무효화하고_204_응답을_반환한다() {
-        LoginService loginService = org.mockito.Mockito.mock(LoginService.class);
+        LoginService loginService = mock(LoginService.class);
         LoginController loginController = new LoginController(loginService);
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpSession session = new MockHttpSession();
@@ -40,7 +43,7 @@ class LoginControllerTest {
 
     @Test
     void 로그인_세션이_없어도_204_응답을_반환한다() {
-        LoginService loginService = org.mockito.Mockito.mock(LoginService.class);
+        LoginService loginService = mock(LoginService.class);
         LoginController loginController = new LoginController(loginService);
 
         ResponseEntity<Void> response = loginController.logout(new MockHttpServletRequest());
@@ -51,7 +54,7 @@ class LoginControllerTest {
 
     @Test
     void 로그인에_성공하면_세션에_인증사용자를_저장하고_200_응답을_반환한다() {
-        LoginService loginService = org.mockito.Mockito.mock(LoginService.class);
+        LoginService loginService = mock(LoginService.class);
         LoginController loginController = new LoginController(loginService);
         LoginRequest request = new LoginRequest("owner@memme.com", "password");
         MockHttpSession session = new MockHttpSession();
@@ -72,7 +75,7 @@ class LoginControllerTest {
 
     @Test
     void 잘못된_로그인_입력값은_422_fieldErrors로_반환한다() throws Exception {
-        LoginService loginService = org.mockito.Mockito.mock(LoginService.class);
+        LoginService loginService = mock(LoginService.class);
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new LoginController(loginService))
@@ -88,12 +91,12 @@ class LoginControllerTest {
                                   "password": ""
                                 }
                                 """))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
+                .andExpect(status()
                         .isUnprocessableContent())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(jsonPath(
                         "$.data.fieldErrors[?(@.field == 'email')]"
                 ).exists())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                .andExpect(jsonPath(
                         "$.data.fieldErrors[?(@.field == 'password')]"
                 ).exists());
 
