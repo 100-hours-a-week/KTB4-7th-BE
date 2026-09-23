@@ -1,5 +1,6 @@
 package com.memme.exception;
 
+import com.memme.dto.auth.PasswordResetEmailRequest;
 import com.memme.dto.common.ApiResponse;
 import com.memme.dto.common.FieldError;
 import com.memme.dto.common.FieldErrors;
@@ -65,9 +66,25 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse<>(exception.getMessage(), new FieldErrors(exception.getFieldErrors())));
     }
 
+    @ExceptionHandler(InvalidPasswordResetRequestException.class)
+    public ResponseEntity<ApiResponse<FieldErrors>> handleInvalidPasswordResetRequest(
+            InvalidPasswordResetRequestException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(exception.getMessage(), new FieldErrors(exception.getFieldErrors())));
+    }
+
     @ExceptionHandler(SignupCompletionExpiredException.class)
     public ResponseEntity<ApiResponse<Void>> handleSignupCompletionExpired(
             SignupCompletionExpiredException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.GONE)
+                .body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
+    @ExceptionHandler(PasswordResetTokenExpiredException.class)
+    public ResponseEntity<ApiResponse<Void>> handlePasswordResetTokenExpired(
+            PasswordResetTokenExpiredException exception
     ) {
         return ResponseEntity.status(HttpStatus.GONE)
                 .body(new ApiResponse<>(exception.getMessage(), null));
@@ -103,6 +120,11 @@ public class GlobalExceptionHandler {
                 fieldError -> fieldError.isBindingFailure()
         )) {
             return badRequestResponse();
+        }
+
+        if (exception.getBindingResult().getTarget() instanceof PasswordResetEmailRequest) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ApiResponse<>("이메일 형식이 올바르지 않습니다.", null));
         }
 
         List<FieldError> fieldErrors = exception.getBindingResult().getFieldErrors().stream()
