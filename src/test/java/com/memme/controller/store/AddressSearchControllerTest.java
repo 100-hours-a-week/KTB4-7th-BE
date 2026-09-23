@@ -99,6 +99,20 @@ class AddressSearchControllerTest {
     }
 
     @Test
+    void 숫자가_아닌_size는_400_공통_응답으로_반환한다() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/v1/addresses/search")
+                        .queryParam("query", "판교역로")
+                        .queryParam("size", "abc"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                        "$.message").value("요청 형식이 올바르지 않습니다."))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                        "$.data").doesNotExist());
+
+        verifyNoInteractions(addressSearchService);
+    }
+
+    @Test
     void 주소_검색_외부_API_실패는_502_응답으로_반환한다() throws Exception {
         when(addressSearchService.search(new AddressSearchRequest("판교역로", null, null)))
                 .thenThrow(new AddressSearchFailedException());
