@@ -64,11 +64,11 @@ class AddressSearchControllerTest {
     }
 
     @Test
-    void 빈_주소_검색어는_422_fieldErrors로_반환한다() throws Exception {
+    void 빈_주소_검색어는_400_fieldErrors로_반환한다() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/v1/addresses/search")
                         .queryParam("query", ""))
                 .andExpect(status()
-                        .isUnprocessableContent())
+                        .isBadRequest())
                 .andExpect(jsonPath(
                         "$.data.fieldErrors[?(@.field == 'query')]").exists());
 
@@ -76,12 +76,12 @@ class AddressSearchControllerTest {
     }
 
     @Test
-    void 잘못된_cursor는_422_fieldErrors로_반환한다() throws Exception {
+    void 잘못된_cursor는_400_fieldErrors로_반환한다() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/v1/addresses/search")
                         .queryParam("query", "판교역로")
                         .queryParam("cursor", "0"))
                 .andExpect(status()
-                        .isUnprocessableContent())
+                        .isBadRequest())
                 .andExpect(jsonPath(
                         "$.data.fieldErrors[?(@.field == 'cursor')]").exists());
 
@@ -89,12 +89,12 @@ class AddressSearchControllerTest {
     }
 
     @Test
-    void 잘못된_size는_422_fieldErrors로_반환한다() throws Exception {
+    void 잘못된_size는_400_fieldErrors로_반환한다() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/v1/addresses/search")
                         .queryParam("query", "판교역로")
                         .queryParam("size", "11"))
                 .andExpect(status()
-                        .isUnprocessableContent())
+                        .isBadRequest())
                 .andExpect(jsonPath(
                         "$.data.fieldErrors[?(@.field == 'size')]").exists());
 
