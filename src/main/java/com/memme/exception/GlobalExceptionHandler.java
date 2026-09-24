@@ -54,6 +54,22 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse<>(exception.getMessage(), null));
     }
 
+    @ExceptionHandler(EmptyStoreProfileUpdateException.class)
+    public ResponseEntity<ApiResponse<Void>> handleEmptyStoreProfileUpdate(
+            EmptyStoreProfileUpdateException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
+    @ExceptionHandler(InvalidStoreProfileUpdateRequestException.class)
+    public ResponseEntity<ApiResponse<FieldErrors>> handleInvalidStoreProfileUpdateRequest(
+            InvalidStoreProfileUpdateRequestException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(exception.getMessage(), new FieldErrors(exception.getFieldErrors())));
+    }
+
     @ExceptionHandler(InvalidLoginException.class)
     public ResponseEntity<ApiResponse<Void>> handleInvalidLogin(InvalidLoginException exception) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)

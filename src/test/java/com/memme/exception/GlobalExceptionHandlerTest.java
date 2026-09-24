@@ -132,6 +132,30 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void 변경할_매장_정보가_없는_예외는_400_응답으로_변환한다() {
+        ResponseEntity<ApiResponse<Void>> response = exceptionHandler.handleEmptyStoreProfileUpdate(
+                new EmptyStoreProfileUpdateException()
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("변경할 매장 정보가 없습니다.", response.getBody().message());
+        assertNull(response.getBody().data());
+    }
+
+    @Test
+    void 매장_정보_수정_업무_검증_예외는_400_fieldErrors_응답으로_변환한다() {
+        ResponseEntity<ApiResponse<FieldErrors>> response = exceptionHandler.handleInvalidStoreProfileUpdateRequest(
+                new InvalidStoreProfileUpdateRequestException(List.of(
+                        new FieldError("businessHours", "요일별 영업시간을 확인해 주세요.")
+                ))
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("입력값을 확인해 주세요.", response.getBody().message());
+        assertEquals("businessHours", response.getBody().data().fieldErrors().getFirst().field());
+    }
+
+    @Test
     void 비밀번호_수정_입력값_예외는_400_fieldErrors_응답으로_변환한다() {
         ResponseEntity<ApiResponse<FieldErrors>> response = exceptionHandler.handleInvalidPasswordChangeRequest(
                 new InvalidPasswordChangeRequestException(List.of(
