@@ -113,18 +113,19 @@
   },
   {
     "cell": "I63",
-    "wrapper": "com.memme.dto.common.ApiResponse",
-    "dataType": "com.memme.dto.sales.SalesSolutionGenerationResponse",
+    "wrapper": "com.memme.dto.sales.SalesSolutionGenerationResponse",
+    "dataType": null,
     "json": {
       "message": "솔루션을 생성했습니다.",
       "data": {
+        "targetDate": "2026-09-08",
         "solutionCards": [
           {
             "rankNo": 1,
             "title": "점심 시간대 할인",
             "summaryText": "점심 할인 프로모션을 제안합니다.",
             "detailText": "12시부터 14시까지 할인 행사를 진행하세요.",
-            "evidence": "최근 4주간 평일 12시부터 14시까지의 주문 수가 다른 점심 시간대보다 18% 낮았습니다."
+            "evidence": "평일 12시 메뉴 매출이 가장 높았습니다."
           }
         ],
         "modelVersion": "v1"
@@ -133,22 +134,14 @@
   },
   {
     "cell": "I67",
-    "wrapper": "com.memme.dto.common.ApiResponse",
-    "dataType": "com.memme.dto.sales.SalesSolutionGenerationResponse",
+    "wrapper": "com.memme.dto.sales.SalesSolutionGenerationResponse",
+    "dataType": null,
     "json": {
-      "message": "솔루션을 생성했습니다.",
-      "data": {
-        "targetDate": "2026-09-06",
-        "solutionCards": [
-          {
-            "rankNo": 1,
-            "title": "점심 시간대 할인",
-            "summaryText": "점심 할인 프로모션을 제안합니다.",
-            "detailText": "12시부터 14시까지 할인 행사를 진행하세요.",
-            "evidence": "최근 4주간 평일 12시부터 14시까지의 주문 수가 다른 점심 시간대보다 18% 낮았습니다."
-          }
-        ],
-        "modelVersion": "v1"
+      "message": "솔루션 생성에 실패했습니다.",
+      "status": "FAILED",
+      "error": {
+        "code": "GENERATION_FAILED",
+        "retryable": true
       }
     }
   },
@@ -835,7 +828,27 @@
       "salesAnalysisId": 56,
       "targetDate": "2026-09-08",
       "triggerType": "UPLOAD",
-      "metrics": {}
+      "metrics": {
+        "salesSummary": {
+          "netSales": 1183600,
+          "vsPrevPeriod": -0.12
+        },
+        "hourlyProfile": [
+          {
+            "dayType": "WEEKDAY",
+            "hour": 14,
+            "amount": 30000
+          }
+        ],
+        "categoryBreakdown": [
+          {
+            "name": "커피",
+            "share": 0.62,
+            "vsPrevPeriod": null
+          }
+        ],
+        "predictedSalesToday": 1250000
+      }
     }
   },
   {
@@ -846,7 +859,14 @@
       "storeId": 1,
       "targetDate": "2026-09-08",
       "triggerType": "string",
-      "metrics": {}
+      "metrics": {
+        "salesSummary": {
+          "netSales": 0,
+          "vsPrevPeriod": null
+        },
+        "hourlyProfile": [],
+        "categoryBreakdown": []
+      }
     }
   },
   {
