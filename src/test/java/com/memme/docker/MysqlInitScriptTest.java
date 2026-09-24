@@ -107,4 +107,18 @@ class MysqlInitScriptTest {
                 .contains("UNIQUE KEY uk_sales_forecasts_store_target_date (store_id, target_date)")
                 .doesNotContain("INSUFFICIENT_HISTORY");
     }
+
+    @Test
+    void 솔루션과_사용자_저장_테이블을_초기화한다() throws IOException {
+        String sql = Files.readString(Path.of("docker/mysql/init/03-solutions.sql"));
+
+        assertThat(sql)
+                .contains("CREATE TABLE solution_bundles")
+                .contains("UNIQUE KEY uk_solution_bundle_store_date (store_id, target_date)")
+                .contains("CREATE TABLE solutions")
+                .contains("evidence_text TEXT NULL")
+                .contains("UNIQUE KEY uk_solutions_bundle_rank (solution_bundle_id, rank_no)")
+                .contains("CREATE TABLE saved_solutions")
+                .contains("UNIQUE KEY uk_saved_solutions_user_solution (user_id, solution_id)");
+    }
 }
