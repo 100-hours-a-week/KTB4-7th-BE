@@ -58,7 +58,7 @@ public class StoreBusinessHours {
             Integer dayOfWeek,
             LocalTime opensAt,
             LocalTime closesAt,
-            Boolean closed,
+            boolean closed,
             LocalDateTime createdAt
     ) {
         StoreBusinessHours businessHours = new StoreBusinessHours();
@@ -86,5 +86,21 @@ public class StoreBusinessHours {
 
     public Boolean isClosed() {
         return closed;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void updateBusinessHours(
+            LocalTime opensAt,
+            LocalTime closesAt,
+            Boolean closed,
+            LocalDateTime updatedAt
+    ) {
+        this.closed = closed;
+        this.opensAt = closed ? null : opensAt;
+        this.closesAt = closed ? null : closesAt;
+        this.updatedAt = updatedAt;
     }
 }
