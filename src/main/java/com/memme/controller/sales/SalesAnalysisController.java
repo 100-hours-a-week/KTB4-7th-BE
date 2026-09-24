@@ -1,7 +1,7 @@
 package com.memme.controller.sales;
 
 import com.memme.controller.auth.AuthenticatedUserSession;
-import com.memme.exception.AuthenticationRequiredException;
+import com.memme.exception.auth.AuthenticationRequiredException;
 import com.memme.dto.common.StatusResponse;
 import com.memme.service.sales.analysis.SalesAnalysisQueryService;
 import com.memme.service.sales.analysis.SalesAnalysisResult;

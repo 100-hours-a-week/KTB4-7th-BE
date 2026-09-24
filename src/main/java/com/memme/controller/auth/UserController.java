@@ -3,7 +3,7 @@ package com.memme.controller.auth;
 import com.memme.dto.auth.UserProfileResponse;
 import com.memme.dto.auth.PasswordChangeRequest;
 import com.memme.dto.common.ApiResponse;
-import com.memme.exception.AuthenticationRequiredException;
+import com.memme.exception.auth.AuthenticationRequiredException;
 import com.memme.service.auth.PasswordChangeService;
 import com.memme.service.auth.UserProfileService;
 import com.memme.service.auth.WithdrawalService;

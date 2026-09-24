@@ -7,7 +7,7 @@ import java.util.List;
 import com.memme.dto.sales.SalesForecastBatchRequest;
 import com.memme.dto.sales.SalesForecastBatchResponse;
 import com.memme.dto.sales.SalesForecastStatus;
-import com.memme.exception.SalesForecastAiException;
+import com.memme.exception.sales.SalesForecastAiException;
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
 import org.junit.jupiter.api.AfterEach;

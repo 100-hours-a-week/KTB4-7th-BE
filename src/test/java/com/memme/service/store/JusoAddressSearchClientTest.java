@@ -7,7 +7,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.memme.dto.store.AddressSearchRequest;
 import com.memme.dto.store.AddressSearchResponse;
-import com.memme.exception.AddressSearchFailedException;
+import com.memme.exception.store.AddressSearchFailedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.client.MockRestServiceServer;

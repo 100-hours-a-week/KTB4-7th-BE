@@ -1,6 +1,6 @@
 package com.memme.service.sales.upload;
 
-import com.memme.exception.SalesUploadRequestException;
+import com.memme.exception.sales.SalesUploadRequestException;
 import com.memme.repository.store.StoreOwnershipRepository;
 import com.memme.service.sales.storage.SalesFileStorage;
 import com.memme.service.sales.storage.StoredSalesFile;

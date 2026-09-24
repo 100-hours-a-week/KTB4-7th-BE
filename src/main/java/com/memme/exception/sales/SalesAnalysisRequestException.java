@@ -1,4 +1,4 @@
-package com.memme.exception;
+package com.memme.exception.sales;
 
 public class SalesAnalysisRequestException extends RuntimeException {
     public enum Reason { INVALID_PERIOD, STORE_OWNER_REQUIRED }

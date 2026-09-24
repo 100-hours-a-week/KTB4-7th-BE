@@ -1,4 +1,4 @@
-package com.memme.exception;
+package com.memme.exception.auth;
 
 public class AuthenticationRequiredException extends RuntimeException {
     public AuthenticationRequiredException() {

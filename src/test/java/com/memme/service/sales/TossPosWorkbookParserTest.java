@@ -3,7 +3,7 @@ package com.memme.service.sales;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.memme.exception.TossPosWorkbookValidationException;
+import com.memme.exception.sales.TossPosWorkbookValidationException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;

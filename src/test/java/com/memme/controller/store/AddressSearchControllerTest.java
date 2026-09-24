@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.memme.dto.store.AddressSearchRequest;
 import com.memme.dto.store.AddressSearchResponse;
-import com.memme.exception.AddressSearchFailedException;
+import com.memme.exception.store.AddressSearchFailedException;
 import com.memme.exception.GlobalExceptionHandler;
 import com.memme.service.store.AddressSearchService;
 import java.util.List;

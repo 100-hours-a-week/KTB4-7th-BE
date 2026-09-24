@@ -1,4 +1,4 @@
-package com.memme.exception;
+package com.memme.exception.store;
 
 import com.memme.dto.common.FieldError;
 import java.util.List;

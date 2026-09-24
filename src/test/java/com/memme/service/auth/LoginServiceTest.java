@@ -7,7 +7,7 @@ import static org.mockito.Mockito.when;
 import com.memme.dto.auth.LoginRequest;
 import com.memme.entity.auth.User;
 import com.memme.entity.store.Store;
-import com.memme.exception.InvalidLoginException;
+import com.memme.exception.auth.InvalidLoginException;
 import com.memme.repository.auth.UserRepository;
 import com.memme.repository.store.StoreRepository;
 import java.lang.reflect.Field;

@@ -1,4 +1,4 @@
-package com.memme.exception;
+package com.memme.exception.sales;
 
 public class SalesUploadProcessingException extends RuntimeException {
 

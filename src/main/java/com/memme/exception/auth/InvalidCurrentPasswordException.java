@@ -1,4 +1,4 @@
-package com.memme.exception;
+package com.memme.exception.auth;
 
 public class InvalidCurrentPasswordException extends RuntimeException {
 

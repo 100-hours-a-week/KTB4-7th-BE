@@ -2,7 +2,7 @@ package com.memme.service.store;
 
 import com.memme.dto.store.AddressSearchRequest;
 import com.memme.dto.store.AddressSearchResponse;
-import com.memme.exception.AddressSearchFailedException;
+import com.memme.exception.store.AddressSearchFailedException;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

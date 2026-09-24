@@ -7,13 +7,13 @@ import java.util.Optional;
 
 import com.memme.entity.sales.SalesUploadEntity;
 import com.memme.entity.sales.SalesUploadProcessingPhase;
-import com.memme.exception.SalesUploadRequestException;
-import com.memme.exception.TossPosWorkbookValidationException;
+import com.memme.exception.sales.SalesUploadRequestException;
+import com.memme.exception.sales.TossPosWorkbookValidationException;
 import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.service.sales.TossPosWorkbookData;
 import com.memme.service.sales.TossPosWorkbookParser;
 import com.memme.service.sales.analysis.SalesAnalysisService;
-import com.memme.exception.SalesUploadProcessingException;
+import com.memme.exception.sales.SalesUploadProcessingException;
 import com.memme.service.sales.storage.SalesFileStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
