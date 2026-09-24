@@ -35,7 +35,7 @@ public class StoreProfileService {
 
         return new StoreProfileResponse(new StoreProfileResponse.Store(
                 store.getId(),
-                formatBusinessRegistrationNo(store.getBusinessRegistrationNo()),
+                maskBusinessRegistrationNo(store.getBusinessRegistrationNo()),
                 store.getStoreName(),
                 new StoreProfileResponse.Address(
                         store.getPostalCode(),
@@ -56,9 +56,9 @@ public class StoreProfileService {
         );
     }
 
-    private String formatBusinessRegistrationNo(String businessRegistrationNo) {
+    private String maskBusinessRegistrationNo(String businessRegistrationNo) {
         return businessRegistrationNo.substring(0, 3) + "-"
                 + businessRegistrationNo.substring(3, 5) + "-"
-                + businessRegistrationNo.substring(5);
+                + "*****";
     }
 }

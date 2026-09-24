@@ -52,7 +52,7 @@ class StoreProfileServiceTest {
         StoreProfileResponse response = storeProfileService.getProfile(1L);
 
         assertThat(response.store().id()).isEqualTo(10L);
-        assertThat(response.store().businessRegNumber()).isEqualTo("123-45-67890");
+        assertThat(response.store().businessRegNumber()).isEqualTo("123-45-*****");
         assertThat(response.store().storeName()).isEqualTo("맴매카페");
         assertThat(response.store().address().postalCode()).isEqualTo("06236");
         assertThat(response.store().address().roadAddress()).isEqualTo("서울특별시 강남구 테헤란로 123");
