@@ -63,6 +63,10 @@ public class User {
         return passwordHash;
     }
 
+    public String getPhone() {
+        return phone;
+    }
+
     public void changePassword(String passwordHash, LocalDateTime changedAt) {
         this.passwordHash = passwordHash;
         this.updatedAt = changedAt;
