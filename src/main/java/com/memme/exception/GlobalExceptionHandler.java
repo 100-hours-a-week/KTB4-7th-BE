@@ -4,6 +4,7 @@ import com.memme.dto.auth.PasswordResetEmailRequest;
 import com.memme.dto.common.ApiResponse;
 import com.memme.dto.common.FieldError;
 import com.memme.dto.common.FieldErrors;
+import com.memme.dto.solution.SolutionNavigationErrorResponse;
 import com.memme.exception.auth.AuthenticationRequiredException;
 import com.memme.exception.auth.DuplicateSignupException;
 import com.memme.exception.auth.InvalidCurrentPasswordException;
@@ -56,6 +57,35 @@ public class GlobalExceptionHandler {
                 ? HttpStatus.FORBIDDEN
                 : HttpStatus.BAD_REQUEST;
         return ResponseEntity.status(status).body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
+    @ExceptionHandler(SolutionRequestException.class)
+    public ResponseEntity<?> handleSolutionRequest(
+            SolutionRequestException exception
+    ) {
+        HttpStatus status = switch (exception.getReason()) {
+            case STORE_OWNER_REQUIRED, SAVED_SOLUTION_OWNER_REQUIRED -> HttpStatus.FORBIDDEN;
+            case BUNDLE_EXPIRED, SAVE_EXPIRED -> HttpStatus.GONE;
+            case INVALID_PAGE_SIZE, INVALID_SAVED_IDS -> HttpStatus.BAD_REQUEST;
+            case STORE_NOT_FOUND, BUNDLE_NOT_FOUND, SAVE_TARGET_NOT_FOUND,
+                    SAVED_SOLUTION_NOT_FOUND -> HttpStatus.NOT_FOUND;
+        };
+        if (exception.getReason() == SolutionRequestException.Reason.BUNDLE_EXPIRED) {
+            return ResponseEntity.status(status).body(new SolutionNavigationErrorResponse(
+                    exception.getMessage(),
+                    "SOL-01-01",
+                    null
+            ));
+        }
+        if (exception.getReason() == SolutionRequestException.Reason.SAVED_SOLUTION_NOT_FOUND) {
+            return ResponseEntity.status(status).body(new SolutionNavigationErrorResponse(
+                    exception.getMessage(),
+                    "SOL-03",
+                    null
+            ));
+        }
+        return ResponseEntity.status(status)
+                .body(new ApiResponse<>(exception.getMessage(), null));
     }
 
     @ExceptionHandler(AuthenticationRequiredException.class)
