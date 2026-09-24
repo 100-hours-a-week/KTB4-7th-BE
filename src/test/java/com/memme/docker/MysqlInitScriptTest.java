@@ -75,4 +75,21 @@ class MysqlInitScriptTest {
 
         assertThat(sql).doesNotContain("ranking_change_enabled");
     }
+
+    @Test
+    void 매장과_대상일자별_매출_예측_테이블을_초기화한다() throws IOException {
+        String sql = Files.readString(Path.of("docker/mysql/init/02-sales-forecasts.sql"));
+
+        assertThat(sql)
+                .contains("CREATE TABLE sales_forecasts")
+                .contains("based_on_upload_id BIGINT UNSIGNED NOT NULL")
+                .contains("basis_date DATE NOT NULL")
+                .contains("predicted_sales_amount BIGINT UNSIGNED NOT NULL")
+                .contains("lower_bound BIGINT UNSIGNED NOT NULL")
+                .contains("upper_bound BIGINT UNSIGNED NOT NULL")
+                .contains("model_version VARCHAR(50) NOT NULL")
+                .contains("generated_at DATETIME NOT NULL")
+                .contains("UNIQUE KEY uk_sales_forecasts_store_target_date (store_id, target_date)")
+                .doesNotContain("INSUFFICIENT_HISTORY");
+    }
 }
