@@ -136,6 +136,20 @@ class RestSalesForecastAiClientTest {
     }
 
     @Test
+    void convertsInternalServerErrorWithoutBody() {
+        server.expect(requestTo(FORECAST_URL))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        assertThatThrownBy(() -> client.createForecast(validRequest()))
+                .isInstanceOfSatisfying(SalesForecastAiException.class, exception -> {
+                    assertThat(exception.getStatusCode()).isEqualTo(500);
+                    assertThat(exception.getCode()).isEqualTo("AI_HTTP_500");
+                    assertThat(exception.isRetryable()).isFalse();
+                });
+        server.verify();
+    }
+
+    @Test
     void convertsGatewayTimeoutAsRetryable() {
         server.expect(requestTo(FORECAST_URL))
                 .andRespond(withStatus(HttpStatus.GATEWAY_TIMEOUT)
