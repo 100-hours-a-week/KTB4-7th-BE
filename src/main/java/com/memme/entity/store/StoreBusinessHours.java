@@ -71,4 +71,20 @@ public class StoreBusinessHours {
         businessHours.updatedAt = createdAt;
         return businessHours;
     }
+
+    public Integer getDayOfWeek() {
+        return dayOfWeek;
+    }
+
+    public LocalTime getOpensAt() {
+        return opensAt;
+    }
+
+    public LocalTime getClosesAt() {
+        return closesAt;
+    }
+
+    public Boolean isClosed() {
+        return closed;
+    }
 }

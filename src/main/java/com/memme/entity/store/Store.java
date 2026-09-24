@@ -95,4 +95,20 @@ public class Store {
     public String getStoreName() {
         return name;
     }
+
+    public String getBusinessRegistrationNo() {
+        return businessRegistrationNo;
+    }
+
+    public String getPostalCode() {
+        return postalCode;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public String getAddressDetail() {
+        return addressDetail;
+    }
 }
