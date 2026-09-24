@@ -77,19 +77,21 @@
   },
   {
     "cell": "I59",
-    "wrapper": "com.memme.dto.common.ApiResponse",
-    "dataType": "com.memme.dto.sales.SalesForecastBatchResponse",
+    "wrapper": "com.memme.dto.sales.SalesForecastBatchResponse",
+    "dataType": null,
     "json": {
       "message": "예측을 생성했습니다.",
       "data": {
+        "forecastStartDate": "2026-09-08",
+        "forecastEndDate": "2026-10-12",
+        "horizonDays": 35,
         "predictions": [
           {
-            "storeId": 301,
             "targetDate": "2026-09-08",
-            "basisDate": "2026-09-07",
             "predictedSalesAmount": 1380000,
-            "modelVersion": "ridge-2026-09-16",
-            "generatedAt": "2026-09-08T00:00:05+09:00"
+            "lowerBound": 1242000,
+            "upperBound": 1518000,
+            "modelVersion": "ridge-2026-09-16"
           }
         ]
       }
@@ -813,8 +815,15 @@
     "json": {
       "storeId": 1,
       "uploadId": 1,
-      "dailySales": "string",
-      "targetMonth": "2026-09"
+      "analysisRunId": 34,
+      "forecastStartDate": "2026-09-08",
+      "dailySales": [
+        {
+          "date": "2026-09-07",
+          "amount": 1380000,
+          "orderCnt": 132
+        }
+      ]
     }
   },
   {
