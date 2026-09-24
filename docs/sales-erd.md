@@ -8,6 +8,7 @@
 - `sales_orders` 1 : N `sales_order_items` (`sales_order_items.sales_order_id`)
 - `sales_uploads` 1 : N `analysis_runs` (`analysis_runs.based_on_upload_id`)
 - `sales_daily_summaries`는 `store_id`, `sales_date`별 주문 집계 스냅샷이다.
+- `sales_forecasts`는 `store_id`, `target_date`별 최신 업로드의 정상 매출 예측 결과다.
 - `store_id`, `requested_by_user_id`, `menu_id`는 아직 구현되지 않은 도메인을 가리키는 논리 참조이며 물리 FK/JPA 연관관계는 두지 않는다.
 
 ## 테이블
@@ -111,6 +112,24 @@
 | error_message | VARCHAR(500) | N | 실패 상세 |
 | started_at / completed_at | DATETIME | N | 시작·종료 시각 |
 | created_at | DATETIME | Y | 생성 시각 |
+
+### sales_forecasts
+
+| 컬럼 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| id | BIGINT | Y | PK, auto increment |
+| store_id | BIGINT | Y | 예측 대상 매장 식별자 |
+| based_on_upload_id | BIGINT | Y | 최신 여부를 판단할 원본 업로드 식별자 |
+| target_date | DATE | Y | 예측 대상 영업일 |
+| basis_date | DATE | Y | 예측 생성에 사용한 마지막 학습 일자 |
+| predicted_sales_amount | BIGINT UNSIGNED | Y | 예상 매출 원 단위 정수 |
+| lower_bound | BIGINT UNSIGNED | Y | 80% 예측구간 하한 |
+| upper_bound | BIGINT UNSIGNED | Y | 80% 예측구간 상한 |
+| model_version | VARCHAR(50) | Y | 추적용 예측 모델 식별자 |
+| generated_at | DATETIME | Y | 예측 생성 시각 |
+
+`(store_id, target_date)`에 `uk_sales_forecasts_store_target_date` unique 제약을 둔다.
+`lower_bound <= predicted_sales_amount <= upper_bound`를 만족해야 한다. `INSUFFICIENT_HISTORY`는 예측 행을 만들지 않고 생성 흐름의 결과 상태로 구분한다. 동일 날짜가 겹치면 더 큰 `based_on_upload_id`의 결과만 반영해 이전 업로드의 늦은 응답이 최신 결과를 덮어쓰지 못하게 한다.
 
 ## 중첩 기간 재업로드 정책
 
