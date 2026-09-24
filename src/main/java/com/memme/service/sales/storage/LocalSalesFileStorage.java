@@ -8,9 +8,15 @@ import java.nio.file.StandardOpenOption;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(
+        name = "app.sales.storage.type",
+        havingValue = "local",
+        matchIfMissing = true
+)
 public class LocalSalesFileStorage implements SalesFileStorage {
 
     private final Path rootDirectory;
