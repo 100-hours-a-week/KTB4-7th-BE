@@ -36,6 +36,18 @@ class UserEntityMappingTest {
     }
 
     @Test
+    void 내_정보_조회에_필요한_휴대폰_번호를_조회할_수_있다() {
+        User user = User.create(
+                "owner@memme.com",
+                "encoded-password",
+                "01012345678",
+                LocalDateTime.of(2026, 9, 22, 20, 0)
+        );
+
+        assertThat(user.getPhone()).isEqualTo("01012345678");
+    }
+
+    @Test
     void 회원_탈퇴_시각을_기록할_수_있다() throws Exception {
         User user = User.create(
                 "owner@memme.com",
