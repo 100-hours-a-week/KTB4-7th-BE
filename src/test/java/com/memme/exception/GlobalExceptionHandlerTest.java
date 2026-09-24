@@ -108,4 +108,27 @@ class GlobalExceptionHandlerTest {
         assertEquals("이메일 또는 비밀번호가 올바르지 않습니다.", response.getBody().message());
         assertNull(response.getBody().data());
     }
+
+    @Test
+    void 현재_비밀번호_불일치_예외는_400_응답으로_변환한다() {
+        ResponseEntity<ApiResponse<Void>> response = exceptionHandler.handleInvalidCurrentPassword(
+                new InvalidCurrentPasswordException()
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("현재 비밀번호가 일치하지 않습니다.", response.getBody().message());
+        assertNull(response.getBody().data());
+    }
+
+    @Test
+    void 비밀번호_수정_입력값_예외는_400_fieldErrors_응답으로_변환한다() {
+        ResponseEntity<ApiResponse<FieldErrors>> response = exceptionHandler.handleInvalidPasswordChangeRequest(
+                new InvalidPasswordChangeRequestException(List.of(
+                        new FieldError("newPassword", "현재 비밀번호와 다르게 입력해 주세요.")
+                ))
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("newPassword", response.getBody().data().fieldErrors().getFirst().field());
+    }
 }

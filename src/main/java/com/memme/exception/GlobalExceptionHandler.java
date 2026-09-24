@@ -54,6 +54,14 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse<>(exception.getMessage(), null));
     }
 
+    @ExceptionHandler(InvalidCurrentPasswordException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidCurrentPassword(
+            InvalidCurrentPasswordException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
     @ExceptionHandler(DuplicateSignupException.class)
     public ResponseEntity<ApiResponse<FieldErrors>> handleDuplicateSignup(DuplicateSignupException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -69,6 +77,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidPasswordResetRequestException.class)
     public ResponseEntity<ApiResponse<FieldErrors>> handleInvalidPasswordResetRequest(
             InvalidPasswordResetRequestException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(exception.getMessage(), new FieldErrors(exception.getFieldErrors())));
+    }
+
+    @ExceptionHandler(InvalidPasswordChangeRequestException.class)
+    public ResponseEntity<ApiResponse<FieldErrors>> handleInvalidPasswordChangeRequest(
+            InvalidPasswordChangeRequestException exception
     ) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiResponse<>(exception.getMessage(), new FieldErrors(exception.getFieldErrors())));
