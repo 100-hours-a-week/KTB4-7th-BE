@@ -7,7 +7,7 @@ import com.memme.dto.store.StoreProfileResponse;
 import com.memme.entity.auth.User;
 import com.memme.entity.store.Store;
 import com.memme.entity.store.StoreBusinessHours;
-import com.memme.exception.StoreProfileNotFoundException;
+import com.memme.exception.store.StoreProfileNotFoundException;
 import com.memme.repository.store.StoreBusinessHoursRepository;
 import com.memme.repository.store.StoreRepository;
 import java.lang.reflect.Field;

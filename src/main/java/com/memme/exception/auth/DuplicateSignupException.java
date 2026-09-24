@@ -1,14 +1,14 @@
-package com.memme.exception;
+package com.memme.exception.auth;
 
 import com.memme.dto.common.FieldError;
 import java.util.List;
 
-public class InvalidStoreProfileUpdateRequestException extends RuntimeException {
+public class DuplicateSignupException extends RuntimeException {
 
     private final List<FieldError> fieldErrors;
 
-    public InvalidStoreProfileUpdateRequestException(List<FieldError> fieldErrors) {
-        super("입력값을 확인해 주세요.");
+    public DuplicateSignupException(List<FieldError> fieldErrors) {
+        super("이미 가입된 이메일 또는 휴대폰 번호입니다.");
         this.fieldErrors = List.copyOf(fieldErrors);
     }
 

@@ -11,7 +11,7 @@ import com.memme.dto.common.ApiResponse;
 import com.memme.dto.store.StoreProfileResponse;
 import com.memme.dto.store.StoreProfileUpdateRequest;
 import com.memme.dto.store.StoreProfileUpdateResponse;
-import com.memme.exception.AuthenticationRequiredException;
+import com.memme.exception.auth.AuthenticationRequiredException;
 import com.memme.service.store.StoreProfileService;
 import com.memme.service.store.StoreProfileUpdateService;
 import java.time.DayOfWeek;

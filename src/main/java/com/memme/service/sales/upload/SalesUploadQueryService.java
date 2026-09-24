@@ -14,7 +14,7 @@ import com.memme.entity.sales.AnalysisRunEntity;
 import com.memme.entity.sales.SalesUploadEntity;
 import com.memme.entity.sales.SalesUploadProcessingPhase;
 import com.memme.entity.sales.SalesUploadStatus;
-import com.memme.exception.SalesUploadQueryException;
+import com.memme.exception.sales.SalesUploadQueryException;
 import com.memme.repository.sales.AnalysisRunRepository;
 import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.repository.store.StoreOwnershipRepository;
@@ -23,9 +23,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import static com.memme.exception.SalesUploadQueryException.Reason.INVALID_PAGE;
-import static com.memme.exception.SalesUploadQueryException.Reason.STORE_OWNER_REQUIRED;
-import static com.memme.exception.SalesUploadQueryException.Reason.UPLOAD_NOT_FOUND;
+import static com.memme.exception.sales.SalesUploadQueryException.Reason.INVALID_PAGE;
+import static com.memme.exception.sales.SalesUploadQueryException.Reason.STORE_OWNER_REQUIRED;
+import static com.memme.exception.sales.SalesUploadQueryException.Reason.UPLOAD_NOT_FOUND;
 
 @Service
 @Transactional(readOnly = true)

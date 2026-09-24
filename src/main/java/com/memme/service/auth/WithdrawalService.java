@@ -1,7 +1,7 @@
 package com.memme.service.auth;
 
 import com.memme.entity.auth.User;
-import com.memme.exception.AuthenticationRequiredException;
+import com.memme.exception.auth.AuthenticationRequiredException;
 import com.memme.repository.auth.UserRepository;
 import java.time.Clock;
 import java.time.LocalDateTime;

@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 
-import com.memme.exception.SalesAnalysisRequestException;
+import com.memme.exception.sales.SalesAnalysisRequestException;
 import com.memme.repository.store.StoreOwnershipRepository;
 import org.junit.jupiter.api.Test;
 

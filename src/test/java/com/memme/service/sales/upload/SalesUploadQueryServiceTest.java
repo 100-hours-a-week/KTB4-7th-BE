@@ -11,7 +11,7 @@ import com.memme.entity.sales.AnalysisRunEntity;
 import com.memme.entity.sales.SalesUploadEntity;
 import com.memme.entity.sales.SalesUploadProcessingPhase;
 import com.memme.entity.sales.SalesUploadStatus;
-import com.memme.exception.SalesUploadQueryException;
+import com.memme.exception.sales.SalesUploadQueryException;
 import com.memme.repository.sales.AnalysisRunRepository;
 import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.repository.store.StoreOwnershipRepository;

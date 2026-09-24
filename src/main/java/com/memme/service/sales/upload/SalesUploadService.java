@@ -5,7 +5,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Locale;
 
-import com.memme.exception.SalesUploadRequestException;
+import com.memme.exception.sales.SalesUploadRequestException;
 import com.memme.repository.store.StoreOwnershipRepository;
 import com.memme.service.sales.storage.SalesFile;
 import com.memme.service.sales.storage.SalesFileStorage;

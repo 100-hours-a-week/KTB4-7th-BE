@@ -3,15 +3,15 @@ package com.memme.controller.sales;
 import java.io.IOException;
 
 import com.memme.controller.auth.AuthenticatedUserSession;
-import com.memme.exception.AuthenticationRequiredException;
+import com.memme.exception.auth.AuthenticationRequiredException;
 import com.memme.dto.common.StatusResponse;
 import com.memme.dto.sales.SalesUploadHistoryRequest;
 import com.memme.dto.sales.SalesUploadHistoryResponse;
 import com.memme.dto.sales.SalesUploadRequest;
 import com.memme.dto.sales.SalesUploadResponse;
 import com.memme.dto.sales.SalesUploadStatusResponse;
-import com.memme.exception.SalesUploadProcessingException;
-import com.memme.exception.SalesUploadRequestException;
+import com.memme.exception.sales.SalesUploadProcessingException;
+import com.memme.exception.sales.SalesUploadRequestException;
 import com.memme.service.sales.upload.SalesUploadCommand;
 import com.memme.service.sales.upload.SalesUploadQueryService;
 import com.memme.service.sales.upload.SalesUploadReceipt;

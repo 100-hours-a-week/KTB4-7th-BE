@@ -1,9 +1,9 @@
 package com.memme.controller.sales;
 
 import com.memme.dto.common.FailureResponse;
-import com.memme.exception.SalesUploadProcessingException;
-import com.memme.exception.SalesUploadQueryException;
-import com.memme.exception.SalesUploadRequestException;
+import com.memme.exception.sales.SalesUploadProcessingException;
+import com.memme.exception.sales.SalesUploadQueryException;
+import com.memme.exception.sales.SalesUploadRequestException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;

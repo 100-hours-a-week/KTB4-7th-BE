@@ -10,7 +10,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.memme.dto.sales.SalesForecastBatchRequest;
 import com.memme.dto.sales.SalesForecastBatchResponse;
 import com.memme.dto.sales.SalesForecastStatus;
-import com.memme.exception.SalesForecastAiException;
+import com.memme.exception.sales.SalesForecastAiException;
 import jakarta.validation.Validator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

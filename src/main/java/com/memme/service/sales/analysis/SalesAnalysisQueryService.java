@@ -7,13 +7,13 @@ import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
 
 import com.memme.dto.sales.SalesPeriod;
-import com.memme.exception.SalesAnalysisRequestException;
+import com.memme.exception.sales.SalesAnalysisRequestException;
 import com.memme.repository.store.StoreOwnershipRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import static com.memme.exception.SalesAnalysisRequestException.Reason.INVALID_PERIOD;
-import static com.memme.exception.SalesAnalysisRequestException.Reason.STORE_OWNER_REQUIRED;
+import static com.memme.exception.sales.SalesAnalysisRequestException.Reason.INVALID_PERIOD;
+import static com.memme.exception.sales.SalesAnalysisRequestException.Reason.STORE_OWNER_REQUIRED;
 
 @Service
 @Transactional(readOnly = true)

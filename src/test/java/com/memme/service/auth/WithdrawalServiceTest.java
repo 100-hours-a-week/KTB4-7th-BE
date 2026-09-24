@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
 import com.memme.entity.auth.User;
-import com.memme.exception.AuthenticationRequiredException;
+import com.memme.exception.auth.AuthenticationRequiredException;
 import com.memme.repository.auth.UserRepository;
 import java.lang.reflect.Field;
 import java.time.Clock;

@@ -9,7 +9,7 @@ import java.util.Set;
 import com.memme.dto.sales.SalesSolutionGenerationRequest;
 import com.memme.dto.sales.SalesSolutionGenerationResponse;
 import com.memme.dto.sales.SalesSolutionGenerationStatus;
-import com.memme.exception.SalesSolutionAiException;
+import com.memme.exception.solution.SalesSolutionAiException;
 import jakarta.validation.Validator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

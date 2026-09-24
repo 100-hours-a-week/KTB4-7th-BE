@@ -1,6 +1,6 @@
 package com.memme.service.sales;
 
-import com.memme.exception.TossPosWorkbookValidationException;
+import com.memme.exception.sales.TossPosWorkbookValidationException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;

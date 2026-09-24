@@ -1,4 +1,4 @@
-package com.memme.exception;
+package com.memme.exception.store;
 
 public class StoreProfileNotFoundException extends RuntimeException {
 

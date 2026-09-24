@@ -7,7 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.memme.dto.store.AddressSearchRequest;
 import com.memme.dto.store.AddressSearchResponse;
-import com.memme.exception.AddressSearchFailedException;
+import com.memme.exception.store.AddressSearchFailedException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

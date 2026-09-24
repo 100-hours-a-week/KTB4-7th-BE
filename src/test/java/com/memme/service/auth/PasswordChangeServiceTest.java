@@ -7,8 +7,8 @@ import static org.mockito.Mockito.when;
 
 import com.memme.dto.auth.PasswordChangeRequest;
 import com.memme.entity.auth.User;
-import com.memme.exception.InvalidCurrentPasswordException;
-import com.memme.exception.InvalidPasswordChangeRequestException;
+import com.memme.exception.auth.InvalidCurrentPasswordException;
+import com.memme.exception.auth.InvalidPasswordChangeRequestException;
 import com.memme.repository.auth.UserRepository;
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
