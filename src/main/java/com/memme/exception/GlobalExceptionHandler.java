@@ -48,6 +48,12 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse<>("로그인이 필요합니다.", null));
     }
 
+    @ExceptionHandler(StoreProfileNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleStoreProfileNotFound(StoreProfileNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
     @ExceptionHandler(InvalidLoginException.class)
     public ResponseEntity<ApiResponse<Void>> handleInvalidLogin(InvalidLoginException exception) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)

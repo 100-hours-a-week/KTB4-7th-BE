@@ -121,6 +121,17 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void 매장_조회_예외는_404_응답으로_변환한다() {
+        ResponseEntity<ApiResponse<Void>> response = exceptionHandler.handleStoreProfileNotFound(
+                new StoreProfileNotFoundException()
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertEquals("매장 정보를 찾을 수 없습니다.", response.getBody().message());
+        assertNull(response.getBody().data());
+    }
+
+    @Test
     void 비밀번호_수정_입력값_예외는_400_fieldErrors_응답으로_변환한다() {
         ResponseEntity<ApiResponse<FieldErrors>> response = exceptionHandler.handleInvalidPasswordChangeRequest(
                 new InvalidPasswordChangeRequestException(List.of(
