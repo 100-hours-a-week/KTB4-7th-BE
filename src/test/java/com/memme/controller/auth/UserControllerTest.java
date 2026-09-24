@@ -7,8 +7,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.memme.dto.auth.UserProfileResponse;
+import com.memme.dto.auth.PasswordChangeRequest;
 import com.memme.dto.common.ApiResponse;
 import com.memme.exception.AuthenticationRequiredException;
+import com.memme.service.auth.PasswordChangeService;
 import com.memme.service.auth.UserProfileService;
 import com.memme.service.auth.WithdrawalService;
 import org.junit.jupiter.api.Test;
@@ -23,7 +25,8 @@ class UserControllerTest {
     void 로그인한_사용자를_탈퇴시키고_세션을_무효화한_뒤_204를_반환한다() {
         WithdrawalService withdrawalService = mock(WithdrawalService.class);
         UserProfileService userProfileService = mock(UserProfileService.class);
-        UserController userController = new UserController(withdrawalService, userProfileService);
+        PasswordChangeService passwordChangeService = mock(PasswordChangeService.class);
+        UserController userController = new UserController(withdrawalService, userProfileService, passwordChangeService);
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpSession session = new MockHttpSession();
         session.setAttribute(AuthenticatedUserSession.SESSION_ATTRIBUTE, new AuthenticatedUserSession(1L, 10L));
@@ -40,7 +43,8 @@ class UserControllerTest {
     void 인증_세션이_없으면_인증_예외를_던진다() {
         WithdrawalService withdrawalService = mock(WithdrawalService.class);
         UserProfileService userProfileService = mock(UserProfileService.class);
-        UserController userController = new UserController(withdrawalService, userProfileService);
+        PasswordChangeService passwordChangeService = mock(PasswordChangeService.class);
+        UserController userController = new UserController(withdrawalService, userProfileService, passwordChangeService);
 
         assertThrows(AuthenticationRequiredException.class, () -> userController.withdraw(new MockHttpServletRequest()));
     }
@@ -49,7 +53,8 @@ class UserControllerTest {
     void 로그인한_사용자의_내_정보를_조회하고_200을_반환한다() {
         WithdrawalService withdrawalService = mock(WithdrawalService.class);
         UserProfileService userProfileService = mock(UserProfileService.class);
-        UserController userController = new UserController(withdrawalService, userProfileService);
+        PasswordChangeService passwordChangeService = mock(PasswordChangeService.class);
+        UserController userController = new UserController(withdrawalService, userProfileService, passwordChangeService);
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpSession session = new MockHttpSession();
         session.setAttribute(AuthenticatedUserSession.SESSION_ATTRIBUTE, new AuthenticatedUserSession(1L, 10L));
@@ -70,8 +75,46 @@ class UserControllerTest {
     void 내_정보_조회에_인증_세션이_없으면_인증_예외를_던진다() {
         WithdrawalService withdrawalService = mock(WithdrawalService.class);
         UserProfileService userProfileService = mock(UserProfileService.class);
-        UserController userController = new UserController(withdrawalService, userProfileService);
+        PasswordChangeService passwordChangeService = mock(PasswordChangeService.class);
+        UserController userController = new UserController(withdrawalService, userProfileService, passwordChangeService);
 
         assertThrows(AuthenticationRequiredException.class, () -> userController.getProfile(new MockHttpServletRequest()));
+    }
+
+    @Test
+    void 로그인한_사용자가_비밀번호를_수정하면_200을_반환한다() {
+        WithdrawalService withdrawalService = mock(WithdrawalService.class);
+        UserProfileService userProfileService = mock(UserProfileService.class);
+        PasswordChangeService passwordChangeService = mock(PasswordChangeService.class);
+        UserController userController = new UserController(withdrawalService, userProfileService, passwordChangeService);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute(AuthenticatedUserSession.SESSION_ATTRIBUTE, new AuthenticatedUserSession(1L, 10L));
+        request.setSession(session);
+        PasswordChangeRequest passwordChangeRequest = new PasswordChangeRequest(
+                "OldPassword1!", "NewPassword1!", "NewPassword1!"
+        );
+
+        ResponseEntity<ApiResponse<Void>> response = userController.changePassword(request, passwordChangeRequest);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("비밀번호가 변경되었습니다.", response.getBody().message());
+        verify(passwordChangeService).changePassword(1L, passwordChangeRequest);
+    }
+
+    @Test
+    void 비밀번호_수정에_인증_세션이_없으면_인증_예외를_던진다() {
+        WithdrawalService withdrawalService = mock(WithdrawalService.class);
+        UserProfileService userProfileService = mock(UserProfileService.class);
+        PasswordChangeService passwordChangeService = mock(PasswordChangeService.class);
+        UserController userController = new UserController(withdrawalService, userProfileService, passwordChangeService);
+        PasswordChangeRequest passwordChangeRequest = new PasswordChangeRequest(
+                "OldPassword1!", "NewPassword1!", "NewPassword1!"
+        );
+
+        assertThrows(
+                AuthenticationRequiredException.class,
+                () -> userController.changePassword(new MockHttpServletRequest(), passwordChangeRequest)
+        );
     }
 }
