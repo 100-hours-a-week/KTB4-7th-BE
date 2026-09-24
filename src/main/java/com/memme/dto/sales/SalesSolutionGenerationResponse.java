@@ -8,9 +8,14 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public record SalesSolutionGenerationResponse(
         @JsonInclude(JsonInclude.Include.NON_NULL) LocalDate targetDate,
         List<SolutionCard> solutionCards,
-        String modelVersion,
-        String promptVersion
+        String modelVersion
 ) {
 
-    public record SolutionCard(int rankNo, String title, String summaryText, String detailText) {}
+    public record SolutionCard(
+            int rankNo,
+            String title,
+            String summaryText,
+            String detailText,
+            String evidence
+    ) {}
 }
