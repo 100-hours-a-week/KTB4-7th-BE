@@ -123,11 +123,11 @@
             "rankNo": 1,
             "title": "점심 시간대 할인",
             "summaryText": "점심 할인 프로모션을 제안합니다.",
-            "detailText": "12시부터 14시까지 할인 행사를 진행하세요."
+            "detailText": "12시부터 14시까지 할인 행사를 진행하세요.",
+            "evidence": "최근 4주간 평일 12시부터 14시까지의 주문 수가 다른 점심 시간대보다 18% 낮았습니다."
           }
         ],
-        "modelVersion": "v1",
-        "promptVersion": "v1"
+        "modelVersion": "v1"
       }
     }
   },
@@ -144,11 +144,11 @@
             "rankNo": 1,
             "title": "점심 시간대 할인",
             "summaryText": "점심 할인 프로모션을 제안합니다.",
-            "detailText": "12시부터 14시까지 할인 행사를 진행하세요."
+            "detailText": "12시부터 14시까지 할인 행사를 진행하세요.",
+            "evidence": "최근 4주간 평일 12시부터 14시까지의 주문 수가 다른 점심 시간대보다 18% 낮았습니다."
           }
         ],
-        "modelVersion": "v1",
-        "promptVersion": "v1"
+        "modelVersion": "v1"
       }
     }
   },
