@@ -111,4 +111,30 @@ public class Store {
     public String getAddressDetail() {
         return addressDetail;
     }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void updateProfile(
+            String storeName,
+            String postalCode,
+            String address,
+            String addressDetail,
+            LocalDateTime updatedAt
+    ) {
+        if (storeName != null) {
+            this.name = storeName;
+        }
+        if (postalCode != null) {
+            this.postalCode = postalCode;
+        }
+        if (address != null) {
+            this.address = address;
+        }
+        if (addressDetail != null) {
+            this.addressDetail = addressDetail;
+        }
+        this.updatedAt = updatedAt;
+    }
 }
