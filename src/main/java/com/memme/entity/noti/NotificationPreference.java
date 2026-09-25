@@ -47,4 +47,26 @@ public class NotificationPreference {
         preference.updatedAt = createdAt;
         return preference;
     }
+
+    public boolean isSolutionEnabled() {
+        return solutionEnabled;
+    }
+
+    public boolean isSalesUploadReminderEnabled() {
+        return salesUploadReminderEnabled;
+    }
+
+    public void updatePreferences(
+            Boolean solutionEnabled,
+            Boolean salesUploadReminderEnabled,
+            LocalDateTime updatedAt
+    ) {
+        if (solutionEnabled != null) {
+            this.solutionEnabled = solutionEnabled;
+        }
+        if (salesUploadReminderEnabled != null) {
+            this.salesUploadReminderEnabled = salesUploadReminderEnabled;
+        }
+        this.updatedAt = updatedAt;
+    }
 }
