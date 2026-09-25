@@ -12,11 +12,18 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Entity
-@Table(name = "notifications")
+@Table(
+        name = "notifications",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_notifications_user_type_key",
+                columnNames = {"user_id", "notification_type", "notification_key"}
+        )
+)
 public class Notification {
 
     @Id
@@ -31,6 +38,9 @@ public class Notification {
     @Enumerated(EnumType.STRING)
     @Column(name = "notification_type", nullable = false, length = 50)
     private NotificationType notificationType;
+
+    @Column(name = "notification_key", nullable = false, length = 100)
+    private String notificationKey;
 
     @Column(name = "title", nullable = false, length = 255)
     private String title;
@@ -62,6 +72,7 @@ public class Notification {
     public static Notification create(
             User user,
             NotificationType notificationType,
+            String notificationKey,
             String title,
             String content,
             String relatedEntityType,
@@ -72,6 +83,7 @@ public class Notification {
         Notification notification = new Notification();
         notification.user = Objects.requireNonNull(user, "user");
         notification.notificationType = Objects.requireNonNull(notificationType, "notificationType");
+        notification.notificationKey = Objects.requireNonNull(notificationKey, "notificationKey");
         notification.title = Objects.requireNonNull(title, "title");
         notification.content = Objects.requireNonNull(content, "content");
         notification.relatedEntityType = relatedEntityType;
@@ -91,6 +103,10 @@ public class Notification {
 
     public NotificationType getNotificationType() {
         return notificationType;
+    }
+
+    public String getNotificationKey() {
+        return notificationKey;
     }
 
     public String getTitle() {

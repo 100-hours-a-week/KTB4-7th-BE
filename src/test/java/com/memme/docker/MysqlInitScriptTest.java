@@ -84,10 +84,12 @@ class MysqlInitScriptTest {
                 .contains("CREATE TABLE notifications")
                 .contains("user_id BIGINT UNSIGNED NOT NULL")
                 .contains("notification_type VARCHAR(50) NOT NULL")
+                .contains("notification_key VARCHAR(100) NOT NULL")
                 .contains("related_entity_type VARCHAR(50) NULL")
                 .contains("related_entity_id BIGINT UNSIGNED NULL")
                 .contains("sent_at DATETIME NULL")
                 .contains("read_at DATETIME NULL")
+                .contains("UNIQUE KEY uk_notifications_user_type_key (user_id, notification_type, notification_key)")
                 .contains("CONSTRAINT fk_notifications_user");
     }
 

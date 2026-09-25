@@ -11,6 +11,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,10 @@ class NotificationEntityMappingTest {
 
         assertThat(notificationClass.isAnnotationPresent(Entity.class)).isTrue();
         assertThat(notificationClass.getAnnotation(Table.class).name()).isEqualTo("notifications");
+        assertThat(notificationClass.getAnnotation(Table.class).uniqueConstraints())
+                .extracting(UniqueConstraint::columnNames)
+                .anySatisfy(columns -> assertThat(columns)
+                        .containsExactly("user_id", "notification_type", "notification_key"));
 
         Field user = notificationClass.getDeclaredField("user");
         JoinColumn joinColumn = user.getAnnotation(JoinColumn.class);
@@ -42,6 +47,7 @@ class NotificationEntityMappingTest {
         assertColumn(notificationClass, "notificationType", "notification_type", false);
         assertColumn(notificationClass, "title", "title", false);
         assertColumn(notificationClass, "content", "content", false);
+        assertColumn(notificationClass, "notificationKey", "notification_key", false);
         assertColumn(notificationClass, "relatedEntityType", "related_entity_type", true);
         assertColumn(notificationClass, "relatedEntityId", "related_entity_id", true);
         assertColumn(notificationClass, "scheduledAt", "scheduled_at", true);

@@ -39,6 +39,7 @@ class NotificationRepositoryIntegrationTest {
         notificationRepository.saveAndFlush(Notification.create(
                 owner,
                 NotificationType.SOLUTION_READY,
+                "solution:2026-09-25",
                 "이전 알림",
                 "이전 솔루션을 확인해 보세요.",
                 "SOLUTION",
@@ -49,6 +50,7 @@ class NotificationRepositoryIntegrationTest {
         notificationRepository.saveAndFlush(Notification.create(
                 owner,
                 NotificationType.SALES_UPLOAD_REMINDER,
+                "sales-upload:41:REMINDER:2026-09-25",
                 "최근 알림",
                 "매출 자료를 업로드해 주세요.",
                 null,
@@ -59,6 +61,7 @@ class NotificationRepositoryIntegrationTest {
         notificationRepository.saveAndFlush(Notification.create(
                 otherUser,
                 NotificationType.SOLUTION_READY,
+                "solution:2026-09-25",
                 "다른 사용자의 알림",
                 "다른 사용자에게만 보입니다.",
                 "SOLUTION",
@@ -71,5 +74,31 @@ class NotificationRepositoryIntegrationTest {
         assertThat(notificationRepository.findAllByUserIdOrderBySentAtDesc(owner.getId()))
                 .extracting(Notification::getTitle)
                 .containsExactly("최근 알림", "이전 알림");
+    }
+
+    @Test
+    void 사용자와_유형과_멱등키로_동일_알림의_생성_여부를_확인한다() {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 25, 9, 0);
+        User owner = userRepository.saveAndFlush(
+                User.create("notification-key-owner@example.com", "encoded-password", "01012341234", now)
+        );
+        notificationRepository.saveAndFlush(Notification.create(
+                owner,
+                NotificationType.SALES_UPLOAD_REMINDER,
+                "sales-upload:42:REMINDER:2026-09-25",
+                "매출 업로드 알림",
+                "8월 매출 자료를 업로드해 주세요.",
+                null,
+                null,
+                now,
+                now
+        ));
+
+        assertThat(notificationRepository.existsByUserIdAndNotificationTypeAndNotificationKey(
+                owner.getId(), NotificationType.SALES_UPLOAD_REMINDER, "sales-upload:42:REMINDER:2026-09-25"
+        )).isTrue();
+        assertThat(notificationRepository.existsByUserIdAndNotificationTypeAndNotificationKey(
+                owner.getId(), NotificationType.SALES_UPLOAD_REMINDER, "sales-upload:42:REMINDER:2026-09-26"
+        )).isFalse();
     }
 }
