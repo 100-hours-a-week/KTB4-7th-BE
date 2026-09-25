@@ -6,7 +6,7 @@ import com.memme.controller.auth.AuthenticatedUserSession;
 import com.memme.dto.solution.SavedSolutionDeleteResponse;
 import com.memme.dto.solution.SavedSolutionDetailResponse;
 import com.memme.dto.solution.SavedSolutionListResponse;
-import com.memme.exception.AuthenticationRequiredException;
+import com.memme.exception.auth.AuthenticationRequiredException;
 import com.memme.service.solution.SavedSolutionService;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;

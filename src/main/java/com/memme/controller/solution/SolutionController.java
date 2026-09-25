@@ -4,7 +4,7 @@ import com.memme.controller.auth.AuthenticatedUserSession;
 import com.memme.dto.solution.SolutionBundleDetailResponse;
 import com.memme.dto.solution.SolutionSaveResponse;
 import com.memme.dto.solution.SolutionTodayResponse;
-import com.memme.exception.AuthenticationRequiredException;
+import com.memme.exception.auth.AuthenticationRequiredException;
 import com.memme.service.solution.SavedSolutionService;
 import com.memme.service.solution.SolutionQueryService;
 import org.springframework.http.HttpStatus;
