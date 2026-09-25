@@ -83,7 +83,7 @@ public class SalesUploadLifecycleService {
     }
 
     private AnalysisRunEntity findRun(Long uploadId) {
-        return analysisRunRepository.findByBasedOnUploadId(uploadId)
+        return analysisRunRepository.findFirstByBasedOnUploadIdOrderByIdDesc(uploadId)
                 .orElseThrow(() -> new IllegalStateException("분석 실행을 찾을 수 없습니다: " + uploadId));
     }
 }

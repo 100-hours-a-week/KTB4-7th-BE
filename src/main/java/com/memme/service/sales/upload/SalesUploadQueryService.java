@@ -79,7 +79,8 @@ public class SalesUploadQueryService {
         SalesUploadEntity upload = uploadRepository.findById(Objects.requireNonNull(uploadId, "uploadId"))
                 .filter(found -> found.getStoreId().equals(storeId))
                 .orElseThrow(() -> new SalesUploadQueryException(UPLOAD_NOT_FOUND));
-        AnalysisRunEntity analysisRun = analysisRunRepository.findByBasedOnUploadId(uploadId)
+        AnalysisRunEntity analysisRun = analysisRunRepository
+                .findFirstByBasedOnUploadIdOrderByIdDesc(uploadId)
                 .orElseThrow(() -> new SalesUploadQueryException(UPLOAD_NOT_FOUND));
 
         return new SalesUploadStatusResponse(
@@ -91,9 +92,16 @@ public class SalesUploadQueryService {
                         analysisRun.getId(),
                         progressOf(upload),
                         null,
-                        upload.getStatus() == SalesUploadStatus.FAILED
+                        retryable(upload, analysisRun)
                 )
         );
+    }
+
+    private boolean retryable(SalesUploadEntity upload, AnalysisRunEntity analysisRun) {
+        return upload.getStatus() == SalesUploadStatus.FAILED
+                && analysisRun.getStatus() == com.memme.entity.sales.AnalysisRunStatus.FAILED
+                && ("UPLOAD_PROCESSING_ERROR".equals(upload.getErrorCode())
+                || "ANALYSIS_ENGINE_ERROR".equals(upload.getErrorCode()));
     }
 
     private Page<SalesUploadEntity> findUploads(

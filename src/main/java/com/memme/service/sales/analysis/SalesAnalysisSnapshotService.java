@@ -38,16 +38,28 @@ public class SalesAnalysisSnapshotService {
 
     @Transactional
     public Long persist(Long uploadId, SalesAnalysisResult result) {
-        AnalysisRunEntity run = analysisRunRepository.findByBasedOnUploadId(uploadId)
+        AnalysisRunEntity run = analysisRunRepository
+                .findFirstByBasedOnUploadIdOrderByIdDesc(uploadId)
                 .orElseThrow(() -> new IllegalStateException("analysis run not found"));
-        return salesAnalysisRepository.findByAnalysisRunId(run.getId())
-                .map(SalesAnalysisEntity::getId)
-                .orElseGet(() -> persistNew(run, result));
+        return persistByRunId(run.getId(), result);
     }
 
-    private Long persistNew(AnalysisRunEntity run, SalesAnalysisResult result) {
+    @Transactional
+    public Long persistForRun(Long analysisRunId, SalesAnalysisResult result) {
+        AnalysisRunEntity run = analysisRunRepository.findById(analysisRunId)
+                .orElseThrow(() -> new IllegalStateException("analysis run not found"));
+        return persistByRunId(run.getId(), result);
+    }
+
+    private Long persistByRunId(Long analysisRunId, SalesAnalysisResult result) {
+        return salesAnalysisRepository.findByAnalysisRunId(analysisRunId)
+                .map(SalesAnalysisEntity::getId)
+                .orElseGet(() -> persistNew(analysisRunId, result));
+    }
+
+    private Long persistNew(Long analysisRunId, SalesAnalysisResult result) {
         SalesAnalysisEntity analysis = salesAnalysisRepository.save(
-                SalesAnalysisEntity.create(run.getId(), null)
+                SalesAnalysisEntity.create(analysisRunId, null)
         );
         if (result instanceof SalesAnalysisResult.Completed completed) {
             persistMetrics(analysis.getId(), completed.analysis());

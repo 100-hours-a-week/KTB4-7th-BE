@@ -89,7 +89,8 @@ class SalesUploadQueryServiceTest {
         when(run.getId()).thenReturn(34L);
         when(storeOwnershipRepository.existsActiveStoreOwnedBy(storeId, userId)).thenReturn(true);
         when(uploadRepository.findById(12L)).thenReturn(Optional.of(upload));
-        when(analysisRunRepository.findByBasedOnUploadId(12L)).thenReturn(Optional.of(run));
+        when(analysisRunRepository.findFirstByBasedOnUploadIdOrderByIdDesc(12L))
+                .thenReturn(Optional.of(run));
 
         var response = service.getStatus(userId, storeId, 12L);
 
