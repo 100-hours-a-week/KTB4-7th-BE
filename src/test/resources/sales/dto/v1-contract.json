@@ -214,8 +214,7 @@
       "status": "COMPLETED",
       "data": {
         "uploadId": 12,
-        "analysisRunId": 35,
-        "analysisId": 57
+        "analysisRunId": 35
       }
     }
   },

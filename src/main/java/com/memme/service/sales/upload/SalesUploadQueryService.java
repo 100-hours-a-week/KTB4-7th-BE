@@ -11,11 +11,13 @@ import com.memme.dto.sales.SalesUploadHistoryRequest;
 import com.memme.dto.sales.SalesUploadHistoryResponse;
 import com.memme.dto.sales.SalesUploadStatusResponse;
 import com.memme.entity.sales.AnalysisRunEntity;
+import com.memme.entity.sales.SalesAiInsightStatus;
 import com.memme.entity.sales.SalesUploadEntity;
 import com.memme.entity.sales.SalesUploadProcessingPhase;
 import com.memme.entity.sales.SalesUploadStatus;
 import com.memme.exception.sales.SalesUploadQueryException;
 import com.memme.repository.sales.AnalysisRunRepository;
+import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.repository.store.StoreOwnershipRepository;
 import org.springframework.data.domain.Page;
@@ -36,15 +38,18 @@ public class SalesUploadQueryService {
 
     private final SalesUploadRepository uploadRepository;
     private final AnalysisRunRepository analysisRunRepository;
+    private final SalesAiInsightRepository insightRepository;
     private final StoreOwnershipRepository storeOwnershipRepository;
 
     public SalesUploadQueryService(
             SalesUploadRepository uploadRepository,
             AnalysisRunRepository analysisRunRepository,
+            SalesAiInsightRepository insightRepository,
             StoreOwnershipRepository storeOwnershipRepository
     ) {
         this.uploadRepository = uploadRepository;
         this.analysisRunRepository = analysisRunRepository;
+        this.insightRepository = insightRepository;
         this.storeOwnershipRepository = storeOwnershipRepository;
     }
 
@@ -92,16 +97,21 @@ public class SalesUploadQueryService {
                         analysisRun.getId(),
                         progressOf(upload),
                         null,
-                        retryable(upload, analysisRun)
+                        retryable(upload)
                 )
         );
     }
 
-    private boolean retryable(SalesUploadEntity upload, AnalysisRunEntity analysisRun) {
-        return upload.getStatus() == SalesUploadStatus.FAILED
-                && analysisRun.getStatus() == com.memme.entity.sales.AnalysisRunStatus.FAILED
-                && ("UPLOAD_PROCESSING_ERROR".equals(upload.getErrorCode())
-                || "ANALYSIS_ENGINE_ERROR".equals(upload.getErrorCode()));
+    private boolean retryable(SalesUploadEntity upload) {
+        if (upload.getStatus() != SalesUploadStatus.COMPLETED || upload.getPeriodEnd() == null) {
+            return false;
+        }
+        return insightRepository.findByStoreIdAndTargetMonth(
+                        upload.getStoreId(),
+                        YearMonth.from(upload.getPeriodEnd())
+                )
+                .map(insight -> insight.getStatus() == SalesAiInsightStatus.FAILED)
+                .orElse(false);
     }
 
     private Page<SalesUploadEntity> findUploads(

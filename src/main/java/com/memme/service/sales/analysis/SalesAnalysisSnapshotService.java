@@ -41,20 +41,9 @@ public class SalesAnalysisSnapshotService {
         AnalysisRunEntity run = analysisRunRepository
                 .findFirstByBasedOnUploadIdOrderByIdDesc(uploadId)
                 .orElseThrow(() -> new IllegalStateException("analysis run not found"));
-        return persistByRunId(run.getId(), result);
-    }
-
-    @Transactional
-    public Long persistForRun(Long analysisRunId, SalesAnalysisResult result) {
-        AnalysisRunEntity run = analysisRunRepository.findById(analysisRunId)
-                .orElseThrow(() -> new IllegalStateException("analysis run not found"));
-        return persistByRunId(run.getId(), result);
-    }
-
-    private Long persistByRunId(Long analysisRunId, SalesAnalysisResult result) {
-        return salesAnalysisRepository.findByAnalysisRunId(analysisRunId)
+        return salesAnalysisRepository.findByAnalysisRunId(run.getId())
                 .map(SalesAnalysisEntity::getId)
-                .orElseGet(() -> persistNew(analysisRunId, result));
+                .orElseGet(() -> persistNew(run.getId(), result));
     }
 
     private Long persistNew(Long analysisRunId, SalesAnalysisResult result) {

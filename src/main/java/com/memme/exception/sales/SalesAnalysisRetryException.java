@@ -36,10 +36,10 @@ public class SalesAnalysisRetryException extends RuntimeException {
     private static String messageOf(Reason reason) {
         return switch (reason) {
             case STORE_OWNER_REQUIRED -> "매장 소유자만 매출 분석을 다시 실행할 수 있습니다.";
-            case UPLOAD_NOT_FOUND -> "매출 업로드를 찾을 수 없습니다.";
+            case UPLOAD_NOT_FOUND -> "업로드 정보를 찾을 수 없습니다.";
             case RETRY_NOT_ALLOWED -> "이 업로드는 다시 분석할 수 없습니다. 새 파일을 업로드해 주세요.";
-            case RETRY_IN_PROGRESS -> "매출 분석 재시도가 이미 진행 중입니다.";
-            case RETRY_FAILED -> "매출 분석 재시도에 실패했습니다.";
+            case RETRY_IN_PROGRESS -> "이미 AI 인사이트를 생성하고 있습니다.";
+            case RETRY_FAILED -> "AI 인사이트 재시도를 시작하지 못했습니다.";
         };
     }
 }
