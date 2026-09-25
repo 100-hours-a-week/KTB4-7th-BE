@@ -3,7 +3,9 @@ package com.memme.service.sales.upload;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.YearMonth;
 
+import com.memme.dto.sales.SalesInsightTriggerType;
 import com.memme.entity.sales.SalesUploadEntity;
 import com.memme.entity.sales.SalesUploadProcessingPhase;
 import com.memme.exception.sales.SalesUploadProcessingException;
@@ -15,6 +17,7 @@ import com.memme.service.sales.TossPosWorkbookParser;
 import com.memme.service.sales.analysis.SalesAnalysisService;
 import com.memme.service.sales.analysis.SalesAnalysisResult;
 import com.memme.service.sales.analysis.SalesAnalysisSnapshotService;
+import com.memme.service.sales.insight.SalesInsightGenerationService;
 import com.memme.service.sales.storage.SalesFileStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +35,7 @@ public class SalesUploadProcessingService {
     private final SalesUploadPersistenceService persistenceService;
     private final SalesAnalysisService analysisService;
     private final SalesAnalysisSnapshotService snapshotService;
+    private final SalesInsightGenerationService insightGenerationService;
     private final SalesAiPostProcessingJob aiPostProcessingJob;
 
     public SalesUploadProcessingService(SalesUploadRepository uploadRepository,
@@ -41,6 +45,7 @@ public class SalesUploadProcessingService {
                                         SalesUploadPersistenceService persistenceService,
                                         SalesAnalysisService analysisService,
                                         SalesAnalysisSnapshotService snapshotService,
+                                        SalesInsightGenerationService insightGenerationService,
                                         SalesAiPostProcessingJob aiPostProcessingJob) {
         this.uploadRepository = uploadRepository;
         this.fileStorage = fileStorage;
@@ -49,6 +54,7 @@ public class SalesUploadProcessingService {
         this.persistenceService = persistenceService;
         this.analysisService = analysisService;
         this.snapshotService = snapshotService;
+        this.insightGenerationService = insightGenerationService;
         this.aiPostProcessingJob = aiPostProcessingJob;
     }
 
@@ -70,7 +76,13 @@ public class SalesUploadProcessingService {
                     data.periodStart(),
                     data.periodEnd()
             );
-            snapshotService.persist(uploadId, analysis);
+            Long salesAnalysisId = snapshotService.persist(uploadId, analysis);
+            startSalesInsightGeneration(
+                    uploadId,
+                    upload.getStoreId(),
+                    salesAnalysisId,
+                    data
+            );
             lifecycleService.markCompleted(uploadId, result.appliedRecordCount());
             startAiPostProcessing(upload, uploadId, data);
             return result;
@@ -90,6 +102,25 @@ public class SalesUploadProcessingService {
         } catch (RuntimeException exception) {
             recordFailure(uploadId, "UPLOAD_PROCESSING_ERROR", "업로드 처리 중 오류가 발생했습니다.", exception);
             throw new SalesUploadProcessingException("업로드 처리 중 오류가 발생했습니다.", exception);
+        }
+    }
+
+    private void startSalesInsightGeneration(
+            Long uploadId,
+            Long storeId,
+            Long salesAnalysisId,
+            TossPosWorkbookData data
+    ) {
+        try {
+            insightGenerationService.generate(
+                    storeId,
+                    salesAnalysisId,
+                    lifecycleService.analysisRunId(uploadId),
+                    YearMonth.from(data.periodEnd()),
+                    SalesInsightTriggerType.UPLOAD
+            );
+        } catch (RuntimeException exception) {
+            log.warn("Sales insight generation failed for uploadId={}", uploadId, exception);
         }
     }
 

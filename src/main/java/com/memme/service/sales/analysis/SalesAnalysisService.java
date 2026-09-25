@@ -5,6 +5,8 @@ import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -18,11 +20,13 @@ import java.util.TreeMap;
 import com.memme.dto.sales.SalesAnalysisResponse;
 import com.memme.dto.sales.SalesCategoriesResponse;
 import com.memme.dto.sales.SalesPeriod;
+import com.memme.entity.sales.SalesAiInsightStatus;
 import com.memme.entity.sales.SalesDailySummaryEntity;
 import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
 import com.memme.entity.sales.SalesOrderItemType;
 import com.memme.entity.sales.SalesStandardMenuCategory;
+import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesDailySummaryRepository;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesOrderRepository;
@@ -34,19 +38,23 @@ import org.springframework.transaction.annotation.Transactional;
 public class SalesAnalysisService {
 
     private static final int RATE_SCALE = 1;
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
     private final SalesDailySummaryRepository dailySummaryRepository;
     private final SalesOrderRepository orderRepository;
     private final SalesOrderItemRepository itemRepository;
+    private final SalesAiInsightRepository insightRepository;
 
     public SalesAnalysisService(
             SalesDailySummaryRepository dailySummaryRepository,
             SalesOrderRepository orderRepository,
-            SalesOrderItemRepository itemRepository
+            SalesOrderItemRepository itemRepository,
+            SalesAiInsightRepository insightRepository
     ) {
         this.dailySummaryRepository = dailySummaryRepository;
         this.orderRepository = orderRepository;
         this.itemRepository = itemRepository;
+        this.insightRepository = insightRepository;
     }
 
     public SalesAnalysisResult analyze(
@@ -67,7 +75,7 @@ public class SalesAnalysisService {
                         periodEnd
                 );
         if (summaries.isEmpty()) {
-            return empty(period);
+            return empty(period, aiInsight(storeId, YearMonth.from(periodEnd)));
         }
 
         DateRange comparisonRange = comparisonRange(normalizedPeriodType, periodStart, periodEnd);
@@ -110,13 +118,16 @@ public class SalesAnalysisService {
                 menuRankings,
                 hourlySales(items, ordersById),
                 weekdaySales(items, ordersById),
-                null
+                aiInsight(storeId, YearMonth.from(periodEnd))
         );
 
         return new SalesAnalysisResult.Completed(response, categories(items));
     }
 
-    private SalesAnalysisResult.Empty empty(SalesPeriod period) {
+    private SalesAnalysisResult.Empty empty(
+            SalesPeriod period,
+            SalesAnalysisResponse.AiInsight aiInsight
+    ) {
         return new SalesAnalysisResult.Empty(new SalesAnalysisResponse.EmptyData(
                 period,
                 null,
@@ -124,8 +135,20 @@ public class SalesAnalysisService {
                 List.of(),
                 List.of(),
                 List.of(),
-                null
+                aiInsight
         ));
+    }
+
+    private SalesAnalysisResponse.AiInsight aiInsight(Long storeId, YearMonth targetMonth) {
+        return insightRepository.findByStoreIdAndTargetMonth(storeId, targetMonth)
+                .filter(insight -> insight.getStatus() == SalesAiInsightStatus.COMPLETED)
+                .filter(insight -> insight.getInsights() != null && !insight.getInsights().isEmpty())
+                .map(insight -> new SalesAnalysisResponse.AiInsight(
+                        insight.getTargetMonth(),
+                        insight.getInsights(),
+                        insight.getGeneratedAt().atZone(SEOUL).toOffsetDateTime()
+                ))
+                .orElse(null);
     }
 
     private List<SalesOrderItemEntity> loadItems(List<SalesOrderEntity> orders) {
