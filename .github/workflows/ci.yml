@@ -62,7 +62,21 @@ jobs:
         env:
           LOCAL_IMAGE: memme-backend:${{ github.sha }}
         run: |
-          docker run -d --name backend --add-host host.docker.internal:host-gateway -p 8080:8080             -e DB_URL='jdbc:mysql://host.docker.internal:3306/memme?useSSL=false&allowPublicKeyRetrieval=true'             -e DB_USERNAME=memme             -e DB_PASSWORD=memme-ci-password             -e SPRING_JPA_HIBERNATE_DDL_AUTO=create-drop             -e JUSO_CONFM_KEY=ci-placeholder             -e NTS_SERVICE_KEY=ci-placeholder             "$LOCAL_IMAGE"
+          docker run -d --name backend \
+            --add-host host.docker.internal:host-gateway \
+            -p 8080:8080 \
+            -e DB_URL='jdbc:mysql://host.docker.internal:3306/memme?useSSL=false&allowPublicKeyRetrieval=true' \
+            -e DB_USERNAME=memme \
+            -e DB_PASSWORD=memme-ci-password \
+            -e SPRING_JPA_HIBERNATE_DDL_AUTO=create-drop \
+            -e JUSO_CONFM_KEY=ci-placeholder \
+            -e NTS_SERVICE_KEY=ci-placeholder \
+            -e MAIL_HOST=localhost \
+            -e MAIL_PORT=1025 \
+            -e MAIL_USERNAME=ci-placeholder \
+            -e MAIL_PASSWORD=ci-placeholder \
+            -e PASSWORD_RESET_URL=http://localhost:5173/password-reset \
+            "$LOCAL_IMAGE"
 
           for _ in $(seq 1 30); do
             if curl --fail --silent --show-error http://127.0.0.1:8080/health; then
