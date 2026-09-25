@@ -8,11 +8,14 @@ import java.util.Optional;
 
 import com.memme.dto.sales.SalesUploadHistoryRequest;
 import com.memme.entity.sales.AnalysisRunEntity;
+import com.memme.entity.sales.SalesAiInsightEntity;
+import com.memme.entity.sales.SalesAiInsightStatus;
 import com.memme.entity.sales.SalesUploadEntity;
 import com.memme.entity.sales.SalesUploadProcessingPhase;
 import com.memme.entity.sales.SalesUploadStatus;
 import com.memme.exception.sales.SalesUploadQueryException;
 import com.memme.repository.sales.AnalysisRunRepository;
+import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.repository.store.StoreOwnershipRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +33,7 @@ class SalesUploadQueryServiceTest {
 
     private SalesUploadRepository uploadRepository;
     private AnalysisRunRepository analysisRunRepository;
+    private SalesAiInsightRepository insightRepository;
     private StoreOwnershipRepository storeOwnershipRepository;
     private SalesUploadQueryService service;
 
@@ -37,10 +41,12 @@ class SalesUploadQueryServiceTest {
     void setUp() {
         uploadRepository = mock(SalesUploadRepository.class);
         analysisRunRepository = mock(AnalysisRunRepository.class);
+        insightRepository = mock(SalesAiInsightRepository.class);
         storeOwnershipRepository = mock(StoreOwnershipRepository.class);
         service = new SalesUploadQueryService(
                 uploadRepository,
                 analysisRunRepository,
+                insightRepository,
                 storeOwnershipRepository
         );
     }
@@ -99,6 +105,27 @@ class SalesUploadQueryServiceTest {
         assertThat(response.data().progress().step()).isEqualTo("ANALYZING");
         assertThat(response.data().progress().percent()).isEqualTo(90);
         assertThat(response.data().retryable()).isFalse();
+    }
+
+    @Test
+    void marksCompletedUploadRetryableWhenMonthlyInsightFailed() {
+        long userId = 7L;
+        long storeId = 301L;
+        SalesUploadEntity upload = upload(12L, storeId, SalesUploadStatus.COMPLETED);
+        AnalysisRunEntity run = mock(AnalysisRunEntity.class);
+        SalesAiInsightEntity insight = mock(SalesAiInsightEntity.class);
+        when(run.getId()).thenReturn(34L);
+        when(insight.getStatus()).thenReturn(SalesAiInsightStatus.FAILED);
+        when(storeOwnershipRepository.existsActiveStoreOwnedBy(storeId, userId)).thenReturn(true);
+        when(uploadRepository.findById(12L)).thenReturn(Optional.of(upload));
+        when(analysisRunRepository.findFirstByBasedOnUploadIdOrderByIdDesc(12L))
+                .thenReturn(Optional.of(run));
+        when(insightRepository.findByStoreIdAndTargetMonth(storeId, YearMonth.of(2026, 9)))
+                .thenReturn(Optional.of(insight));
+
+        var response = service.getStatus(userId, storeId, 12L);
+
+        assertThat(response.data().retryable()).isTrue();
     }
 
     @Test
