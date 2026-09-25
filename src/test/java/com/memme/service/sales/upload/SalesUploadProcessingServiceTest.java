@@ -14,6 +14,7 @@ import com.memme.service.sales.TossPosWorkbookData;
 import com.memme.service.sales.TossPosWorkbookParser;
 import com.memme.service.sales.analysis.SalesAnalysisService;
 import com.memme.exception.sales.SalesUploadProcessingException;
+import com.memme.service.sales.analysis.SalesAnalysisSnapshotService;
 import com.memme.service.sales.storage.SalesFileStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,8 @@ class SalesUploadProcessingServiceTest {
     private SalesUploadPersistenceService persistenceService;
     private SalesUploadProcessingService service;
     private SalesAnalysisService analysisService;
+    private SalesAnalysisSnapshotService snapshotService;
+    private SalesAiPostProcessingJob aiPostProcessingJob;
 
     @BeforeEach
     void setUp() {
@@ -46,13 +49,17 @@ class SalesUploadProcessingServiceTest {
         lifecycleService = mock(SalesUploadLifecycleService.class);
         persistenceService = mock(SalesUploadPersistenceService.class);
         analysisService = mock(SalesAnalysisService.class);
+        snapshotService = mock(SalesAnalysisSnapshotService.class);
+        aiPostProcessingJob = mock(SalesAiPostProcessingJob.class);
         service = new SalesUploadProcessingService(
                 uploadRepository,
                 fileStorage,
                 workbookParser,
                 lifecycleService,
                 persistenceService,
-                analysisService
+                analysisService,
+                snapshotService,
+                aiPostProcessingJob
         );
     }
 

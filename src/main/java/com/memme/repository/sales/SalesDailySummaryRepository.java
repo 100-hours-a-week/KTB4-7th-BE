@@ -16,4 +16,6 @@ public interface SalesDailySummaryRepository extends JpaRepository<SalesDailySum
             LocalDate periodStart,
             LocalDate periodEnd
     );
+
+    List<SalesDailySummaryEntity> findAllByStoreIdOrderBySalesDateAsc(Long storeId);
 }

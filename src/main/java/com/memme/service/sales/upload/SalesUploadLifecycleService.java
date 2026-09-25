@@ -72,6 +72,11 @@ public class SalesUploadLifecycleService {
         findRun(uploadId).fail(errorMessage);
     }
 
+    @Transactional(readOnly = true)
+    public Long analysisRunId(Long uploadId) {
+        return findRun(uploadId).getId();
+    }
+
     private SalesUploadEntity findUpload(Long uploadId) {
         return uploadRepository.findById(uploadId)
                 .orElseThrow(() -> new IllegalStateException("매출 업로드를 찾을 수 없습니다: " + uploadId));

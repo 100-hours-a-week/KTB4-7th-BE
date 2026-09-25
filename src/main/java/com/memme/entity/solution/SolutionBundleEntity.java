@@ -76,6 +76,11 @@ public class SolutionBundleEntity {
         this.status = Objects.requireNonNull(status, "status");
     }
 
+    public void restartForAnalysis(Long salesAnalysisId) {
+        this.salesAnalysisId = Objects.requireNonNull(salesAnalysisId, "salesAnalysisId");
+        this.status = SolutionBundleStatus.GENERATING;
+    }
+
     @PrePersist
     private void prePersist() {
         LocalDateTime now = LocalDateTime.now();
