@@ -19,7 +19,11 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 @SpringBootTest
-@TestPropertySource(properties = "CSRF_COOKIE_DOMAIN=memme.kr")
+@TestPropertySource(properties = {
+        "CSRF_COOKIE_DOMAIN=memme.kr",
+        "CSRF_COOKIE_SECURE=true",
+        "CSRF_COOKIE_SAME_SITE=Lax"
+})
 class CsrfCookieDomainIntegrationTest {
 
     @Autowired
@@ -45,5 +49,7 @@ class CsrfCookieDomainIntegrationTest {
 
         assertNotNull(csrfCookie);
         assertEquals("memme.kr", csrfCookie.getDomain());
+        assertEquals(true, csrfCookie.getSecure());
+        assertEquals("Lax", csrfCookie.getAttribute("SameSite"));
     }
 }

@@ -27,15 +27,21 @@ public class SecurityConfig {
     private final CorsConfigurationSource corsConfigurationSource;
     private final ObjectMapper objectMapper;
     private final String csrfCookieDomain;
+    private final boolean csrfCookieSecure;
+    private final String csrfCookieSameSite;
 
     public SecurityConfig(
             CorsConfigurationSource corsConfigurationSource,
             ObjectMapper objectMapper,
-            @Value("${CSRF_COOKIE_DOMAIN:}") String csrfCookieDomain
+            @Value("${CSRF_COOKIE_DOMAIN:}") String csrfCookieDomain,
+            @Value("${CSRF_COOKIE_SECURE:false}") boolean csrfCookieSecure,
+            @Value("${CSRF_COOKIE_SAME_SITE:Lax}") String csrfCookieSameSite
     ) {
         this.corsConfigurationSource = corsConfigurationSource;
         this.objectMapper = objectMapper;
         this.csrfCookieDomain = csrfCookieDomain;
+        this.csrfCookieSecure = csrfCookieSecure;
+        this.csrfCookieSameSite = csrfCookieSameSite;
     }
 
     @Bean
@@ -59,6 +65,8 @@ public class SecurityConfig {
             if (!csrfCookieDomain.isBlank()) {
                 cookie.domain(csrfCookieDomain);
             }
+            cookie.secure(csrfCookieSecure);
+            cookie.sameSite(csrfCookieSameSite);
         });
         return repository;
     }
