@@ -1,6 +1,7 @@
 package com.memme.exception;
 
 import com.memme.dto.solution.SolutionNavigationErrorResponse;
+import com.memme.exception.solution.SolutionRequestException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 

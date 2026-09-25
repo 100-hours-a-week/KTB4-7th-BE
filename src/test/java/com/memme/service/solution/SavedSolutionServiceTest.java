@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.memme.entity.solution.SavedSolutionEntity;
-import com.memme.exception.SolutionRequestException;
+import com.memme.exception.solution.SolutionRequestException;
 import com.memme.repository.solution.SavedSolutionRepository;
 import com.memme.repository.solution.SolutionBundleRepository;
 import com.memme.repository.solution.SolutionRepository;

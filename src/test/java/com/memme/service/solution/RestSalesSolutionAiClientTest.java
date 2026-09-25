@@ -6,7 +6,7 @@ import java.util.List;
 import com.memme.dto.sales.SalesSolutionGenerationRequest;
 import com.memme.dto.sales.SalesSolutionGenerationResponse;
 import com.memme.dto.sales.SalesSolutionMetrics;
-import com.memme.exception.SalesSolutionAiException;
+import com.memme.exception.solution.SalesSolutionAiException;
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
 import org.junit.jupiter.api.AfterEach;
