@@ -1,6 +1,8 @@
 package com.memme.controller.sales;
 
+import com.memme.dto.common.ApiResponse;
 import com.memme.dto.common.FailureResponse;
+import com.memme.exception.sales.SalesAnalysisRetryException;
 import com.memme.exception.sales.SalesUploadProcessingException;
 import com.memme.exception.sales.SalesUploadQueryException;
 import com.memme.exception.sales.SalesUploadRequestException;
@@ -37,6 +39,25 @@ public class SalesUploadExceptionHandler {
                 exception.getReason().name(),
                 null
         ));
+    }
+
+    @ExceptionHandler(SalesAnalysisRetryException.class)
+    public ResponseEntity<?> handleAnalysisRetry(SalesAnalysisRetryException exception) {
+        HttpStatus status = switch (exception.getReason()) {
+            case STORE_OWNER_REQUIRED -> HttpStatus.FORBIDDEN;
+            case UPLOAD_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case RETRY_NOT_ALLOWED -> HttpStatus.UNPROCESSABLE_CONTENT;
+            case RETRY_IN_PROGRESS -> HttpStatus.CONFLICT;
+            case RETRY_FAILED -> HttpStatus.INTERNAL_SERVER_ERROR;
+        };
+        if (exception.getReason() == SalesAnalysisRetryException.Reason.RETRY_NOT_ALLOWED) {
+            return ResponseEntity.status(status).body(new FailureResponse(
+                    exception.getMessage(),
+                    exception.getFailReason(),
+                    null
+            ));
+        }
+        return ResponseEntity.status(status).body(new ApiResponse<>(exception.getMessage(), null));
     }
 
     private HttpStatus statusOf(String failReason) {

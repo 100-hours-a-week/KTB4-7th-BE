@@ -5,6 +5,7 @@ import java.io.IOException;
 import com.memme.controller.auth.AuthenticatedUserSession;
 import com.memme.exception.auth.AuthenticationRequiredException;
 import com.memme.dto.common.StatusResponse;
+import com.memme.dto.sales.SalesAnalysisRetryResponse;
 import com.memme.dto.sales.SalesUploadHistoryRequest;
 import com.memme.dto.sales.SalesUploadHistoryResponse;
 import com.memme.dto.sales.SalesUploadRequest;
@@ -13,6 +14,7 @@ import com.memme.dto.sales.SalesUploadStatusResponse;
 import com.memme.exception.sales.SalesUploadProcessingException;
 import com.memme.exception.sales.SalesUploadRequestException;
 import com.memme.service.sales.upload.SalesUploadCommand;
+import com.memme.service.sales.analysis.SalesAnalysisRetryService;
 import com.memme.service.sales.upload.SalesUploadQueryService;
 import com.memme.service.sales.upload.SalesUploadReceipt;
 import com.memme.service.sales.upload.SalesUploadService;
@@ -35,13 +37,16 @@ public class SalesUploadController {
 
     private final SalesUploadService salesUploadService;
     private final SalesUploadQueryService salesUploadQueryService;
+    private final SalesAnalysisRetryService salesAnalysisRetryService;
 
     public SalesUploadController(
             SalesUploadService salesUploadService,
-            SalesUploadQueryService salesUploadQueryService
+            SalesUploadQueryService salesUploadQueryService,
+            SalesAnalysisRetryService salesAnalysisRetryService
     ) {
         this.salesUploadService = salesUploadService;
         this.salesUploadQueryService = salesUploadQueryService;
+        this.salesAnalysisRetryService = salesAnalysisRetryService;
     }
 
     @GetMapping
@@ -70,6 +75,25 @@ public class SalesUploadController {
                 authenticatedUser.storeId(),
                 uploadId
         );
+    }
+
+    @PostMapping("/{uploadId}/analysis-retries")
+    public ResponseEntity<StatusResponse<SalesAnalysisRetryResponse>> retryAnalysis(
+            @SessionAttribute(value = AuthenticatedUserSession.SESSION_ATTRIBUTE, required = false)
+            AuthenticatedUserSession authenticatedUser,
+            @PathVariable Long uploadId
+    ) {
+        requireAuthentication(authenticatedUser);
+        SalesAnalysisRetryResponse response = salesAnalysisRetryService.retry(
+                authenticatedUser.userId(),
+                authenticatedUser.storeId(),
+                uploadId
+        );
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(new StatusResponse<>(
+                "AI 인사이트 재시도를 접수했습니다.",
+                "PENDING",
+                response
+        ));
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
