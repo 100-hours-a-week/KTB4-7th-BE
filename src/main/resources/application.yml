@@ -28,3 +28,13 @@ server:
 
 password-reset:
   url: ${PASSWORD_RESET_URL}
+
+app:
+  sales:
+    storage:
+      type: ${SALES_STORAGE_TYPE:local}
+      s3:
+        bucket: ${SALES_STORAGE_S3_BUCKET:}
+        region: ${SALES_STORAGE_S3_REGION:ap-northeast-2}
+        endpoint: ${SALES_STORAGE_S3_ENDPOINT:}
+        path-style-access: ${SALES_STORAGE_S3_PATH_STYLE_ACCESS:false}
