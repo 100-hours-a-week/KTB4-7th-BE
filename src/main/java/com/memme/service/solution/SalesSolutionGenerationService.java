@@ -5,7 +5,7 @@ import java.time.LocalDate;
 import com.memme.dto.sales.SalesSolutionGenerationRequest;
 import com.memme.dto.sales.SalesSolutionGenerationResponse;
 import com.memme.entity.solution.SolutionBundleEntity;
-import com.memme.exception.SalesSolutionAiException;
+import com.memme.exception.solution.SalesSolutionAiException;
 import org.springframework.stereotype.Service;
 
 @Service

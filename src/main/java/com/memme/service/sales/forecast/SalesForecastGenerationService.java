@@ -8,7 +8,7 @@ import com.memme.dto.sales.SalesForecastBatchRequest;
 import com.memme.dto.sales.SalesForecastBatchResponse;
 import com.memme.dto.sales.SalesForecastStatus;
 import com.memme.entity.sales.SalesDailySummaryEntity;
-import com.memme.exception.SalesForecastAiException;
+import com.memme.exception.sales.SalesForecastAiException;
 import com.memme.repository.sales.SalesDailySummaryRepository;
 import org.springframework.stereotype.Service;
 
