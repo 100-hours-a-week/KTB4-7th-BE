@@ -14,6 +14,17 @@ public interface SalesForecastRepository extends JpaRepository<SalesForecastEnti
 
     Optional<SalesForecastEntity> findByStoreIdAndTargetDate(Long storeId, LocalDate targetDate);
 
+    @Query("""
+            select max(forecast.targetDate)
+            from SalesForecastEntity forecast
+            where forecast.storeId = :storeId
+              and forecast.basedOnUploadId = :basedOnUploadId
+            """)
+    Optional<LocalDate> findForecastEndDateByStoreIdAndBasedOnUploadId(
+            @Param("storeId") Long storeId,
+            @Param("basedOnUploadId") Long basedOnUploadId
+    );
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
             INSERT INTO sales_forecasts (

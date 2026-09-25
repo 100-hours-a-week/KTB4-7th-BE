@@ -73,6 +73,29 @@ class SalesRepositoryTest {
     }
 
     @Test
+    void 매장의_가장_최근_정상_처리된_업로드를_조회한다() {
+        SalesUploadEntity completed = completedUpload(
+                1L, "completed-checksum", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), 100
+        );
+        SalesUploadEntity failed = SalesUploadEntity.pending(
+                1L, 7L, "failed.xlsx", "sales/1/failed.xlsx", "failed-checksum"
+        );
+        failed.startProcessing();
+        failed.setCoverage(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), 100);
+        failed.fail("VALIDATION_FAILED", "형식 오류", 1L);
+
+        uploadRepository.save(completed);
+        uploadRepository.save(failed);
+
+        assertThat(uploadRepository.findFirstByStoreIdAndStatusOrderByUploadedAtDesc(
+                1L, SalesUploadStatus.COMPLETED
+        ))
+                .get()
+                .extracting(SalesUploadEntity::getFileChecksum)
+                .isEqualTo("completed-checksum");
+    }
+
+    @Test
     void checksOrderNaturalKeyWithinStoreAndUsesExclusivePeriodEnd() {
         orderRepository.save(SalesOrderEntity.create(
                 11L,
