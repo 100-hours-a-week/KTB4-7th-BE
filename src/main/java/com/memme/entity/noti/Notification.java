@@ -120,4 +120,8 @@ public class Notification {
     public LocalDateTime getReadAt() {
         return readAt;
     }
+
+    public void markAsRead(LocalDateTime readAt) {
+        this.readAt = Objects.requireNonNull(readAt, "readAt");
+    }
 }

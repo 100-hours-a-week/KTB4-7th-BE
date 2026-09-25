@@ -14,6 +14,8 @@ import com.memme.exception.auth.InvalidPasswordResetRequestException;
 import com.memme.exception.auth.InvalidSignupRequestException;
 import com.memme.exception.auth.PasswordResetTokenExpiredException;
 import com.memme.exception.auth.SignupCompletionExpiredException;
+import com.memme.exception.noti.NotificationNotFoundException;
+import com.memme.exception.noti.InvalidNotificationCursorException;
 import com.memme.exception.sales.SalesAnalysisRequestException;
 import com.memme.exception.solution.SolutionRequestException;
 import com.memme.exception.store.AddressSearchFailedException;
@@ -98,6 +100,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(StoreProfileNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleStoreProfileNotFound(StoreProfileNotFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
+    @ExceptionHandler(NotificationNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNotificationNotFound(NotificationNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
+    @ExceptionHandler(InvalidNotificationCursorException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidNotificationCursor(
+            InvalidNotificationCursorException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiResponse<>(exception.getMessage(), null));
     }
 
