@@ -10,6 +10,8 @@ import com.memme.dto.sales.SalesSolutionMetrics;
 import com.memme.entity.sales.AnalysisRunEntity;
 import com.memme.entity.sales.SalesAnalysisEntity;
 import com.memme.entity.solution.SolutionBundleEntity;
+import com.memme.entity.solution.SolutionBundleStatus;
+import com.memme.exception.solution.SalesSolutionAiException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -17,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -74,6 +77,91 @@ class SalesSolutionGenerationServiceTest {
                 .isEqualTo(SalesSolutionGenerationResult.Status.INSUFFICIENT_HISTORY);
         verify(aiClient, never()).generate(any());
         verify(persistenceService, never()).start(any(), any(), any());
+    }
+
+    @Test
+    void doesNotGenerateDuplicateCardsForExistingCompletedBundle() {
+        LocalDate targetDate = LocalDate.of(2026, 9, 24);
+        SalesAnalysisEntity analysis = mock(SalesAnalysisEntity.class);
+        when(analysis.getId()).thenReturn(56L);
+        AnalysisRunEntity run = mock(AnalysisRunEntity.class);
+        when(contextResolver.resolve(1L, targetDate)).thenReturn(ready(run, analysis, metrics()));
+        SolutionBundleEntity bundle = mock(SolutionBundleEntity.class);
+        when(bundle.getId()).thenReturn(77L);
+        when(bundle.getStatus()).thenReturn(SolutionBundleStatus.COMPLETED);
+        when(persistenceService.start(1L, 56L, targetDate))
+                .thenReturn(new SalesSolutionPersistenceService.StartResult(bundle, false));
+
+        SalesSolutionGenerationResult result = service.generateAfterUpload(1L, targetDate);
+
+        assertThat(result.status()).isEqualTo(SalesSolutionGenerationResult.Status.COMPLETED);
+        assertThat(result.solutionBundleId()).isEqualTo(77L);
+        verify(aiClient, never()).generate(any());
+        verify(persistenceService, never()).complete(any(), any(), any());
+    }
+
+    @Test
+    void failsBundleWithoutSavingCardsWhenAiResponseIsInvalid() {
+        LocalDate targetDate = LocalDate.of(2026, 9, 24);
+        givenGenerationContext(targetDate);
+        when(aiClient.generate(any())).thenThrow(new SalesSolutionAiException(
+                422,
+                "INVALID_AI_RESPONSE",
+                "솔루션 AI 응답이 올바르지 않습니다.",
+                false
+        ));
+
+        SalesSolutionGenerationResult result = service.generateAfterUpload(1L, targetDate);
+
+        assertThat(result.status()).isEqualTo(SalesSolutionGenerationResult.Status.FAILED);
+        assertThat(result.retryable()).isFalse();
+        verify(persistenceService).fail(77L);
+        verify(persistenceService, never()).complete(any(), any(), any());
+        verify(aiClient).generate(any());
+    }
+
+    @Test
+    void retriesRetryableAiFailureOnceAndPreservesFailureState() {
+        LocalDate targetDate = LocalDate.of(2026, 9, 24);
+        givenGenerationContext(targetDate);
+        when(aiClient.generate(any())).thenThrow(new SalesSolutionAiException(
+                503,
+                "AI_UNAVAILABLE",
+                "AI 서버를 사용할 수 없습니다.",
+                true
+        ));
+
+        SalesSolutionGenerationResult result = service.generateAfterUpload(1L, targetDate);
+
+        assertThat(result.status()).isEqualTo(SalesSolutionGenerationResult.Status.FAILED);
+        assertThat(result.retryable()).isTrue();
+        verify(aiClient, times(2)).generate(any());
+        verify(persistenceService).fail(77L);
+        verify(persistenceService, never()).complete(any(), any(), any());
+    }
+
+    @Test
+    void rejectsResponseForAnotherTargetDateWithoutSavingCards() {
+        LocalDate targetDate = LocalDate.of(2026, 9, 24);
+        givenGenerationContext(targetDate);
+        when(aiClient.generate(any())).thenReturn(response(targetDate.plusDays(1)));
+
+        SalesSolutionGenerationResult result = service.generateAfterUpload(1L, targetDate);
+
+        assertThat(result.status()).isEqualTo(SalesSolutionGenerationResult.Status.FAILED);
+        verify(persistenceService).fail(77L);
+        verify(persistenceService, never()).complete(any(), any(), any());
+    }
+
+    private void givenGenerationContext(LocalDate targetDate) {
+        SalesAnalysisEntity analysis = mock(SalesAnalysisEntity.class);
+        when(analysis.getId()).thenReturn(56L);
+        AnalysisRunEntity run = mock(AnalysisRunEntity.class);
+        when(contextResolver.resolve(1L, targetDate)).thenReturn(ready(run, analysis, metrics()));
+        SolutionBundleEntity bundle = mock(SolutionBundleEntity.class);
+        when(bundle.getId()).thenReturn(77L);
+        when(persistenceService.start(1L, 56L, targetDate))
+                .thenReturn(new SalesSolutionPersistenceService.StartResult(bundle, true));
     }
 
     private SalesSolutionGenerationContextResolver.Resolution ready(
