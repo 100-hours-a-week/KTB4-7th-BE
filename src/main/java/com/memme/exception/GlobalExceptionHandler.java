@@ -15,6 +15,7 @@ import com.memme.exception.auth.InvalidSignupRequestException;
 import com.memme.exception.auth.PasswordResetTokenExpiredException;
 import com.memme.exception.auth.SignupCompletionExpiredException;
 import com.memme.exception.sales.SalesAnalysisRequestException;
+import com.memme.exception.solution.SolutionRequestException;
 import com.memme.exception.store.AddressSearchFailedException;
 import com.memme.exception.store.BusinessStatusNotEligibleException;
 import com.memme.exception.store.BusinessVerificationFailedException;
