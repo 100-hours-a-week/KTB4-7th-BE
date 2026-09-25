@@ -40,6 +40,11 @@ public interface SalesUploadRepository extends JpaRepository<SalesUploadEntity, 
 
     Optional<SalesUploadEntity> findFirstByStoreIdOrderByUploadedAtDesc(Long storeId);
 
+    Optional<SalesUploadEntity> findFirstByStoreIdAndStatusOrderByUploadedAtDesc(
+            Long storeId,
+            SalesUploadStatus status
+    );
+
     List<SalesUploadEntity> findAllByStoreIdAndFileChecksumOrderByUploadedAtDesc(
             Long storeId,
             String fileChecksum
