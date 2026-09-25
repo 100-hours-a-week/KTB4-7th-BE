@@ -5,11 +5,14 @@ import java.time.YearMonth;
 import java.util.List;
 
 import com.memme.controller.auth.AuthenticatedUserSession;
+import com.memme.dto.sales.SalesAnalysisRetryResponse;
 import com.memme.dto.sales.SalesUploadHistoryRequest;
 import com.memme.dto.sales.SalesUploadHistoryResponse;
 import com.memme.dto.sales.SalesUploadStatusResponse;
 import com.memme.exception.GlobalExceptionHandler;
+import com.memme.exception.sales.SalesAnalysisRetryException;
 import com.memme.service.sales.upload.SalesUploadQueryService;
+import com.memme.service.sales.analysis.SalesAnalysisRetryService;
 import com.memme.service.sales.upload.SalesUploadReceipt;
 import com.memme.service.sales.upload.SalesUploadService;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +27,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,16 +35,19 @@ class SalesUploadControllerTest {
 
     private SalesUploadService salesUploadService;
     private SalesUploadQueryService salesUploadQueryService;
+    private SalesAnalysisRetryService salesAnalysisRetryService;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         salesUploadService = mock(SalesUploadService.class);
         salesUploadQueryService = mock(SalesUploadQueryService.class);
+        salesAnalysisRetryService = mock(SalesAnalysisRetryService.class);
         mockMvc = MockMvcBuilders
                 .standaloneSetup(new SalesUploadController(
                         salesUploadService,
-                        salesUploadQueryService
+                        salesUploadQueryService,
+                        salesAnalysisRetryService
                 ))
                 .setControllerAdvice(
                         new SalesUploadExceptionHandler(),
@@ -132,6 +139,88 @@ class SalesUploadControllerTest {
                 .andExpect(jsonPath("$.data.uploadId").value(12))
                 .andExpect(jsonPath("$.data.analysisRunId").value(34))
                 .andExpect(jsonPath("$.data.status").doesNotExist());
+    }
+
+    @Test
+    void acceptsInsightRetryWithoutRequestBody() throws Exception {
+        when(salesAnalysisRetryService.retry(7L, 301L, 12L))
+                .thenReturn(new SalesAnalysisRetryResponse(12L, 35L));
+
+        mockMvc.perform(post("/v1/sales/uploads/12/analysis-retries")
+                        .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE,
+                                new AuthenticatedUserSession(7L, 301L)))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.message").value("AI 인사이트 재시도를 접수했습니다."))
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.uploadId").value(12))
+                .andExpect(jsonPath("$.data.analysisRunId").value(35))
+                .andExpect(jsonPath("$.data.analysisId").doesNotExist());
+    }
+
+    @Test
+    void rejectsInsightRetryWithoutSession() throws Exception {
+        mockMvc.perform(post("/v1/sales/uploads/12/analysis-retries"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("로그인이 필요합니다."))
+                .andExpect(jsonPath("$.data").doesNotExist());
+
+        verifyNoInteractions(salesAnalysisRetryService);
+    }
+
+    @Test
+    void returnsConflictWhenInsightGenerationIsAlreadyRunning() throws Exception {
+        when(salesAnalysisRetryService.retry(7L, 301L, 12L)).thenThrow(
+                new SalesAnalysisRetryException(
+                        SalesAnalysisRetryException.Reason.RETRY_IN_PROGRESS,
+                        "RETRY_IN_PROGRESS"
+                )
+        );
+
+        mockMvc.perform(post("/v1/sales/uploads/12/analysis-retries")
+                        .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE,
+                                new AuthenticatedUserSession(7L, 301L)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("이미 AI 인사이트를 생성하고 있습니다."))
+                .andExpect(jsonPath("$.failReason").doesNotExist())
+                .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
+    @Test
+    void returnsUnprocessableContentWhenUploadCannotBeRetried() throws Exception {
+        when(salesAnalysisRetryService.retry(7L, 301L, 12L)).thenThrow(
+                new SalesAnalysisRetryException(
+                        SalesAnalysisRetryException.Reason.RETRY_NOT_ALLOWED,
+                        "INVALID_SALES_SCHEMA"
+                )
+        );
+
+        mockMvc.perform(post("/v1/sales/uploads/12/analysis-retries")
+                        .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE,
+                                new AuthenticatedUserSession(7L, 301L)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.message").value(
+                        "이 업로드는 다시 분석할 수 없습니다. 새 파일을 업로드해 주세요."
+                ))
+                .andExpect(jsonPath("$.failReason").value("INVALID_SALES_SCHEMA"))
+                .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
+    @Test
+    void returnsNotFoundWhenUploadDoesNotExist() throws Exception {
+        when(salesAnalysisRetryService.retry(7L, 301L, 12L)).thenThrow(
+                new SalesAnalysisRetryException(
+                        SalesAnalysisRetryException.Reason.UPLOAD_NOT_FOUND,
+                        "UPLOAD_NOT_FOUND"
+                )
+        );
+
+        mockMvc.perform(post("/v1/sales/uploads/12/analysis-retries")
+                        .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE,
+                                new AuthenticatedUserSession(7L, 301L)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("업로드 정보를 찾을 수 없습니다."))
+                .andExpect(jsonPath("$.failReason").doesNotExist())
+                .andExpect(jsonPath("$.data").doesNotExist());
     }
 
     @Test
