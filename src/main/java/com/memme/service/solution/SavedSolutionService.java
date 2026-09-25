@@ -18,7 +18,7 @@ import com.memme.entity.solution.SavedSolutionEntity;
 import com.memme.entity.solution.SolutionBundleEntity;
 import com.memme.entity.solution.SolutionBundleStatus;
 import com.memme.entity.solution.SolutionEntity;
-import com.memme.exception.SolutionRequestException;
+import com.memme.exception.solution.SolutionRequestException;
 import com.memme.repository.solution.SavedSolutionRepository;
 import com.memme.repository.solution.SolutionBundleRepository;
 import com.memme.repository.solution.SolutionRepository;
@@ -26,14 +26,14 @@ import com.memme.repository.store.StoreOwnershipRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import static com.memme.exception.SolutionRequestException.Reason.BUNDLE_NOT_FOUND;
-import static com.memme.exception.SolutionRequestException.Reason.INVALID_PAGE_SIZE;
-import static com.memme.exception.SolutionRequestException.Reason.INVALID_SAVED_IDS;
-import static com.memme.exception.SolutionRequestException.Reason.SAVED_SOLUTION_NOT_FOUND;
-import static com.memme.exception.SolutionRequestException.Reason.SAVED_SOLUTION_OWNER_REQUIRED;
-import static com.memme.exception.SolutionRequestException.Reason.SAVE_EXPIRED;
-import static com.memme.exception.SolutionRequestException.Reason.SAVE_TARGET_NOT_FOUND;
-import static com.memme.exception.SolutionRequestException.Reason.STORE_OWNER_REQUIRED;
+import static com.memme.exception.solution.SolutionRequestException.Reason.BUNDLE_NOT_FOUND;
+import static com.memme.exception.solution.SolutionRequestException.Reason.INVALID_PAGE_SIZE;
+import static com.memme.exception.solution.SolutionRequestException.Reason.INVALID_SAVED_IDS;
+import static com.memme.exception.solution.SolutionRequestException.Reason.SAVED_SOLUTION_NOT_FOUND;
+import static com.memme.exception.solution.SolutionRequestException.Reason.SAVED_SOLUTION_OWNER_REQUIRED;
+import static com.memme.exception.solution.SolutionRequestException.Reason.SAVE_EXPIRED;
+import static com.memme.exception.solution.SolutionRequestException.Reason.SAVE_TARGET_NOT_FOUND;
+import static com.memme.exception.solution.SolutionRequestException.Reason.STORE_OWNER_REQUIRED;
 
 @Service
 public class SavedSolutionService {

@@ -1,4 +1,4 @@
-package com.memme.exception;
+package com.memme.exception.solution;
 
 public class SolutionRequestException extends RuntimeException {
 

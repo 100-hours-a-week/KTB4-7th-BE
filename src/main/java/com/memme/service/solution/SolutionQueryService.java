@@ -11,7 +11,7 @@ import com.memme.dto.solution.SolutionTodayResponse;
 import com.memme.entity.solution.SolutionBundleEntity;
 import com.memme.entity.solution.SolutionBundleStatus;
 import com.memme.entity.solution.SolutionEntity;
-import com.memme.exception.SolutionRequestException;
+import com.memme.exception.solution.SolutionRequestException;
 import com.memme.repository.solution.SavedSolutionRepository;
 import com.memme.repository.solution.SolutionBundleRepository;
 import com.memme.repository.solution.SolutionRepository;
@@ -20,10 +20,10 @@ import com.memme.repository.store.StoreRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import static com.memme.exception.SolutionRequestException.Reason.BUNDLE_EXPIRED;
-import static com.memme.exception.SolutionRequestException.Reason.BUNDLE_NOT_FOUND;
-import static com.memme.exception.SolutionRequestException.Reason.STORE_NOT_FOUND;
-import static com.memme.exception.SolutionRequestException.Reason.STORE_OWNER_REQUIRED;
+import static com.memme.exception.solution.SolutionRequestException.Reason.BUNDLE_EXPIRED;
+import static com.memme.exception.solution.SolutionRequestException.Reason.BUNDLE_NOT_FOUND;
+import static com.memme.exception.solution.SolutionRequestException.Reason.STORE_NOT_FOUND;
+import static com.memme.exception.solution.SolutionRequestException.Reason.STORE_OWNER_REQUIRED;
 
 @Service
 @Transactional(readOnly = true)
