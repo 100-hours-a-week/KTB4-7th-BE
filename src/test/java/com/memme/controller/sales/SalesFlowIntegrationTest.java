@@ -4,11 +4,14 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.YearMonth;
 
 import com.memme.controller.auth.AuthenticatedUserSession;
 import com.memme.entity.sales.AnalysisRunStatus;
+import com.memme.entity.sales.SalesAiInsightStatus;
 import com.memme.exception.GlobalExceptionHandler;
 import com.memme.repository.sales.AnalysisRunRepository;
+import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesDailySummaryRepository;
 import com.memme.repository.store.StoreOwnershipRepository;
 import com.memme.service.sales.TossPosWorkbookParser;
@@ -48,6 +51,7 @@ class SalesFlowIntegrationTest {
     @Autowired TossPosWorkbookParser parser;
     @Autowired SalesDailySummaryRepository summaries;
     @Autowired AnalysisRunRepository runs;
+    @Autowired SalesAiInsightRepository insights;
     @Autowired JdbcTemplate jdbc;
     private MockMvc mvc;
 
@@ -89,6 +93,10 @@ class SalesFlowIntegrationTest {
             long uploadId = json.path("data").path("uploadId").asLong();
             long runId = json.path("data").path("analysisRunId").asLong();
             assertThat(runs.findById(runId).orElseThrow().getStatus()).isEqualTo(AnalysisRunStatus.COMPLETED);
+            assertThat(insights.findByStoreIdAndTargetMonth(
+                    STORE_ID,
+                    YearMonth.from(parsed.periodEnd())
+            ).orElseThrow().getStatus()).isEqualTo(SalesAiInsightStatus.INSUFFICIENT_DATA);
             mvc.perform(get("/v1/sales/uploads")
                             .param("targetMonth", parsed.periodStart().toString().substring(0, 7))
                             .param("page", "1")

@@ -7,6 +7,8 @@
 - `sales_uploads` 1 : N `sales_orders` (`sales_orders.sales_upload_id`)
 - `sales_orders` 1 : N `sales_order_items` (`sales_order_items.sales_order_id`)
 - `sales_uploads` 1 : N `analysis_runs` (`analysis_runs.based_on_upload_id`)
+- `analysis_runs` 1 : 1 `sales_analyses` (`sales_analyses.analysis_run_id`)
+- `sales_analyses` 1 : N `sales_ai_insights` (`sales_ai_insights.sales_analysis_id`)
 - `sales_daily_summaries`는 `store_id`, `sales_date`별 주문 집계 스냅샷이다.
 - `sales_forecasts`는 `store_id`, `target_date`별 최신 업로드의 정상 매출 예측 결과다.
 - `store_id`, `requested_by_user_id`, `menu_id`는 아직 구현되지 않은 도메인을 가리키는 논리 참조이며 물리 FK/JPA 연관관계는 두지 않는다.
@@ -131,6 +133,30 @@
 `(store_id, target_date)`에 `uk_sales_forecasts_store_target_date` unique 제약을 둔다.
 `lower_bound <= predicted_sales_amount <= upper_bound`를 만족해야 한다. `INSUFFICIENT_HISTORY`는 예측 행을 만들지 않고 생성 흐름의 결과 상태로 구분한다. 동일 날짜가 겹치면 더 큰 `based_on_upload_id`의 결과만 반영해 이전 업로드의 늦은 응답이 최신 결과를 덮어쓰지 못하게 한다.
 
+### sales_analyses
+
+| 컬럼 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| id | BIGINT | Y | PK, auto increment |
+| analysis_run_id | BIGINT | Y | 분석 실행 식별자, unique |
+| summary_text | TEXT | N | 기본 분석 요약 |
+| created_at | DATETIME | Y | 생성 시각 |
+
+### sales_ai_insights
+
+| 컬럼 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| id | BIGINT | Y | PK, auto increment |
+| store_id | BIGINT | Y | 매장 식별자 |
+| sales_analysis_id | BIGINT | Y | AI 입력의 기준이 된 매출 분석 식별자 |
+| target_month | DATE | Y | 대상 월의 1일로 저장 |
+| insights | JSON | N | AI가 생성한 1~3개 문장 배열 |
+| status | VARCHAR(30) | Y | `PENDING`, `GENERATING`, `COMPLETED`, `INSUFFICIENT_DATA`, `FAILED` |
+| generated_at | DATETIME | N | 생성 종료 시각 |
+| created_at / updated_at | DATETIME | Y | 생성·수정 시각 |
+
+`(store_id, target_month)`에 `uk_sales_ai_insights_store_month` unique 제약을 둔다. 재업로드나 재시도 시 같은 월의 행을 새 `sales_analysis_id`와 결과로 갱신한다.
+
 ## 중첩 기간 재업로드 정책
 
 1. 파일 접수마다 `sales_uploads`에 새 이력을 만든다. 동일 체크섬도 접수를 막지 않는다.
@@ -149,5 +175,8 @@
 - `sales_uploads`의 체크섬은 일반 인덱스로 두고 unique 제약을 두지 않는다.
 - `sales_uploads`에 처리 단계, 파일 커버리지, 처리 건수, 실패 정보를 반영한다.
 - `analysis_runs`와 상태·기간·멱등키·실패 정보 컬럼을 추가한다.
+- `sales_analyses`와 월간 `sales_ai_insights` 저장 구조를 추가한다.
 - `sales_daily_summaries`를 `(store_id, sales_date)` 단위로 유지한다.
 - 미구현 도메인 식별자는 물리 FK 없이 BIGINT 컬럼으로 반영한다.
+
+MySQL 신규 환경에는 `docker/mysql/init/04-sales-analysis-insights.sql`을 적용한다. 기존 환경에도 같은 DDL을 1회 적용한 뒤 애플리케이션을 시작해야 하며, `ddl-auto: validate`는 설계와 실제 테이블의 일치 여부만 검사한다.

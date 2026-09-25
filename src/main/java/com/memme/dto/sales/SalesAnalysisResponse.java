@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.util.List;
 
 public record SalesAnalysisResponse(
@@ -40,7 +41,15 @@ public record SalesAnalysisResponse(
 
     public record WeekdaySales(DayOfWeek dayOfWeek, BigDecimal salesAmount) {}
 
-    public record AiInsight(String summary, OffsetDateTime generatedAt) {}
+    public record AiInsight(
+            YearMonth targetMonth,
+            List<String> insights,
+            OffsetDateTime generatedAt
+    ) {
+        public AiInsight {
+            insights = List.copyOf(insights);
+        }
+    }
 
     public record InsufficientData(AiInsight aiInsight) {}
 

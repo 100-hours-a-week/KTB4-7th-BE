@@ -2,13 +2,18 @@ package com.memme.service.sales.analysis;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.List;
+import java.util.Optional;
 
+import com.memme.entity.sales.SalesAiInsightEntity;
+import com.memme.entity.sales.SalesAiInsightStatus;
 import com.memme.entity.sales.SalesDailySummaryEntity;
 import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
 import com.memme.entity.sales.SalesOrderItemType;
 import com.memme.entity.sales.SalesStandardMenuCategory;
+import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesDailySummaryRepository;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesOrderRepository;
@@ -26,6 +31,7 @@ class SalesAnalysisServiceTest {
     private SalesDailySummaryRepository dailySummaryRepository;
     private SalesOrderRepository orderRepository;
     private SalesOrderItemRepository itemRepository;
+    private SalesAiInsightRepository insightRepository;
     private SalesAnalysisService service;
 
     @BeforeEach
@@ -33,10 +39,12 @@ class SalesAnalysisServiceTest {
         dailySummaryRepository = mock(SalesDailySummaryRepository.class);
         orderRepository = mock(SalesOrderRepository.class);
         itemRepository = mock(SalesOrderItemRepository.class);
+        insightRepository = mock(SalesAiInsightRepository.class);
         service = new SalesAnalysisService(
                 dailySummaryRepository,
                 orderRepository,
-                itemRepository
+                itemRepository,
+                insightRepository
         );
     }
 
@@ -166,6 +174,73 @@ class SalesAnalysisServiceTest {
                         date.atStartOfDay(),
                         date.plusDays(1).atStartOfDay()
                 );
+    }
+
+    @Test
+    void returnsCompletedInsightForMonthContainingPeriodEnd() {
+        long storeId = 301L;
+        LocalDate date = LocalDate.of(2026, 9, 8);
+        SalesDailySummaryEntity dailySummary = summary(date, 100, 1);
+        when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                storeId, date, date
+        )).thenReturn(List.of(dailySummary));
+        when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                storeId, date.minusDays(1), date.minusDays(1)
+        )).thenReturn(List.of());
+        when(orderRepository
+                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
+                        storeId,
+                        date.atStartOfDay(),
+                        date.plusDays(1).atStartOfDay()
+                )).thenReturn(List.of());
+
+        SalesAiInsightEntity insight = mock(SalesAiInsightEntity.class);
+        when(insight.getStatus()).thenReturn(SalesAiInsightStatus.COMPLETED);
+        when(insight.getTargetMonth()).thenReturn(YearMonth.of(2026, 9));
+        when(insight.getInsights()).thenReturn(List.of("9월 매출이 이전 기간보다 증가했습니다."));
+        when(insight.getGeneratedAt()).thenReturn(LocalDateTime.of(2026, 9, 8, 10, 0));
+        when(insightRepository.findByStoreIdAndTargetMonth(storeId, YearMonth.of(2026, 9)))
+                .thenReturn(Optional.of(insight));
+
+        SalesAnalysisResult result = service.analyze(storeId, "TODAY", date, date);
+
+        assertThat(result).isInstanceOfSatisfying(SalesAnalysisResult.Completed.class, completed -> {
+            assertThat(completed.analysis().aiInsight().targetMonth())
+                    .isEqualTo(YearMonth.of(2026, 9));
+            assertThat(completed.analysis().aiInsight().insights())
+                    .containsExactly("9월 매출이 이전 기간보다 증가했습니다.");
+            assertThat(completed.analysis().aiInsight().generatedAt().getOffset().getTotalSeconds())
+                    .isEqualTo(9 * 60 * 60);
+        });
+    }
+
+    @Test
+    void hidesFailedInsightWithoutFailingBaseAnalysis() {
+        long storeId = 301L;
+        LocalDate date = LocalDate.of(2026, 9, 8);
+        SalesDailySummaryEntity dailySummary = summary(date, 100, 1);
+        when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                storeId, date, date
+        )).thenReturn(List.of(dailySummary));
+        when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                storeId, date.minusDays(1), date.minusDays(1)
+        )).thenReturn(List.of());
+        when(orderRepository
+                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
+                        storeId,
+                        date.atStartOfDay(),
+                        date.plusDays(1).atStartOfDay()
+                )).thenReturn(List.of());
+
+        SalesAiInsightEntity insight = mock(SalesAiInsightEntity.class);
+        when(insight.getStatus()).thenReturn(SalesAiInsightStatus.FAILED);
+        when(insightRepository.findByStoreIdAndTargetMonth(storeId, YearMonth.of(2026, 9)))
+                .thenReturn(Optional.of(insight));
+
+        SalesAnalysisResult result = service.analyze(storeId, "TODAY", date, date);
+
+        assertThat(result).isInstanceOfSatisfying(SalesAnalysisResult.Completed.class,
+                completed -> assertThat(completed.analysis().aiInsight()).isNull());
     }
 
     private SalesDailySummaryEntity summary(LocalDate date, long sales, int orderCount) {
