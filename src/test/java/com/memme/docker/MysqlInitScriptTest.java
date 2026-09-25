@@ -77,6 +77,21 @@ class MysqlInitScriptTest {
     }
 
     @Test
+    void 알림함_테이블을_초기화한다() throws IOException {
+        String sql = Files.readString(Path.of("docker/mysql/init/04-notifications.sql"));
+
+        assertThat(sql)
+                .contains("CREATE TABLE notifications")
+                .contains("user_id BIGINT UNSIGNED NOT NULL")
+                .contains("notification_type VARCHAR(50) NOT NULL")
+                .contains("related_entity_type VARCHAR(50) NULL")
+                .contains("related_entity_id BIGINT UNSIGNED NULL")
+                .contains("sent_at DATETIME NULL")
+                .contains("read_at DATETIME NULL")
+                .contains("CONSTRAINT fk_notifications_user");
+    }
+
+    @Test
     void 매장과_대상일자별_매출_예측_테이블을_초기화한다() throws IOException {
         String sql = Files.readString(Path.of("docker/mysql/init/02-sales-forecasts.sql"));
 
