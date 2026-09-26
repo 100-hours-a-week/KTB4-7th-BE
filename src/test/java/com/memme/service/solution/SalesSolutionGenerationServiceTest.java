@@ -11,6 +11,7 @@ import com.memme.entity.sales.AnalysisRunEntity;
 import com.memme.entity.sales.SalesAnalysisEntity;
 import com.memme.entity.solution.SolutionBundleEntity;
 import com.memme.entity.solution.SolutionBundleStatus;
+import com.memme.service.noti.SolutionReadyNotificationService;
 import com.memme.exception.solution.SalesSolutionAiException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,7 @@ class SalesSolutionGenerationServiceTest {
     private SalesSolutionGenerationContextResolver contextResolver;
     private SalesSolutionPersistenceService persistenceService;
     private SalesSolutionAiClient aiClient;
+    private SolutionReadyNotificationService solutionReadyNotificationService;
     private SalesSolutionGenerationService service;
 
     @BeforeEach
@@ -35,7 +37,13 @@ class SalesSolutionGenerationServiceTest {
         contextResolver = mock(SalesSolutionGenerationContextResolver.class);
         persistenceService = mock(SalesSolutionPersistenceService.class);
         aiClient = mock(SalesSolutionAiClient.class);
-        service = new SalesSolutionGenerationService(contextResolver, persistenceService, aiClient);
+        solutionReadyNotificationService = mock(SolutionReadyNotificationService.class);
+        service = new SalesSolutionGenerationService(
+                contextResolver,
+                persistenceService,
+                aiClient,
+                solutionReadyNotificationService
+        );
     }
 
     @Test
@@ -62,6 +70,27 @@ class SalesSolutionGenerationServiceTest {
     }
 
     @Test
+    void 솔루션_생성이_완료되면_준비_완료_알림을_생성한다() {
+        LocalDate targetDate = LocalDate.of(2026, 9, 24);
+        SalesAnalysisEntity analysis = mock(SalesAnalysisEntity.class);
+        when(analysis.getId()).thenReturn(56L);
+        AnalysisRunEntity run = mock(AnalysisRunEntity.class);
+        when(contextResolver.resolve(1L, targetDate)).thenReturn(ready(run, analysis, metrics()));
+        when(contextResolver.latestSalesAnalysisId(1L)).thenReturn(Optional.of(56L));
+        SolutionBundleEntity bundle = mock(SolutionBundleEntity.class);
+        when(bundle.getId()).thenReturn(77L);
+        when(persistenceService.start(1L, 56L, targetDate))
+                .thenReturn(new SalesSolutionPersistenceService.StartResult(bundle, true));
+        SalesSolutionGenerationResponse response = response(targetDate);
+        when(aiClient.generate(any(SalesSolutionGenerationRequest.class))).thenReturn(response);
+
+        service.generateAfterUpload(1L, targetDate);
+
+        verify(persistenceService).complete(77L, 56L, response.data());
+        verify(solutionReadyNotificationService).notifySolutionReady(bundle);
+    }
+
+    @Test
     void doesNotCallAiWithoutForecast() {
         LocalDate targetDate = LocalDate.of(2026, 9, 24);
         when(contextResolver.resolve(1L, targetDate)).thenReturn(
@@ -77,6 +106,7 @@ class SalesSolutionGenerationServiceTest {
                 .isEqualTo(SalesSolutionGenerationResult.Status.INSUFFICIENT_HISTORY);
         verify(aiClient, never()).generate(any());
         verify(persistenceService, never()).start(any(), any(), any());
+        verify(solutionReadyNotificationService, never()).notifySolutionReady(any());
     }
 
     @Test
@@ -151,6 +181,7 @@ class SalesSolutionGenerationServiceTest {
         assertThat(result.status()).isEqualTo(SalesSolutionGenerationResult.Status.FAILED);
         verify(persistenceService).fail(77L);
         verify(persistenceService, never()).complete(any(), any(), any());
+        verify(solutionReadyNotificationService, never()).notifySolutionReady(any());
     }
 
     private void givenGenerationContext(LocalDate targetDate) {
