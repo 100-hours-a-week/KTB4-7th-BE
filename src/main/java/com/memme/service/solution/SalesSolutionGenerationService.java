@@ -6,6 +6,7 @@ import com.memme.dto.sales.SalesSolutionGenerationRequest;
 import com.memme.dto.sales.SalesSolutionGenerationResponse;
 import com.memme.entity.solution.SolutionBundleEntity;
 import com.memme.exception.solution.SalesSolutionAiException;
+import com.memme.service.noti.SolutionReadyNotificationService;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -16,15 +17,18 @@ public class SalesSolutionGenerationService {
     private final SalesSolutionGenerationContextResolver contextResolver;
     private final SalesSolutionPersistenceService persistenceService;
     private final SalesSolutionAiClient aiClient;
+    private final SolutionReadyNotificationService solutionReadyNotificationService;
 
     public SalesSolutionGenerationService(
             SalesSolutionGenerationContextResolver contextResolver,
             SalesSolutionPersistenceService persistenceService,
-            SalesSolutionAiClient aiClient
+            SalesSolutionAiClient aiClient,
+            SolutionReadyNotificationService solutionReadyNotificationService
     ) {
         this.contextResolver = contextResolver;
         this.persistenceService = persistenceService;
         this.aiClient = aiClient;
+        this.solutionReadyNotificationService = solutionReadyNotificationService;
     }
 
     public SalesSolutionGenerationResult generateAfterUpload(Long storeId, LocalDate targetDate) {
@@ -114,6 +118,7 @@ public class SalesSolutionGenerationService {
                 }
 
                 persistenceService.complete(bundleId, latestAnalysisId, response.data());
+                solutionReadyNotificationService.notifySolutionReady(bundle);
                 return SalesSolutionGenerationResult.of(
                         SalesSolutionGenerationResult.Status.COMPLETED,
                         bundleId
