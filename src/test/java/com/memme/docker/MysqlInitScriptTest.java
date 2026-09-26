@@ -123,4 +123,16 @@ class MysqlInitScriptTest {
                 .contains("CREATE TABLE saved_solutions")
                 .contains("UNIQUE KEY uk_saved_solutions_user_solution (user_id, solution_id)");
     }
+
+    @Test
+    void 챗봇_메시지_테이블을_초기화한다() throws IOException {
+        String sql = Files.readString(Path.of("docker/mysql/init/03-solutions.sql"));
+
+        assertThat(sql)
+                .contains("CREATE TABLE chat_messages")
+                .contains("solution_bundle_id BIGINT UNSIGNED NULL")
+                .contains("evidence_json JSON NULL")
+                .contains("CHECK (role IN ('USER','ASSISTANT'))")
+                .contains("CHECK (status IN ('PENDING','STREAMING','COMPLETED','FAILED'))");
+    }
 }

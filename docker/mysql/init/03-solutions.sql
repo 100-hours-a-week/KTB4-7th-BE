@@ -48,3 +48,21 @@ CREATE TABLE saved_solutions (
   CONSTRAINT fk_saved_solutions_solution
     FOREIGN KEY (solution_id) REFERENCES solutions(id)
 ) ENGINE=InnoDB;
+
+CREATE TABLE chat_messages (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  solution_bundle_id BIGINT UNSIGNED NULL,
+  role VARCHAR(20) NOT NULL,
+  content TEXT NOT NULL,
+  evidence_json JSON NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'COMPLETED',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_chat_messages_user_created (user_id, created_at),
+  KEY idx_chat_messages_bundle_created (solution_bundle_id, created_at),
+  CONSTRAINT fk_chat_message_user FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT fk_chat_message_solution_bundle FOREIGN KEY (solution_bundle_id) REFERENCES solution_bundles(id),
+  CONSTRAINT ck_chat_message_role CHECK (role IN ('USER','ASSISTANT')),
+  CONSTRAINT ck_chat_message_status CHECK (status IN ('PENDING','STREAMING','COMPLETED','FAILED'))
+) ENGINE=InnoDB;

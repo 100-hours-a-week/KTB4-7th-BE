@@ -14,9 +14,14 @@ import com.memme.exception.auth.InvalidPasswordResetRequestException;
 import com.memme.exception.auth.InvalidSignupRequestException;
 import com.memme.exception.auth.PasswordResetTokenExpiredException;
 import com.memme.exception.auth.SignupCompletionExpiredException;
+import com.memme.exception.chat.ChatInsufficientDataException;
+import com.memme.exception.chat.ChatRequestException;
+import com.memme.dto.chat.ChatMissingDataResponse;
+import com.memme.dto.common.StatusResponse;
 import com.memme.exception.noti.NotificationNotFoundException;
 import com.memme.exception.noti.InvalidNotificationCursorException;
 import com.memme.exception.sales.SalesAnalysisRequestException;
+import com.memme.exception.sales.InternalSalesDataNotFoundException;
 import com.memme.exception.solution.SolutionRequestException;
 import com.memme.exception.store.AddressSearchFailedException;
 import com.memme.exception.store.BusinessStatusNotEligibleException;
@@ -37,6 +42,29 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 public class GlobalExceptionHandler {
 
     private static final String INVALID_REQUEST_FORMAT_MESSAGE = "요청 형식이 올바르지 않습니다.";
+
+    @ExceptionHandler(ChatInsufficientDataException.class)
+    public ResponseEntity<StatusResponse<ChatMissingDataResponse>> handleChatInsufficientData(
+            ChatInsufficientDataException exception
+    ) {
+        return ResponseEntity.ok(new StatusResponse<>(
+                exception.getMessage(),
+                "INSUFFICIENT_DATA",
+                new ChatMissingDataResponse(List.of("INSUFFICIENT_HISTORY"))
+        ));
+    }
+
+    @ExceptionHandler(ChatRequestException.class)
+    public ResponseEntity<ApiResponse<Void>> handleChatRequest(ChatRequestException exception) {
+        HttpStatus status = switch (exception.getReason()) {
+            case GENERATION_IN_PROGRESS -> HttpStatus.CONFLICT;
+            case STORE_OWNER_REQUIRED -> HttpStatus.FORBIDDEN;
+            case INVALID_CONTENT, RETRY_TARGET_NOT_FOUND, SOLUTION_NOT_READY ->
+                    HttpStatus.UNPROCESSABLE_CONTENT;
+        };
+        return ResponseEntity.status(status)
+                .body(new ApiResponse<>(exception.getMessage(), null));
+    }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleHttpMessageNotReadable(
@@ -60,6 +88,14 @@ public class GlobalExceptionHandler {
                 ? HttpStatus.FORBIDDEN
                 : HttpStatus.BAD_REQUEST;
         return ResponseEntity.status(status).body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
+    @ExceptionHandler(InternalSalesDataNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInternalSalesDataNotFound(
+            InternalSalesDataNotFoundException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(exception.getMessage(), null));
     }
 
     @ExceptionHandler(SolutionRequestException.class)
