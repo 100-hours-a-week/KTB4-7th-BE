@@ -59,7 +59,8 @@ public class SecurityConfig {
                 .build();
     }
 
-    private CookieCsrfTokenRepository csrfTokenRepository() {
+    @Bean
+    public CookieCsrfTokenRepository csrfTokenRepository() {
         CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
         repository.setCookieCustomizer(cookie -> {
             if (!csrfCookieDomain.isBlank()) {
