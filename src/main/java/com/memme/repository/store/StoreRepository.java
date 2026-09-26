@@ -27,6 +27,13 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
         return findAllStoreOwnersByStatus(StoreStatus.ACTIVE);
     }
 
+    @Query("""
+            select store.owner.id
+            from Store store
+            where store.id = :storeId
+            """)
+    Optional<Long> findOwnerUserIdByStoreId(@Param("storeId") Long storeId);
+
     interface ActiveStoreOwner {
 
         Long getStoreId();
