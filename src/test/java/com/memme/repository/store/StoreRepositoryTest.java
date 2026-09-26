@@ -39,4 +39,14 @@ class StoreRepositoryTest {
         assertThat(getStoreId.getReturnType()).isEqualTo(Long.class);
         assertThat(getOwnerUserId.getReturnType()).isEqualTo(Long.class);
     }
+
+    @Test
+    void 매장_ID로_대표_사용자_ID를_조회한다() throws Exception {
+        Method findOwnerUserIdByStoreId = StoreRepository.class.getMethod(
+                "findOwnerUserIdByStoreId",
+                Long.class
+        );
+
+        assertThat(findOwnerUserIdByStoreId.getReturnType()).isEqualTo(Optional.class);
+    }
 }
