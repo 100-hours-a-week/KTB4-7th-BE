@@ -38,7 +38,7 @@ public class SalesAnalysisQueryService {
         return analysisService.analyze(storeId, period.type(), period.startDate(), period.endDate());
     }
 
-    SalesPeriod resolvePeriod(String type, String startDate, String endDate) {
+    public SalesPeriod resolvePeriod(String type, String startDate, String endDate) {
         LocalDate today = LocalDate.now(clock);
         if (type == null || (!"CUSTOM".equals(type) && (startDate != null || endDate != null))) {
             throw new SalesAnalysisRequestException(INVALID_PERIOD);

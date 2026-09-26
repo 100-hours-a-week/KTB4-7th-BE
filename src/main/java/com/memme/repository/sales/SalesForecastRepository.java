@@ -3,6 +3,7 @@ package com.memme.repository.sales;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.List;
 
 import com.memme.entity.sales.SalesForecastEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,6 +14,11 @@ import org.springframework.data.repository.query.Param;
 public interface SalesForecastRepository extends JpaRepository<SalesForecastEntity, Long> {
 
     Optional<SalesForecastEntity> findByStoreIdAndTargetDate(Long storeId, LocalDate targetDate);
+
+    List<SalesForecastEntity> findAllByStoreIdAndTargetDateGreaterThanEqualOrderByTargetDateAsc(
+            Long storeId,
+            LocalDate targetDate
+    );
 
     @Query("""
             select max(forecast.targetDate)
