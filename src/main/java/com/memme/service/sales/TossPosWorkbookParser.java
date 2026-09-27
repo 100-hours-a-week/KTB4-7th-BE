@@ -373,9 +373,9 @@ public final class TossPosWorkbookParser {
 
     private SalesOrderStatus parseStatus(String value, String sheetName, SheetRow row) {
         return switch (value) {
-            case "완료" -> SalesOrderStatus.COMPLETED;
+            case "완료", "완료(부분 취소됨)" -> SalesOrderStatus.COMPLETED;
             case "취소" -> SalesOrderStatus.CANCELED;
-            default -> throw rowValidation(sheetName, row, "결제상태는 완료 또는 취소여야 합니다.");
+            default -> throw rowValidation(sheetName, row, "결제상태는 완료, 완료(부분 취소됨) 또는 취소여야 합니다.");
         };
     }
 

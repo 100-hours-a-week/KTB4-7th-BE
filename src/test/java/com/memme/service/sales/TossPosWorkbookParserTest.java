@@ -53,6 +53,19 @@ class TossPosWorkbookParserTest {
     }
 
     @Test
+    void 부분취소_완료_주문은_완료_주문으로_파싱한다() throws Exception {
+        TossPosWorkbookData result = parser.parse(new ByteArrayInputStream(
+            syntheticWorkbookWithPartialCancellation()
+        ));
+
+        assertThat(result.items())
+            .filteredOn(item -> item.menuName().equals("부분취소 아메리카노"))
+            .singleElement()
+            .extracting(SalesOrderItem::status)
+            .isEqualTo(SalesOrderStatus.COMPLETED);
+    }
+
+    @Test
     void 같은_주문번호라도_채널이나_주문시각이_다르면_별도_주문이다() throws Exception {
         TossPosWorkbookData result = parseSynthetic(false, 0);
 
@@ -152,6 +165,21 @@ class TossPosWorkbookParserTest {
             createDataBasis(workbook);
             createProductSummary(workbook, summaryDelta);
             createProductDetails(workbook, missingNetAmountColumn);
+            workbook.write(outputStream);
+            return outputStream.toByteArray();
+        }
+    }
+
+    private byte[] syntheticWorkbookWithPartialCancellation() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            createDataBasis(workbook);
+            createProductSummary(workbook, 0);
+            createProductDetails(workbook, false);
+            workbook.getSheet("상품 주문 상세내역").getRow(2).getCell(1)
+                .setCellValue("완료(부분 취소됨)");
+            workbook.getSheet("상품 주문 상세내역").getRow(2).getCell(5)
+                .setCellValue("부분취소 아메리카노");
             workbook.write(outputStream);
             return outputStream.toByteArray();
         }
