@@ -11,13 +11,17 @@ import com.memme.entity.auth.User;
 import com.memme.entity.noti.Notification;
 import com.memme.entity.noti.NotificationPreference;
 import com.memme.entity.solution.SolutionBundleEntity;
+import com.memme.entity.solution.SolutionBundleStatus;
 import com.memme.repository.auth.UserRepository;
 import com.memme.repository.noti.NotificationPreferenceRepository;
 import com.memme.repository.noti.NotificationRepository;
+import com.memme.repository.solution.SolutionBundleRepository;
 import com.memme.repository.store.StoreRepository;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +33,8 @@ class SolutionReadyNotificationServiceTest {
     private NotificationPreferenceRepository preferenceRepository;
     private NotificationRepository notificationRepository;
     private UserRepository userRepository;
+    private SolutionBundleRepository solutionBundleRepository;
+    private Clock clock;
     private SolutionReadyNotificationService service;
 
     @BeforeEach
@@ -37,12 +43,14 @@ class SolutionReadyNotificationServiceTest {
         preferenceRepository = mock(NotificationPreferenceRepository.class);
         notificationRepository = mock(NotificationRepository.class);
         userRepository = mock(UserRepository.class);
-        Clock clock = Clock.fixed(Instant.parse("2026-09-26T00:00:00Z"), ZoneOffset.UTC);
+        solutionBundleRepository = mock(SolutionBundleRepository.class);
+        clock = Clock.fixed(Instant.parse("2026-09-26T00:00:00Z"), ZoneOffset.UTC);
         service = new SolutionReadyNotificationService(
                 storeRepository,
                 preferenceRepository,
                 notificationRepository,
                 userRepository,
+                solutionBundleRepository,
                 clock
         );
     }
@@ -92,6 +100,35 @@ class SolutionReadyNotificationServiceTest {
 
         verify(notificationRepository, never()).save(any());
         verify(userRepository, never()).getReferenceById(any());
+    }
+
+    @Test
+    void 오늘_완료된_모든_번들에_대해_알림을_발송한다() {
+        LocalDate today = LocalDate.now(clock);
+        SolutionBundleEntity first = solutionBundle(20L, 10L);
+        SolutionBundleEntity second = solutionBundle(21L, 11L);
+        when(solutionBundleRepository.findAllByTargetDateAndStatus(today, SolutionBundleStatus.COMPLETED))
+                .thenReturn(List.of(first, second));
+        givenEnabledOwner(10L, 3L);
+        givenEnabledOwner(11L, 4L);
+        when(userRepository.getReferenceById(any())).thenReturn(mock(User.class));
+        when(notificationRepository.existsByUserIdAndNotificationTypeAndNotificationKey(any(), any(), any()))
+                .thenReturn(false);
+
+        service.notifyTodaysSolutions();
+
+        verify(notificationRepository, org.mockito.Mockito.times(2)).save(any());
+    }
+
+    @Test
+    void 오늘_완료된_번들이_없으면_알림을_발송하지_않는다() {
+        LocalDate today = LocalDate.now(clock);
+        when(solutionBundleRepository.findAllByTargetDateAndStatus(today, SolutionBundleStatus.COMPLETED))
+                .thenReturn(List.of());
+
+        service.notifyTodaysSolutions();
+
+        verify(notificationRepository, never()).save(any());
     }
 
     private void givenEnabledOwner(Long storeId, Long ownerUserId) {
