@@ -328,6 +328,11 @@ public class SalesAnalysisService {
             case "THIS_WEEK" -> new DateRange(start.minusWeeks(1), end.minusWeeks(1));
             case "THIS_MONTH" -> new DateRange(start.minusMonths(1), end.minusMonths(1));
             default -> {
+                YearMonth selectedMonth = YearMonth.from(start);
+                if (start.equals(selectedMonth.atDay(1)) && end.equals(selectedMonth.atEndOfMonth())) {
+                    YearMonth previousMonth = selectedMonth.minusMonths(1);
+                    yield new DateRange(previousMonth.atDay(1), previousMonth.atEndOfMonth());
+                }
                 long days = ChronoUnit.DAYS.between(start, end) + 1;
                 LocalDate comparisonEnd = start.minusDays(1);
                 yield new DateRange(comparisonEnd.minusDays(days - 1), comparisonEnd);
