@@ -177,6 +177,69 @@ class SalesAnalysisServiceTest {
     }
 
     @Test
+    void comparesFullCustomMonthWithEntirePreviousCalendarMonth() {
+        long storeId = 301L;
+        LocalDate start = LocalDate.of(2026, 6, 1);
+        LocalDate end = LocalDate.of(2026, 6, 30);
+        LocalDate comparisonStart = LocalDate.of(2026, 5, 1);
+        LocalDate comparisonEnd = LocalDate.of(2026, 5, 31);
+        SalesDailySummaryEntity selectedSummary = summary(start, 100, 1);
+        SalesDailySummaryEntity comparisonSummary = summary(comparisonStart, 120, 1);
+        when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                storeId, start, end
+        )).thenReturn(List.of(selectedSummary));
+        when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                storeId, comparisonStart, comparisonEnd
+        )).thenReturn(List.of(comparisonSummary));
+        when(orderRepository
+                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
+                        storeId, start.atStartOfDay(), end.plusDays(1).atStartOfDay()
+                )).thenReturn(List.of());
+
+        SalesAnalysisResult result = service.analyze(storeId, "CUSTOM", start, end);
+
+        assertThat(result).isInstanceOfSatisfying(SalesAnalysisResult.Completed.class, completed ->
+                assertThat(completed.analysis().comparisonPeriod())
+                        .isEqualTo(new com.memme.dto.sales.SalesAnalysisResponse.DateRange(
+                                comparisonStart, comparisonEnd
+                        ))
+        );
+        verify(dailySummaryRepository).findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                storeId, comparisonStart, comparisonEnd
+        );
+    }
+
+    @Test
+    void keepsPreviousSameLengthComparisonForPartialCustomRange() {
+        long storeId = 301L;
+        LocalDate start = LocalDate.of(2026, 6, 10);
+        LocalDate end = LocalDate.of(2026, 6, 20);
+        LocalDate comparisonStart = LocalDate.of(2026, 5, 30);
+        LocalDate comparisonEnd = LocalDate.of(2026, 6, 9);
+        SalesDailySummaryEntity selectedSummary = summary(start, 100, 1);
+        SalesDailySummaryEntity comparisonSummary = summary(comparisonStart, 120, 1);
+        when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                storeId, start, end
+        )).thenReturn(List.of(selectedSummary));
+        when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                storeId, comparisonStart, comparisonEnd
+        )).thenReturn(List.of(comparisonSummary));
+        when(orderRepository
+                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
+                        storeId, start.atStartOfDay(), end.plusDays(1).atStartOfDay()
+                )).thenReturn(List.of());
+
+        SalesAnalysisResult result = service.analyze(storeId, "CUSTOM", start, end);
+
+        assertThat(result).isInstanceOfSatisfying(SalesAnalysisResult.Completed.class, completed ->
+                assertThat(completed.analysis().comparisonPeriod())
+                        .isEqualTo(new com.memme.dto.sales.SalesAnalysisResponse.DateRange(
+                                comparisonStart, comparisonEnd
+                        ))
+        );
+    }
+
+    @Test
     void returnsCompletedInsightForMonthContainingPeriodEnd() {
         long storeId = 301L;
         LocalDate date = LocalDate.of(2026, 9, 8);
