@@ -4,10 +4,14 @@ import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.temporal.TemporalAdjusters;
+import java.util.List;
 
+import com.memme.dto.sales.SalesAvailableMonthsResponse;
 import com.memme.dto.sales.SalesPeriod;
 import com.memme.exception.sales.SalesAnalysisRequestException;
+import com.memme.repository.sales.SalesDailySummaryRepository;
 import com.memme.repository.store.StoreOwnershipRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,14 +23,28 @@ import static com.memme.exception.sales.SalesAnalysisRequestException.Reason.STO
 @Transactional(readOnly = true)
 public class SalesAnalysisQueryService {
     private final SalesAnalysisService analysisService;
+    private final SalesDailySummaryRepository dailySummaryRepository;
     private final StoreOwnershipRepository ownershipRepository;
     private final Clock clock;
 
     public SalesAnalysisQueryService(SalesAnalysisService analysisService,
+                                     SalesDailySummaryRepository dailySummaryRepository,
                                      StoreOwnershipRepository ownershipRepository, Clock clock) {
         this.analysisService = analysisService;
+        this.dailySummaryRepository = dailySummaryRepository;
         this.ownershipRepository = ownershipRepository;
         this.clock = clock;
+    }
+
+    public SalesAvailableMonthsResponse getAvailableMonths(Long userId, Long storeId) {
+        if (!ownershipRepository.existsActiveStoreOwnedBy(storeId, userId)) {
+            throw new SalesAnalysisRequestException(STORE_OWNER_REQUIRED);
+        }
+        List<String> months = dailySummaryRepository.findAllByStoreIdOrderBySalesDateAsc(storeId).stream()
+                .map(summary -> YearMonth.from(summary.getSalesDate()).toString())
+                .distinct()
+                .toList();
+        return new SalesAvailableMonthsResponse(months);
     }
 
     public SalesAnalysisResult query(Long userId, Long storeId, String periodType,

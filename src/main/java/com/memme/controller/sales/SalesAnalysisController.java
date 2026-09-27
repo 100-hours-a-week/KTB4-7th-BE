@@ -2,6 +2,7 @@ package com.memme.controller.sales;
 
 import com.memme.controller.auth.AuthenticatedUserSession;
 import com.memme.exception.auth.AuthenticationRequiredException;
+import com.memme.dto.sales.SalesAvailableMonthsResponse;
 import com.memme.dto.common.StatusResponse;
 import com.memme.service.sales.analysis.SalesAnalysisQueryService;
 import com.memme.service.sales.analysis.SalesAnalysisResult;
@@ -33,5 +34,12 @@ public class SalesAnalysisController {
             case SalesAnalysisResult.Empty result ->
                     new StatusResponse<>("선택 기간에 매출 데이터가 없습니다.", "EMPTY", result.analysis());
         };
+    }
+
+    @GetMapping("/months")
+    public SalesAvailableMonthsResponse getAvailableMonths(
+            @SessionAttribute(value = AuthenticatedUserSession.SESSION_ATTRIBUTE, required = false) AuthenticatedUserSession user) {
+        if (user == null) throw new AuthenticationRequiredException();
+        return queryService.getAvailableMonths(user.userId(), user.storeId());
     }
 }
