@@ -11,6 +11,7 @@ import com.memme.dto.sales.SalesUploadHistoryResponse;
 import com.memme.dto.sales.SalesUploadStatusResponse;
 import com.memme.exception.GlobalExceptionHandler;
 import com.memme.exception.sales.SalesAnalysisRetryException;
+import com.memme.exception.sales.SalesUploadExceptionHandler;
 import com.memme.service.sales.upload.SalesUploadQueryService;
 import com.memme.service.sales.analysis.SalesAnalysisRetryService;
 import com.memme.service.sales.upload.SalesUploadReceipt;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -236,5 +238,20 @@ class SalesUploadControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.failReason").value("INVALID_FILE_COUNT"));
         verifyNoInteractions(salesUploadService);
+    }
+
+    @Test
+    void returnsPayloadTooLargeResponseWhenMultipartFileExceedsLimit() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "sales.xlsx", null, new byte[]{1});
+        when(salesUploadService.upload(any())).thenThrow(new MaxUploadSizeExceededException(10 * 1024 * 1024));
+
+        mockMvc.perform(multipart("/v1/sales/uploads")
+                        .file(file)
+                        .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE,
+                                new AuthenticatedUserSession(7L, 301L)))
+                .andExpect(status().isPayloadTooLarge())
+                .andExpect(jsonPath("$.message").value("파일 크기가 10MB를 초과했습니다."))
+                .andExpect(jsonPath("$.data").isEmpty())
+                .andExpect(jsonPath("$.failReason").doesNotExist());
     }
 }

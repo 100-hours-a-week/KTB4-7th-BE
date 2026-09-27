@@ -1,18 +1,25 @@
-package com.memme.controller.sales;
+package com.memme.exception.sales;
 
+import com.memme.controller.sales.SalesUploadController;
 import com.memme.dto.common.ApiResponse;
+import com.memme.dto.common.ErrorResponse;
 import com.memme.dto.common.FailureResponse;
-import com.memme.exception.sales.SalesAnalysisRetryException;
-import com.memme.exception.sales.SalesUploadProcessingException;
-import com.memme.exception.sales.SalesUploadQueryException;
-import com.memme.exception.sales.SalesUploadRequestException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice(basePackageClasses = SalesUploadController.class)
 public class SalesUploadExceptionHandler {
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException exception) {
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(new ErrorResponse(
+                "파일 크기가 10MB를 초과했습니다.",
+                null
+        ));
+    }
 
     @ExceptionHandler(SalesUploadRequestException.class)
     public ResponseEntity<FailureResponse> handleRequest(SalesUploadRequestException exception) {
