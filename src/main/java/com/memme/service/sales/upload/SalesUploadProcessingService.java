@@ -6,11 +6,13 @@ import java.io.UncheckedIOException;
 import java.time.YearMonth;
 
 import com.memme.dto.sales.SalesInsightTriggerType;
+import com.memme.entity.sales.SalesAiInsightStatus;
 import com.memme.entity.sales.SalesUploadEntity;
 import com.memme.entity.sales.SalesUploadProcessingPhase;
 import com.memme.exception.sales.SalesUploadProcessingException;
 import com.memme.exception.sales.SalesUploadRequestException;
 import com.memme.exception.sales.TossPosWorkbookValidationException;
+import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.service.sales.TossPosWorkbookData;
 import com.memme.service.sales.TossPosWorkbookParser;
@@ -36,6 +38,7 @@ public class SalesUploadProcessingService {
     private final SalesAnalysisService analysisService;
     private final SalesAnalysisSnapshotService snapshotService;
     private final SalesInsightGenerationService insightGenerationService;
+    private final SalesAiInsightRepository insightRepository;
     private final SalesAiPostProcessingJob aiPostProcessingJob;
 
     public SalesUploadProcessingService(SalesUploadRepository uploadRepository,
@@ -46,6 +49,7 @@ public class SalesUploadProcessingService {
                                         SalesAnalysisService analysisService,
                                         SalesAnalysisSnapshotService snapshotService,
                                         SalesInsightGenerationService insightGenerationService,
+                                        SalesAiInsightRepository insightRepository,
                                         SalesAiPostProcessingJob aiPostProcessingJob) {
         this.uploadRepository = uploadRepository;
         this.fileStorage = fileStorage;
@@ -55,6 +59,7 @@ public class SalesUploadProcessingService {
         this.analysisService = analysisService;
         this.snapshotService = snapshotService;
         this.insightGenerationService = insightGenerationService;
+        this.insightRepository = insightRepository;
         this.aiPostProcessingJob = aiPostProcessingJob;
     }
 
@@ -111,17 +116,37 @@ public class SalesUploadProcessingService {
             Long salesAnalysisId,
             TossPosWorkbookData data
     ) {
-        try {
-            insightGenerationService.generate(
-                    storeId,
-                    salesAnalysisId,
-                    lifecycleService.analysisRunId(uploadId),
-                    YearMonth.from(data.periodEnd()),
-                    SalesInsightTriggerType.UPLOAD
-            );
-        } catch (RuntimeException exception) {
-            log.warn("Sales insight generation failed for uploadId={}", uploadId, exception);
+        Long analysisRunId = lifecycleService.analysisRunId(uploadId);
+        YearMonth endMonth = YearMonth.from(data.periodEnd());
+        for (YearMonth targetMonth = YearMonth.from(data.periodStart());
+             !targetMonth.isAfter(endMonth);
+             targetMonth = targetMonth.plusMonths(1)) {
+            try {
+                if (hasCompletedInsight(storeId, targetMonth)) {
+                    continue;
+                }
+                insightGenerationService.generate(
+                        storeId,
+                        salesAnalysisId,
+                        analysisRunId,
+                        targetMonth,
+                        SalesInsightTriggerType.UPLOAD
+                );
+            } catch (RuntimeException exception) {
+                log.warn(
+                        "Sales insight generation failed for uploadId={}, targetMonth={}",
+                        uploadId,
+                        targetMonth,
+                        exception
+                );
+            }
         }
+    }
+
+    private boolean hasCompletedInsight(Long storeId, YearMonth targetMonth) {
+        return insightRepository.findByStoreIdAndTargetMonth(storeId, targetMonth.atDay(1))
+                .map(insight -> insight.getStatus() == SalesAiInsightStatus.COMPLETED)
+                .orElse(false);
     }
 
     private void startAiPostProcessing(

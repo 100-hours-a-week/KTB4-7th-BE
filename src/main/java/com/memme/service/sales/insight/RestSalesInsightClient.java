@@ -122,6 +122,7 @@ public class RestSalesInsightClient implements SalesInsightClient {
             throw new IllegalArgumentException("AI timeout must be positive");
         }
         HttpClient httpClient = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(Duration.ofSeconds(connectTimeoutSeconds))
                 .build();
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);

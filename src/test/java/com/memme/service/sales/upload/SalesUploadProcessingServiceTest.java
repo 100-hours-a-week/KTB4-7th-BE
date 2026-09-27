@@ -7,8 +7,11 @@ import java.util.Optional;
 
 import com.memme.entity.sales.SalesUploadEntity;
 import com.memme.entity.sales.SalesUploadProcessingPhase;
+import com.memme.entity.sales.SalesAiInsightEntity;
+import com.memme.entity.sales.SalesAiInsightStatus;
 import com.memme.exception.sales.SalesUploadRequestException;
 import com.memme.exception.sales.TossPosWorkbookValidationException;
+import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.service.sales.TossPosWorkbookData;
 import com.memme.service.sales.TossPosWorkbookParser;
@@ -28,12 +31,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class SalesUploadProcessingServiceTest {
 
     private SalesUploadRepository uploadRepository;
+    private SalesAiInsightRepository insightRepository;
     private SalesFileStorage fileStorage;
     private TossPosWorkbookParser workbookParser;
     private SalesUploadLifecycleService lifecycleService;
@@ -47,6 +52,7 @@ class SalesUploadProcessingServiceTest {
     @BeforeEach
     void setUp() {
         uploadRepository = mock(SalesUploadRepository.class);
+        insightRepository = mock(SalesAiInsightRepository.class);
         fileStorage = mock(SalesFileStorage.class);
         workbookParser = mock(TossPosWorkbookParser.class);
         lifecycleService = mock(SalesUploadLifecycleService.class);
@@ -64,6 +70,7 @@ class SalesUploadProcessingServiceTest {
                 analysisService,
                 snapshotService,
                 insightGenerationService,
+                insightRepository,
                 aiPostProcessingJob
         );
     }
@@ -197,6 +204,73 @@ class SalesUploadProcessingServiceTest {
         verify(lifecycleService).markCompleted(12L, 0);
         verify(lifecycleService, never()).markFailed(any(), any(), any());
         verify(aiPostProcessingJob).start(301L, 12L, 34L, date.plusDays(1));
+    }
+
+    @Test
+    void generatesInsightForEveryMonthCoveredByUpload() throws Exception {
+        LocalDate periodStart = LocalDate.of(2026, 1, 1);
+        LocalDate periodEnd = LocalDate.of(2026, 3, 31);
+        prepareSuccessfulProcessing(periodStart, periodEnd);
+
+        service.process(12L);
+
+        verify(insightGenerationService).generate(301L, 56L, 34L, java.time.YearMonth.of(2026, 1),
+                com.memme.dto.sales.SalesInsightTriggerType.UPLOAD);
+        verify(insightGenerationService).generate(301L, 56L, 34L, java.time.YearMonth.of(2026, 2),
+                com.memme.dto.sales.SalesInsightTriggerType.UPLOAD);
+        verify(insightGenerationService).generate(301L, 56L, 34L, java.time.YearMonth.of(2026, 3),
+                com.memme.dto.sales.SalesInsightTriggerType.UPLOAD);
+        verify(insightGenerationService, times(3)).generate(
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void skipsCompletedInsightAndGeneratesUncoveredMonth() throws Exception {
+        LocalDate periodStart = LocalDate.of(2026, 1, 1);
+        LocalDate periodEnd = LocalDate.of(2026, 2, 28);
+        prepareSuccessfulProcessing(periodStart, periodEnd);
+        SalesAiInsightEntity completed = mock(SalesAiInsightEntity.class);
+        when(completed.getStatus()).thenReturn(SalesAiInsightStatus.COMPLETED);
+        when(insightRepository.findByStoreIdAndTargetMonth(301L, periodStart)).thenReturn(Optional.of(completed));
+
+        service.process(12L);
+
+        verify(insightGenerationService, never()).generate(301L, 56L, 34L, java.time.YearMonth.of(2026, 1),
+                com.memme.dto.sales.SalesInsightTriggerType.UPLOAD);
+        verify(insightGenerationService).generate(301L, 56L, 34L, java.time.YearMonth.of(2026, 2),
+                com.memme.dto.sales.SalesInsightTriggerType.UPLOAD);
+    }
+
+    @Test
+    void continuesGeneratingRemainingMonthsWhenOneMonthGenerationFails() throws Exception {
+        LocalDate periodStart = LocalDate.of(2026, 1, 1);
+        LocalDate periodEnd = LocalDate.of(2026, 3, 31);
+        prepareSuccessfulProcessing(periodStart, periodEnd);
+        when(insightGenerationService.generate(301L, 56L, 34L, java.time.YearMonth.of(2026, 2),
+                com.memme.dto.sales.SalesInsightTriggerType.UPLOAD))
+                .thenThrow(new IllegalStateException("AI unavailable"));
+
+        service.process(12L);
+
+        verify(insightGenerationService).generate(301L, 56L, 34L, java.time.YearMonth.of(2026, 3),
+                com.memme.dto.sales.SalesInsightTriggerType.UPLOAD);
+        verify(lifecycleService).markCompleted(12L, 0);
+    }
+
+    private void prepareSuccessfulProcessing(LocalDate periodStart, LocalDate periodEnd) throws Exception {
+        SalesUploadEntity upload = pendingUpload();
+        TossPosWorkbookData data = new TossPosWorkbookData(periodStart, periodEnd, List.of(), List.of(), List.of());
+        SalesUploadResult result = new SalesUploadResult(12L, periodStart, periodEnd, 0, 0);
+        SalesAnalysisResult analysis = new SalesAnalysisResult.Empty(null);
+        when(uploadRepository.findById(12L)).thenReturn(Optional.of(upload));
+        when(fileStorage.load(upload.getStorageKey())).thenReturn(new byte[]{1});
+        when(workbookParser.parse(any(InputStream.class))).thenReturn(data);
+        when(persistenceService.replaceCoverage(12L, 301L, data)).thenReturn(result);
+        when(analysisService.analyze(301L, "CUSTOM", periodStart, periodEnd)).thenReturn(analysis);
+        when(snapshotService.persist(12L, analysis)).thenReturn(56L);
+        when(lifecycleService.analysisRunId(12L)).thenReturn(34L);
     }
 
     private SalesUploadEntity pendingUpload() {
