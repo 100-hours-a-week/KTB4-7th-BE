@@ -34,6 +34,16 @@ password-reset:
   url: ${PASSWORD_RESET_URL}
 
 app:
+  qa-account:
+    enabled: ${QA_ACCOUNT_ENABLED:false}
+    email: ${QA_ACCOUNT_EMAIL:}
+    password: ${QA_ACCOUNT_PASSWORD:}
+    phone: ${QA_ACCOUNT_PHONE:}
+    business-registration-no: ${QA_ACCOUNT_BUSINESS_REGISTRATION_NO:}
+    store-name: ${QA_ACCOUNT_STORE_NAME:}
+    postal-code: ${QA_ACCOUNT_POSTAL_CODE:}
+    address: ${QA_ACCOUNT_ADDRESS:}
+    address-detail: ${QA_ACCOUNT_ADDRESS_DETAIL:}
   sales:
     storage:
       type: ${SALES_STORAGE_TYPE:local}
