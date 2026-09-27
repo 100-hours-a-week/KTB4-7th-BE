@@ -4,8 +4,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 
+import com.memme.entity.sales.SalesDailySummaryEntity;
 import com.memme.exception.sales.SalesAnalysisRequestException;
+import com.memme.repository.sales.SalesDailySummaryRepository;
 import com.memme.repository.store.StoreOwnershipRepository;
 import org.junit.jupiter.api.Test;
 
@@ -14,10 +17,36 @@ import static org.mockito.Mockito.*;
 
 class SalesAnalysisQueryServiceTest {
     private final SalesAnalysisService analysis = mock(SalesAnalysisService.class);
+    private final SalesDailySummaryRepository dailySummaryRepository = mock(SalesDailySummaryRepository.class);
     private final StoreOwnershipRepository ownership = mock(StoreOwnershipRepository.class);
     // UTC Sunday, Seoul Monday: verifies business timezone and week boundary.
     private final Clock clock = Clock.fixed(Instant.parse("2026-08-30T15:30:00Z"), ZoneId.of("Asia/Seoul"));
-    private final SalesAnalysisQueryService service = new SalesAnalysisQueryService(analysis, ownership, clock);
+    private final SalesAnalysisQueryService service = new SalesAnalysisQueryService(
+            analysis, dailySummaryRepository, ownership, clock
+    );
+
+    @Test
+    void returnsDistinctAvailableMonthsInAscendingOrder() {
+        when(ownership.existsActiveStoreOwnedBy(301L, 7L)).thenReturn(true);
+        when(dailySummaryRepository.findAllByStoreIdOrderBySalesDateAsc(301L)).thenReturn(List.of(
+                SalesDailySummaryEntity.create(301L, LocalDate.of(2026, 3, 1), 0, 0, 0, 0),
+                SalesDailySummaryEntity.create(301L, LocalDate.of(2026, 3, 31), 0, 0, 0, 0),
+                SalesDailySummaryEntity.create(301L, LocalDate.of(2026, 4, 1), 0, 0, 0, 0)
+        ));
+
+        var response = service.getAvailableMonths(7L, 301L);
+
+        assertThat(response.months()).containsExactly("2026-03", "2026-04");
+    }
+
+    @Test
+    void deniesAvailableMonthsForStoreNotOwnedBySessionUser() {
+        assertThatThrownBy(() -> service.getAvailableMonths(7L, 999L))
+                .isInstanceOfSatisfying(SalesAnalysisRequestException.class,
+                        e -> assertThat(e.getReason())
+                                .isEqualTo(SalesAnalysisRequestException.Reason.STORE_OWNER_REQUIRED));
+        verifyNoInteractions(dailySummaryRepository);
+    }
 
     @Test
     void resolvesPresetsInSeoulWithMondayWeekStart() {
