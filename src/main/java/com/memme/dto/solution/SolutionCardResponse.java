@@ -6,5 +6,7 @@ public record SolutionCardResponse(
         String title,
         String summaryText,
         String detailText,
-        String evidence
+        String evidence,
+        boolean isSaved,
+        Long savedId
 ) {}

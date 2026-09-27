@@ -2,11 +2,8 @@ package com.memme.service.solution;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,43 +58,38 @@ public class SavedSolutionService {
     }
 
     @Transactional
-    public SaveResult saveBundle(Long userId, Long storeId, Long bundleId) {
+    public SaveResult save(Long userId, Long storeId, Long solutionId) {
         requireOwnership(userId, storeId);
-        SolutionBundleEntity bundle = bundleRepository.findByIdAndStoreId(bundleId, storeId)
+        SolutionEntity card = solutionRepository.findById(solutionId)
+                .filter(solution -> storeId.equals(solution.getStoreId()))
                 .orElseThrow(() -> new SolutionRequestException(SAVE_TARGET_NOT_FOUND));
+        SolutionBundleEntity bundle = requireBundle(storeId, card.getSolutionBundleId());
         if (bundle.getStatus() != SolutionBundleStatus.COMPLETED) {
             throw new SolutionRequestException(SAVE_TARGET_NOT_FOUND);
         }
         if (bundle.getTargetDate().isBefore(LocalDate.now(clock))) {
             throw new SolutionRequestException(SAVE_EXPIRED);
         }
-        List<SolutionEntity> cards = solutionRepository
-                .findAllBySolutionBundleIdOrderByRankNoAsc(bundleId);
-        List<SavedSolutionEntity> existing = savedSolutionRepository
-                .findAllByUserIdAndSolutionIdIn(userId, cardIds(cards));
-        boolean created = existing.size() != cards.size();
-        Map<Long, SavedSolutionEntity> bySolutionId = new LinkedHashMap<>();
-        existing.forEach(saved -> bySolutionId.put(saved.getSolutionId(), saved));
-        for (SolutionEntity card : cards) {
-            bySolutionId.computeIfAbsent(card.getId(), solutionId ->
-                    savedSolutionRepository.save(SavedSolutionEntity.create(userId, solutionId)));
-        }
-        SavedSolutionEntity representative = bySolutionId.values().stream()
-                .min(Comparator.comparing(SavedSolutionEntity::getId))
-                .orElseThrow(() -> new IllegalStateException("completed bundle has no cards"));
-        SolutionSaveResponse response = new SolutionSaveResponse(
-                created ? "솔루션이 저장되었습니다." : "이미 저장된 솔루션입니다.",
-                new SolutionSaveResponse.Data(
-                        new SolutionSaveResponse.SavedSolution(
-                                representative.getId(),
-                                bundleId,
-                                bundle.getTargetDate(),
-                                representative.getCreatedAt()
-                        ),
-                        "SOL-03"
-                )
+        var existing = savedSolutionRepository.findByUserIdAndSolutionId(userId, solutionId);
+        boolean created = existing.isEmpty();
+        SavedSolutionEntity saved = existing.orElseGet(
+                () -> savedSolutionRepository.save(SavedSolutionEntity.create(userId, solutionId))
         );
-        return new SaveResult(response, created);
+        return new SaveResult(
+                new SolutionSaveResponse(
+                        created ? "솔루션이 저장되었습니다." : "이미 저장된 솔루션입니다.",
+                        new SolutionSaveResponse.Data(
+                                new SolutionSaveResponse.SavedSolution(
+                                        saved.getId(),
+                                        bundle.getId(),
+                                        bundle.getTargetDate(),
+                                        saved.getCreatedAt()
+                                ),
+                                "SOL-03"
+                        )
+                ),
+                created
+        );
     }
 
     @Transactional(readOnly = true)
@@ -106,26 +98,31 @@ public class SavedSolutionService {
         if (size < 1 || size > 20) {
             throw new SolutionRequestException(INVALID_PAGE_SIZE);
         }
-        List<SavedBundle> bundles = savedBundles(userId).stream()
-                .filter(bundle -> cursor == null || bundle.representative().getId() < cursor)
+        List<SavedSolutionEntity> saved = savedSolutionRepository
+                .findAllByUserIdOrderByCreatedAtDescIdDesc(userId).stream()
+                .filter(row -> cursor == null || row.getId() < cursor)
                 .limit(size + 1L)
                 .toList();
-        boolean hasNext = bundles.size() > size;
-        List<SavedBundle> page = hasNext ? bundles.subList(0, size) : bundles;
+        boolean hasNext = saved.size() > size;
+        List<SavedSolutionEntity> page = hasNext ? saved.subList(0, size) : saved;
+        Map<Long, SolutionEntity> cardsById = new LinkedHashMap<>();
+        solutionRepository.findAllById(page.stream().map(SavedSolutionEntity::getSolutionId).toList())
+                .forEach(card -> cardsById.put(card.getId(), card));
         Map<Integer, List<SavedSolutionListResponse.Item>> groups = new LinkedHashMap<>();
-        for (SavedBundle bundle : page) {
-            LocalDate savedDate = bundle.representative().getCreatedAt().toLocalDate();
-            SolutionEntity first = bundle.cards().getFirst();
-            int remaining = bundle.cards().size() - 1;
-            String displayTitle = DISPLAY_DATE.format(savedDate) + " " + first.getTitle()
-                    + (remaining > 0 ? " 외 " + remaining + "개" : "");
+        for (SavedSolutionEntity row : page) {
+            SolutionEntity card = cardsById.get(row.getSolutionId());
+            if (card == null) {
+                continue;
+            }
+            LocalDate savedDate = row.getCreatedAt().toLocalDate();
+            String displayTitle = DISPLAY_DATE.format(savedDate) + " " + card.getTitle();
             groups.computeIfAbsent(savedDate.getYear(), ignored -> new ArrayList<>())
                     .add(new SavedSolutionListResponse.Item(
-                            bundle.representative().getId(),
+                            row.getId(),
                             savedDate,
                             displayTitle,
-                            first.getTitle(),
-                            remaining
+                            card.getTitle(),
+                            0
                     ));
         }
         List<SavedSolutionListResponse.YearGroup> yearGroups = groups.entrySet().stream()
@@ -134,9 +131,7 @@ public class SavedSolutionService {
                         List.copyOf(entry.getValue())
                 ))
                 .toList();
-        Long nextCursor = hasNext && !page.isEmpty()
-                ? page.getLast().representative().getId()
-                : null;
+        Long nextCursor = hasNext && !page.isEmpty() ? page.getLast().getId() : null;
         return new SavedSolutionListResponse(
                 page.isEmpty() ? "아직 저장된 솔루션이 없습니다." : "조회에 성공했습니다.",
                 nextCursor,
@@ -152,28 +147,8 @@ public class SavedSolutionService {
         SolutionEntity selected = solutionRepository.findById(representative.getSolutionId())
                 .filter(solution -> storeId.equals(solution.getStoreId()))
                 .orElseThrow(() -> new SolutionRequestException(SAVED_SOLUTION_NOT_FOUND));
-        SolutionBundleEntity bundle = requireBundle(storeId, selected.getSolutionBundleId());
-        List<SolutionEntity> cards = solutionRepository
-                .findAllBySolutionBundleIdOrderByRankNoAsc(bundle.getId());
-        List<Long> savedSolutionIds = savedSolutionRepository
-                .findAllByUserIdAndSolutionIdIn(userId, cardIds(cards)).stream()
-                .map(SavedSolutionEntity::getSolutionId)
-                .toList();
-        List<SavedSolutionDetailResponse.Item> savedCards = cards.stream()
-                .filter(card -> savedSolutionIds.contains(card.getId()))
-                .map(card -> new SavedSolutionDetailResponse.Item(
-                        card.getRankNo(),
-                        card.getTitle(),
-                        card.getSummaryText(),
-                        card.getDetailText(),
-                        card.getEvidenceText()
-                ))
-                .toList();
         LocalDate savedDate = representative.getCreatedAt().toLocalDate();
-        SolutionEntity first = savedCards.isEmpty() ? selected : cards.getFirst();
-        int remaining = Math.max(savedCards.size() - 1, 0);
-        String displayTitle = DISPLAY_DATE.format(savedDate) + " " + first.getTitle()
-                + (remaining > 0 ? " 외 " + remaining + "개" : "");
+        String displayTitle = DISPLAY_DATE.format(savedDate) + " " + selected.getTitle();
         return new SavedSolutionDetailResponse(
                 "조회에 성공했습니다.",
                 new SavedSolutionDetailResponse.Data(
@@ -182,7 +157,13 @@ public class SavedSolutionService {
                                 savedDate,
                                 displayTitle,
                                 true,
-                                savedCards
+                                List.of(new SavedSolutionDetailResponse.Item(
+                                        selected.getRankNo(),
+                                        selected.getTitle(),
+                                        selected.getSummaryText(),
+                                        selected.getDetailText(),
+                                        selected.getEvidenceText()
+                                ))
                         )
                 )
         );
@@ -210,61 +191,10 @@ public class SavedSolutionService {
             if (!storeId.equals(solution.getStoreId())) {
                 throw new SolutionRequestException(SAVED_SOLUTION_OWNER_REQUIRED);
             }
-            List<SolutionEntity> cards = solutionRepository
-                    .findAllBySolutionBundleIdOrderByRankNoAsc(solution.getSolutionBundleId());
-            List<SavedSolutionEntity> rows = savedSolutionRepository
-                    .findAllByUserIdAndSolutionIdIn(userId, cardIds(cards));
-            savedSolutionRepository.deleteAll(rows);
-            deletedCount += rows.size();
+            savedSolutionRepository.delete(saved);
+            deletedCount++;
         }
         return deletedCount;
-    }
-
-    private List<SavedBundle> savedBundles(Long userId) {
-        List<SavedSolutionEntity> saved = savedSolutionRepository
-                .findAllByUserIdOrderByCreatedAtDescIdDesc(userId);
-        if (saved.isEmpty()) {
-            return List.of();
-        }
-        Map<Long, SolutionEntity> solutionById = new LinkedHashMap<>();
-        solutionRepository.findAllById(saved.stream().map(SavedSolutionEntity::getSolutionId).toList())
-                .forEach(solution -> solutionById.put(solution.getId(), solution));
-        List<Long> bundleIds = solutionById.values().stream()
-                .map(SolutionEntity::getSolutionBundleId)
-                .distinct()
-                .toList();
-        Map<Long, List<SavedSolutionEntity>> savedByBundle = new LinkedHashMap<>();
-        Map<Long, List<SolutionEntity>> cardsByBundle = new LinkedHashMap<>();
-        solutionRepository
-                .findAllBySolutionBundleIdInOrderBySolutionBundleIdAscRankNoAsc(bundleIds)
-                .forEach(solution -> cardsByBundle
-                        .computeIfAbsent(solution.getSolutionBundleId(), ignored -> new ArrayList<>())
-                        .add(solution));
-        for (SavedSolutionEntity row : saved) {
-            SolutionEntity solution = solutionById.get(row.getSolutionId());
-            if (solution != null) {
-                savedByBundle.computeIfAbsent(solution.getSolutionBundleId(), ignored -> new ArrayList<>())
-                        .add(row);
-            }
-        }
-        return savedByBundle.entrySet().stream()
-                .map(entry -> new SavedBundle(
-                        entry.getValue().stream()
-                                .min(Comparator.comparing(SavedSolutionEntity::getId))
-                                .orElseThrow(),
-                        cardsByBundle.get(entry.getKey()),
-                        entry.getValue().stream()
-                                .map(SavedSolutionEntity::getCreatedAt)
-                                .max(LocalDateTime::compareTo)
-                                .orElseThrow()
-                ))
-                .sorted(Comparator.comparing(SavedBundle::savedAt).reversed()
-                        .thenComparing(bundle -> bundle.representative().getId(), Comparator.reverseOrder()))
-                .toList();
-    }
-
-    private Collection<Long> cardIds(List<SolutionEntity> cards) {
-        return cards.stream().map(SolutionEntity::getId).toList();
     }
 
     private SolutionBundleEntity requireBundle(Long storeId, Long bundleId) {
@@ -279,10 +209,4 @@ public class SavedSolutionService {
     }
 
     public record SaveResult(SolutionSaveResponse response, boolean created) {}
-
-    private record SavedBundle(
-            SavedSolutionEntity representative,
-            List<SolutionEntity> cards,
-            LocalDateTime savedAt
-    ) {}
 }
