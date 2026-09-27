@@ -5,11 +5,14 @@ import com.memme.entity.noti.Notification;
 import com.memme.entity.noti.NotificationPreference;
 import com.memme.entity.noti.NotificationType;
 import com.memme.entity.solution.SolutionBundleEntity;
+import com.memme.entity.solution.SolutionBundleStatus;
 import com.memme.repository.auth.UserRepository;
 import com.memme.repository.noti.NotificationPreferenceRepository;
 import com.memme.repository.noti.NotificationRepository;
+import com.memme.repository.solution.SolutionBundleRepository;
 import com.memme.repository.store.StoreRepository;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +28,7 @@ public class SolutionReadyNotificationService {
     private final NotificationPreferenceRepository preferenceRepository;
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final SolutionBundleRepository solutionBundleRepository;
     private final Clock clock;
 
     public SolutionReadyNotificationService(
@@ -32,13 +36,27 @@ public class SolutionReadyNotificationService {
             NotificationPreferenceRepository preferenceRepository,
             NotificationRepository notificationRepository,
             UserRepository userRepository,
+            SolutionBundleRepository solutionBundleRepository,
             Clock clock
     ) {
         this.storeRepository = storeRepository;
         this.preferenceRepository = preferenceRepository;
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
+        this.solutionBundleRepository = solutionBundleRepository;
         this.clock = clock;
+    }
+
+    /**
+     * 매일 08시(스케줄러)에서 호출된다. 자정 배치 생성이든 업로드 직후 생성이든
+     * 생성 시점과 무관하게, "오늘의 솔루션" 알림은 오늘 날짜로 COMPLETED된
+     * 모든 번들에 대해 이 시점에 한 번만 발송한다.
+     */
+    @Transactional
+    public void notifyTodaysSolutions() {
+        LocalDate today = LocalDate.now(clock);
+        solutionBundleRepository.findAllByTargetDateAndStatus(today, SolutionBundleStatus.COMPLETED)
+                .forEach(this::notifySolutionReady);
     }
 
     @Transactional
