@@ -3,11 +3,14 @@ package com.memme.service.solution;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.memme.dto.solution.SolutionBundleDetailResponse;
 import com.memme.dto.solution.SolutionCardResponse;
 import com.memme.dto.solution.SolutionTodayResponse;
+import com.memme.entity.solution.SavedSolutionEntity;
 import com.memme.entity.solution.SolutionBundleEntity;
 import com.memme.entity.solution.SolutionBundleStatus;
 import com.memme.entity.solution.SolutionEntity;
@@ -62,7 +65,7 @@ public class SolutionQueryService {
                 .getStoreName();
         LocalDate today = LocalDate.now(clock);
         return bundleRepository.findByStoreIdAndTargetDate(storeId, today)
-                .map(bundle -> todayFromBundle(storeName, bundle))
+                .map(bundle -> todayFromBundle(userId, storeName, bundle))
                 .orElseGet(() -> todayWithoutBundle(storeId, today));
     }
 
@@ -72,9 +75,8 @@ public class SolutionQueryService {
                 .orElseThrow(() -> new SolutionRequestException(BUNDLE_NOT_FOUND));
         List<SolutionEntity> cards = solutionRepository
                 .findAllBySolutionBundleIdOrderByRankNoAsc(bundleId);
-        boolean saved = !savedSolutionRepository
-                .findAllByUserIdAndSolutionIdIn(userId, cardIds(cards))
-                .isEmpty();
+        Map<Long, SavedSolutionEntity> savedBySolutionId = savedBySolutionId(userId, cards);
+        boolean saved = !savedBySolutionId.isEmpty();
         if (bundle.getTargetDate().isBefore(LocalDate.now(clock)) && !saved) {
             throw new SolutionRequestException(BUNDLE_EXPIRED);
         }
@@ -87,15 +89,14 @@ public class SolutionQueryService {
                                 .toOffsetDateTime(),
                         "오늘의 솔루션은 00:00시에 사라져요. 남겨두려면 저장해주세요.",
                         saved,
-                        cards.stream().map(this::toCard).toList()
+                        cards.stream().map(card -> toCard(card, savedBySolutionId.get(card.getId()))).toList()
                 ))
         );
     }
 
-    private SolutionTodayResponse todayFromBundle(String storeName, SolutionBundleEntity bundle) {
+    private SolutionTodayResponse todayFromBundle(Long userId, String storeName, SolutionBundleEntity bundle) {
         List<SolutionCardResponse> cards = bundle.getStatus() == SolutionBundleStatus.COMPLETED
-                ? solutionRepository.findAllBySolutionBundleIdOrderByRankNoAsc(bundle.getId())
-                        .stream().map(this::toCard).toList()
+                ? cardsForToday(userId, bundle.getId())
                 : List.of();
         String status = bundle.getStatus().name();
         String message = switch (bundle.getStatus()) {
@@ -177,15 +178,30 @@ public class SolutionQueryService {
         );
     }
 
-    private SolutionCardResponse toCard(SolutionEntity card) {
+    private List<SolutionCardResponse> cardsForToday(Long userId, Long bundleId) {
+        List<SolutionEntity> cards = solutionRepository.findAllBySolutionBundleIdOrderByRankNoAsc(bundleId);
+        Map<Long, SavedSolutionEntity> savedBySolutionId = savedBySolutionId(userId, cards);
+        return cards.stream().map(card -> toCard(card, savedBySolutionId.get(card.getId()))).toList();
+    }
+
+    private SolutionCardResponse toCard(SolutionEntity card, SavedSolutionEntity saved) {
         return new SolutionCardResponse(
                 card.getId(),
                 card.getRankNo(),
                 card.getTitle(),
                 card.getSummaryText(),
                 card.getDetailText(),
-                card.getEvidenceText()
+                card.getEvidenceText(),
+                saved != null,
+                saved == null ? null : saved.getId()
         );
+    }
+
+    private Map<Long, SavedSolutionEntity> savedBySolutionId(Long userId, List<SolutionEntity> cards) {
+        Map<Long, SavedSolutionEntity> result = new LinkedHashMap<>();
+        savedSolutionRepository.findAllByUserIdAndSolutionIdIn(userId, cardIds(cards))
+                .forEach(saved -> result.put(saved.getSolutionId(), saved));
+        return result;
     }
 
     private Collection<Long> cardIds(List<SolutionEntity> cards) {

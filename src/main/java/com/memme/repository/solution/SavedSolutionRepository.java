@@ -11,6 +11,8 @@ public interface SavedSolutionRepository extends JpaRepository<SavedSolutionEnti
 
     Optional<SavedSolutionEntity> findByIdAndUserId(Long id, Long userId);
 
+    Optional<SavedSolutionEntity> findByUserIdAndSolutionId(Long userId, Long solutionId);
+
     List<SavedSolutionEntity> findAllByUserIdOrderByCreatedAtDescIdDesc(Long userId);
 
     List<SavedSolutionEntity> findAllByUserIdAndSolutionIdIn(

@@ -48,17 +48,17 @@ public class SolutionController {
         return queryService.detail(user.userId(), user.storeId(), bundleId);
     }
 
-    @PostMapping("/v1/solution-bundles/{bundleId}/saves")
+    @PostMapping("/v1/solutions/{solutionId}/saves")
     public ResponseEntity<SolutionSaveResponse> save(
             @SessionAttribute(value = AuthenticatedUserSession.SESSION_ATTRIBUTE, required = false)
             AuthenticatedUserSession user,
-            @PathVariable Long bundleId
+            @PathVariable Long solutionId
     ) {
         requireAuthentication(user);
-        SavedSolutionService.SaveResult result = savedSolutionService.saveBundle(
+        SavedSolutionService.SaveResult result = savedSolutionService.save(
                 user.userId(),
                 user.storeId(),
-                bundleId
+                solutionId
         );
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(result.response());

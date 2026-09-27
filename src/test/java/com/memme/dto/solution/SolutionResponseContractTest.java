@@ -34,6 +34,10 @@ class SolutionResponseContractTest {
         assertThat(json.path("data").path("solutionBundleId").longValue()).isEqualTo(81L);
         assertThat(json.path("data").path("solutionCards").get(0).path("evidence").asString())
                 .isEqualTo("근거");
+        assertThat(json.path("data").path("solutionCards").get(0).path("isSaved").booleanValue())
+                .isTrue();
+        assertThat(json.path("data").path("solutionCards").get(0).path("savedId").longValue())
+                .isEqualTo(91L);
         assertThat(json.path("data").has("cards")).isFalse();
     }
 
@@ -94,7 +98,7 @@ class SolutionResponseContractTest {
                         new SavedSolutionDetailResponse.SavedSolution(
                                 91L,
                                 LocalDate.of(2026, 9, 8),
-                                "09/08 점심 시간대 할인 외 2개",
+                                "09/08 점심 시간대 할인",
                                 true,
                                 List.of(new SavedSolutionDetailResponse.Item(
                                         1, "점심 시간대 할인", "요약", "상세", "근거"
@@ -129,9 +133,9 @@ class SolutionResponseContractTest {
                                 List.of(new SavedSolutionListResponse.Item(
                                         91L,
                                         LocalDate.of(2026, 9, 8),
-                                        "09/08 점심 시간대 할인 외 2개",
+                                        "09/08 점심 시간대 할인",
                                         "점심 시간대 할인",
-                                        2
+                                        0
                                 ))
                         )
                 ))
@@ -158,6 +162,6 @@ class SolutionResponseContractTest {
     }
 
     private SolutionCardResponse card() {
-        return new SolutionCardResponse(1L, 1, "점심 시간대 할인", "요약", "상세", "근거");
+        return new SolutionCardResponse(1L, 1, "점심 시간대 할인", "요약", "상세", "근거", true, 91L);
     }
 }
