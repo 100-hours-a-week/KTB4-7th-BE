@@ -10,6 +10,7 @@ import com.memme.controller.auth.AuthenticatedUserSession;
 import com.memme.entity.sales.AnalysisRunStatus;
 import com.memme.entity.sales.SalesAiInsightStatus;
 import com.memme.exception.GlobalExceptionHandler;
+import com.memme.exception.sales.SalesUploadExceptionHandler;
 import com.memme.repository.sales.AnalysisRunRepository;
 import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesDailySummaryRepository;
