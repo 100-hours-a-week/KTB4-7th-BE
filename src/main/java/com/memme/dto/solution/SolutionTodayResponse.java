@@ -18,6 +18,7 @@ public record SolutionTodayResponse(
             String screenTitle,
             Long solutionBundleId,
             LocalDate targetDate,
-            List<SolutionCardResponse> solutionCards
+            List<SolutionCardResponse> solutionCards,
+            String helperText
     ) {}
 }

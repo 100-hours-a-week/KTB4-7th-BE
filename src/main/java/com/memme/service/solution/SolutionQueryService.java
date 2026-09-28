@@ -32,6 +32,12 @@ import static com.memme.exception.solution.SolutionRequestException.Reason.STORE
 @Transactional(readOnly = true)
 public class SolutionQueryService {
 
+    private static final String INSUFFICIENT_HISTORY_HELPER_TEXT =
+            "솔루션 생성을 위해 최소 3개월 이상의 데이터가 필요합니다.";
+    private static final String LIMITED_HISTORY_HELPER_TEXT =
+            "데이터가 충분하지 않아 솔루션의 정확도가 낮을 수 있어요. "
+                    + "데이터가 쌓일수록 더 정확한 분석을 제공할 수 있어요.";
+
     private final SolutionBundleRepository bundleRepository;
     private final SolutionRepository solutionRepository;
     private final SavedSolutionRepository savedSolutionRepository;
@@ -64,9 +70,11 @@ public class SolutionQueryService {
                 .orElseThrow(() -> new SolutionRequestException(STORE_NOT_FOUND))
                 .getStoreName();
         LocalDate today = LocalDate.now(clock);
+        SalesSolutionGenerationContextResolver.HistoryCoverage historyCoverage =
+                contextResolver.historyCoverage(storeId, today);
         return bundleRepository.findByStoreIdAndTargetDate(storeId, today)
-                .map(bundle -> todayFromBundle(userId, storeName, bundle))
-                .orElseGet(() -> todayWithoutBundle(storeId, today));
+                .map(bundle -> todayFromBundle(userId, storeName, bundle, historyCoverage))
+                .orElseGet(() -> todayWithoutBundle(storeId, today, historyCoverage));
     }
 
     public SolutionBundleDetailResponse detail(Long userId, Long storeId, Long bundleId) {
@@ -94,7 +102,12 @@ public class SolutionQueryService {
         );
     }
 
-    private SolutionTodayResponse todayFromBundle(Long userId, String storeName, SolutionBundleEntity bundle) {
+    private SolutionTodayResponse todayFromBundle(
+            Long userId,
+            String storeName,
+            SolutionBundleEntity bundle,
+            SalesSolutionGenerationContextResolver.HistoryCoverage historyCoverage
+    ) {
         List<SolutionCardResponse> cards = bundle.getStatus() == SolutionBundleStatus.COMPLETED
                 ? cardsForToday(userId, bundle.getId())
                 : List.of();
@@ -111,13 +124,17 @@ public class SolutionQueryService {
                 completed ? storeName : null,
                 bundle.getStatus() == SolutionBundleStatus.FAILED ? null : bundle.getId(),
                 bundle.getTargetDate(),
-                cards
+                cards,
+                historyCoverage == SalesSolutionGenerationContextResolver.HistoryCoverage.LIMITED
+                        ? LIMITED_HISTORY_HELPER_TEXT
+                        : null
         );
     }
 
     private SolutionTodayResponse todayWithoutBundle(
             Long storeId,
-            LocalDate targetDate
+            LocalDate targetDate,
+            SalesSolutionGenerationContextResolver.HistoryCoverage historyCoverage
     ) {
         SalesSolutionGenerationContextResolver.Resolution resolution =
                 contextResolver.resolve(storeId, targetDate);
@@ -128,15 +145,17 @@ public class SolutionQueryService {
                     null,
                     null,
                     targetDate,
-                    List.of()
+                    List.of(),
+                    null
             );
             case INSUFFICIENT_HISTORY -> response(
-                    "솔루션 생성을 위한 매출 이력이 부족합니다.",
+                    INSUFFICIENT_HISTORY_HELPER_TEXT,
                     "INSUFFICIENT_HISTORY",
                     null,
                     null,
                     targetDate,
-                    List.of()
+                    List.of(),
+                    INSUFFICIENT_HISTORY_HELPER_TEXT
             );
             case FORECAST_PENDING -> response(
                     "매출 예측을 생성하고 있습니다.",
@@ -144,7 +163,10 @@ public class SolutionQueryService {
                     null,
                     null,
                     targetDate,
-                    List.of()
+                    List.of(),
+                    historyCoverage == SalesSolutionGenerationContextResolver.HistoryCoverage.LIMITED
+                            ? LIMITED_HISTORY_HELPER_TEXT
+                            : null
             );
             case READY -> response(
                     "오늘의 솔루션을 생성하고 있습니다.",
@@ -152,7 +174,10 @@ public class SolutionQueryService {
                     null,
                     null,
                     targetDate,
-                    List.of()
+                    List.of(),
+                    historyCoverage == SalesSolutionGenerationContextResolver.HistoryCoverage.LIMITED
+                            ? LIMITED_HISTORY_HELPER_TEXT
+                            : null
             );
         };
     }
@@ -163,7 +188,8 @@ public class SolutionQueryService {
             String storeName,
             Long bundleId,
             LocalDate targetDate,
-            List<SolutionCardResponse> cards
+            List<SolutionCardResponse> cards,
+            String helperText
     ) {
         return new SolutionTodayResponse(
                 message,
@@ -173,7 +199,8 @@ public class SolutionQueryService {
                         storeName == null ? null : storeName + " 맴매 솔루션",
                         bundleId,
                         targetDate,
-                        cards
+                        cards,
+                        helperText
                 )
         );
     }
