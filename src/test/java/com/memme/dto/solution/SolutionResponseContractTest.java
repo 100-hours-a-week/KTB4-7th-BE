@@ -25,7 +25,8 @@ class SolutionResponseContractTest {
                         "맴매카페 맴매 솔루션",
                         81L,
                         LocalDate.of(2026, 9, 8),
-                        List.of(card())
+                        List.of(card()),
+                        null
                 )
         );
 
@@ -51,7 +52,8 @@ class SolutionResponseContractTest {
                         null,
                         81L,
                         LocalDate.of(2026, 9, 8),
-                        List.of()
+                        List.of(),
+                        null
                 )
         );
 
@@ -60,6 +62,27 @@ class SolutionResponseContractTest {
         assertThat(json.path("data").has("storeName")).isFalse();
         assertThat(json.path("data").has("screenTitle")).isFalse();
         assertThat(json.path("data").path("solutionCards").isArray()).isTrue();
+    }
+
+    @Test
+    void serializesSolutionHelperTextWhenDataCoverageNeedsGuidance() throws Exception {
+        var response = new SolutionTodayResponse(
+                "조회에 성공했습니다.",
+                "COMPLETED",
+                new SolutionTodayResponse.Data(
+                        "맴매카페",
+                        "맴매카페 맴매 솔루션",
+                        81L,
+                        LocalDate.of(2026, 9, 8),
+                        List.of(),
+                        "데이터가 충분하지 않아 솔루션의 정확도가 낮을 수 있어요."
+                )
+        );
+
+        var json = mapper.readTree(mapper.writeValueAsString(response));
+
+        assertThat(json.path("data").path("helperText").asString())
+                .isEqualTo("데이터가 충분하지 않아 솔루션의 정확도가 낮을 수 있어요.");
     }
 
     @Test

@@ -1,7 +1,6 @@
 package com.memme.service.solution;
 
 import java.time.LocalDate;
-import java.time.YearMonth;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -51,6 +50,9 @@ public class SalesSolutionGenerationContextResolver {
         if (analysis.isEmpty()) {
             return new Resolution(Availability.EMPTY, null);
         }
+        if (historyCoverage(storeId, targetDate) == HistoryCoverage.INSUFFICIENT) {
+            return new Resolution(Availability.INSUFFICIENT_HISTORY, null);
+        }
         return forecastRepository.findByStoreIdAndTargetDate(storeId, targetDate)
                 .<Resolution>map(forecast -> new Resolution(
                         Availability.READY,
@@ -61,9 +63,7 @@ public class SalesSolutionGenerationContextResolver {
                         )
                 ))
                 .orElseGet(() -> new Resolution(
-                        hasRequiredHistory(storeId, targetDate)
-                                ? Availability.FORECAST_PENDING
-                                : Availability.INSUFFICIENT_HISTORY,
+                        Availability.FORECAST_PENDING,
                         null
                 ));
     }
@@ -81,21 +81,37 @@ public class SalesSolutionGenerationContextResolver {
         );
     }
 
-    private boolean hasRequiredHistory(Long storeId, LocalDate targetDate) {
+    public HistoryCoverage historyCoverage(Long storeId, LocalDate targetDate) {
         List<LocalDate> dates = dailySummaryRepository.findAllByStoreIdOrderBySalesDateAsc(storeId)
                 .stream()
                 .map(summary -> summary.getSalesDate())
                 .filter(date -> date.isBefore(targetDate))
+                .distinct()
+                .sorted()
                 .toList();
-        if (dates.size() < 60) {
-            return false;
+        if (dates.isEmpty()) {
+            return HistoryCoverage.INSUFFICIENT;
         }
-        YearMonth previousMonth = YearMonth.from(targetDate).minusMonths(1);
-        YearMonth firstRequiredMonth = previousMonth.minusMonths(1);
         Set<LocalDate> availableDates = new HashSet<>(dates);
-        return firstRequiredMonth.atDay(1)
-                .datesUntil(previousMonth.atEndOfMonth().plusDays(1))
-                .allMatch(availableDates::contains);
+        LocalDate latestDate = dates.getLast();
+        if (!latestDate.equals(targetDate.minusDays(1))) {
+            return HistoryCoverage.INSUFFICIENT;
+        }
+        LocalDate continuousStart = latestDate;
+        while (availableDates.contains(continuousStart.minusDays(1))) {
+            continuousStart = continuousStart.minusDays(1);
+        }
+        if (coversAtLeast(continuousStart, latestDate, continuousStart.plusYears(1))) {
+            return HistoryCoverage.SUFFICIENT;
+        }
+        if (coversAtLeast(continuousStart, latestDate, continuousStart.plusMonths(3))) {
+            return HistoryCoverage.LIMITED;
+        }
+        return HistoryCoverage.INSUFFICIENT;
+    }
+
+    private boolean coversAtLeast(LocalDate startDate, LocalDate endDate, LocalDate requiredExclusiveEnd) {
+        return !requiredExclusiveEnd.isAfter(endDate.plusDays(1));
     }
 
     public enum Availability {
@@ -103,6 +119,12 @@ public class SalesSolutionGenerationContextResolver {
         FORECAST_PENDING,
         INSUFFICIENT_HISTORY,
         EMPTY
+    }
+
+    public enum HistoryCoverage {
+        INSUFFICIENT,
+        LIMITED,
+        SUFFICIENT
     }
 
     public record Resolution(
