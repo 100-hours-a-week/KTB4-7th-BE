@@ -70,7 +70,7 @@ public class InternalSalesQueryService {
                 analysis.kpis().totalSales(),
                 analysis.kpis().orderCount(),
                 analysis.kpis().averageOrderValue(),
-                analysis.kpis().changes().totalSalesRate()
+                toDecimalRate(analysis.kpis().changes().totalSalesRate())
         );
     }
 
@@ -91,7 +91,7 @@ public class InternalSalesQueryService {
                         new InternalSalesCategoriesResponse.Category(
                                 category.categoryName(),
                                 category.netSales(),
-                                category.ratio()
+                                toDecimalRate(category.ratio())
                         )).toList(),
                 categories.menuRankings().stream().map(ranking ->
                         new InternalSalesCategoriesResponse.MenuRanking(
@@ -101,6 +101,10 @@ public class InternalSalesQueryService {
                                 ranking.quantity()
                         )).toList()
         );
+    }
+
+    private BigDecimal toDecimalRate(BigDecimal percentRate) {
+        return percentRate == null ? null : percentRate.movePointLeft(2);
     }
 
     public InternalSalesHourlyProfilesResponse hourlyProfiles(
