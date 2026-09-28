@@ -23,12 +23,14 @@ import com.memme.dto.sales.SalesPeriod;
 import com.memme.entity.sales.SalesAiInsightEntity;
 import com.memme.entity.sales.SalesAiInsightStatus;
 import com.memme.entity.sales.SalesDailySummaryEntity;
+import com.memme.entity.sales.SalesForecastEntity;
 import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
 import com.memme.entity.sales.SalesOrderItemType;
 import com.memme.entity.sales.SalesStandardMenuCategory;
 import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesDailySummaryRepository;
+import com.memme.repository.sales.SalesForecastRepository;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesOrderRepository;
 import org.springframework.stereotype.Service;
@@ -45,17 +47,20 @@ public class SalesAnalysisService {
     private final SalesOrderRepository orderRepository;
     private final SalesOrderItemRepository itemRepository;
     private final SalesAiInsightRepository insightRepository;
+    private final SalesForecastRepository forecastRepository;
 
     public SalesAnalysisService(
             SalesDailySummaryRepository dailySummaryRepository,
             SalesOrderRepository orderRepository,
             SalesOrderItemRepository itemRepository,
-            SalesAiInsightRepository insightRepository
+            SalesAiInsightRepository insightRepository,
+            SalesForecastRepository forecastRepository
     ) {
         this.dailySummaryRepository = dailySummaryRepository;
         this.orderRepository = orderRepository;
         this.itemRepository = itemRepository;
         this.insightRepository = insightRepository;
+        this.forecastRepository = forecastRepository;
     }
 
     public SalesAnalysisResult analyze(
@@ -76,7 +81,11 @@ public class SalesAnalysisService {
                         periodEnd
                 );
         if (summaries.isEmpty()) {
-            return empty(period, aiInsight(storeId, YearMonth.from(periodEnd)));
+            return empty(
+                    period,
+                    forecast(storeId, periodStart, periodEnd),
+                    aiInsight(storeId, YearMonth.from(periodEnd))
+            );
         }
 
         DateRange comparisonRange = comparisonRange(normalizedPeriodType, periodStart, periodEnd);
@@ -119,6 +128,7 @@ public class SalesAnalysisService {
                 menuRankings,
                 hourlySales(items, ordersById),
                 weekdaySales(items, ordersById),
+                forecast(storeId, periodStart, periodEnd),
                 aiInsight(storeId, YearMonth.from(periodEnd))
         );
 
@@ -127,6 +137,7 @@ public class SalesAnalysisService {
 
     private SalesAnalysisResult.Empty empty(
             SalesPeriod period,
+            SalesAnalysisResponse.Forecast forecast,
             SalesAnalysisResponse.AiInsight aiInsight
     ) {
         return new SalesAnalysisResult.Empty(new SalesAnalysisResponse.EmptyData(
@@ -136,8 +147,47 @@ public class SalesAnalysisService {
                 List.of(),
                 List.of(),
                 List.of(),
+                forecast,
                 aiInsight
         ));
+    }
+
+    private SalesAnalysisResponse.Forecast forecast(
+            Long storeId,
+            LocalDate periodStart,
+            LocalDate periodEnd
+    ) {
+        List<SalesForecastEntity> forecasts = forecastRepository
+                .findAllByStoreIdAndTargetDateBetweenOrderByTargetDateAsc(
+                        storeId,
+                        periodStart,
+                        periodEnd
+                );
+        if (forecasts.isEmpty()) {
+            return null;
+        }
+
+        long predictedSalesAmount = 0;
+        long lowerBound = 0;
+        long upperBound = 0;
+        List<SalesAnalysisResponse.DailyForecast> dailyForecasts = new ArrayList<>(forecasts.size());
+        for (SalesForecastEntity forecast : forecasts) {
+            predictedSalesAmount = Math.addExact(predictedSalesAmount, forecast.getPredictedSalesAmount());
+            lowerBound = Math.addExact(lowerBound, forecast.getLowerBound());
+            upperBound = Math.addExact(upperBound, forecast.getUpperBound());
+            dailyForecasts.add(new SalesAnalysisResponse.DailyForecast(
+                    forecast.getTargetDate(),
+                    money(forecast.getPredictedSalesAmount()),
+                    money(forecast.getLowerBound()),
+                    money(forecast.getUpperBound())
+            ));
+        }
+        return new SalesAnalysisResponse.Forecast(
+                money(predictedSalesAmount),
+                money(lowerBound),
+                money(upperBound),
+                dailyForecasts
+        );
     }
 
     private SalesAnalysisResponse.AiInsight aiInsight(Long storeId, YearMonth targetMonth) {

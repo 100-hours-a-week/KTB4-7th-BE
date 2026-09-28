@@ -15,6 +15,7 @@ public record SalesAnalysisResponse(
         List<MenuRanking> menuRankings,
         List<HourlySales> hourlySales,
         List<WeekdaySales> weekdaySales,
+        Forecast forecast,
         AiInsight aiInsight
 ) {
 
@@ -41,6 +42,24 @@ public record SalesAnalysisResponse(
 
     public record WeekdaySales(DayOfWeek dayOfWeek, BigDecimal salesAmount) {}
 
+    public record Forecast(
+            BigDecimal predictedSalesAmount,
+            BigDecimal lowerBound,
+            BigDecimal upperBound,
+            List<DailyForecast> dailyForecasts
+    ) {
+        public Forecast {
+            dailyForecasts = List.copyOf(dailyForecasts);
+        }
+    }
+
+    public record DailyForecast(
+            LocalDate targetDate,
+            BigDecimal predictedSalesAmount,
+            BigDecimal lowerBound,
+            BigDecimal upperBound
+    ) {}
+
     public record AiInsight(
             YearMonth targetMonth,
             String status,
@@ -62,6 +81,7 @@ public record SalesAnalysisResponse(
             List<MenuRanking> menuRankings,
             List<HourlySales> hourlySales,
             List<WeekdaySales> weekdaySales,
+            Forecast forecast,
             AiInsight aiInsight
     ) {}
 }

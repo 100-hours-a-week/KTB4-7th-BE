@@ -91,6 +91,7 @@ class InternalSalesQueryServiceTest {
                 List.of(),
                 List.of(),
                 List.of(),
+                null,
                 null
         );
         when(analysisService.analyze(
@@ -194,6 +195,7 @@ class InternalSalesQueryServiceTest {
                 List.of(),
                 List.of(),
                 List.of(),
+                null,
                 null
         );
         return new SalesAnalysisResult.Completed(
@@ -216,6 +218,7 @@ class InternalSalesQueryServiceTest {
                 List.of(),
                 List.of(),
                 List.of(),
+                null,
                 null
         );
     }
