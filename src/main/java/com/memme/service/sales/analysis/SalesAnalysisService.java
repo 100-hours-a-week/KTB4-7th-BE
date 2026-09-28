@@ -20,6 +20,7 @@ import java.util.TreeMap;
 import com.memme.dto.sales.SalesAnalysisResponse;
 import com.memme.dto.sales.SalesCategoriesResponse;
 import com.memme.dto.sales.SalesPeriod;
+import com.memme.entity.sales.SalesAiInsightEntity;
 import com.memme.entity.sales.SalesAiInsightStatus;
 import com.memme.entity.sales.SalesDailySummaryEntity;
 import com.memme.entity.sales.SalesOrderEntity;
@@ -141,14 +142,46 @@ public class SalesAnalysisService {
 
     private SalesAnalysisResponse.AiInsight aiInsight(Long storeId, YearMonth targetMonth) {
         return insightRepository.findByStoreIdAndTargetMonth(storeId, targetMonth)
-                .filter(insight -> insight.getStatus() == SalesAiInsightStatus.COMPLETED)
-                .filter(insight -> insight.getInsights() != null && !insight.getInsights().isEmpty())
-                .map(insight -> new SalesAnalysisResponse.AiInsight(
-                        insight.getTargetMonth(),
-                        insight.getInsights(),
-                        insight.getGeneratedAt().atZone(SEOUL).toOffsetDateTime()
-                ))
+                .map(insight -> switch (insight.getStatus()) {
+                    case COMPLETED -> completedInsight(insight);
+                    case INSUFFICIENT_DATA -> insufficientInsight(insight);
+                    case FAILED -> failedInsight(insight);
+                    default -> null;
+                })
                 .orElse(null);
+    }
+
+    private SalesAnalysisResponse.AiInsight completedInsight(SalesAiInsightEntity insight) {
+        if (insight.getInsights() == null || insight.getInsights().isEmpty()) {
+            return null;
+        }
+        return new SalesAnalysisResponse.AiInsight(
+                insight.getTargetMonth(),
+                SalesAiInsightStatus.COMPLETED.name(),
+                insight.getInsights(),
+                null,
+                insight.getGeneratedAt().atZone(SEOUL).toOffsetDateTime()
+        );
+    }
+
+    private SalesAnalysisResponse.AiInsight insufficientInsight(SalesAiInsightEntity insight) {
+        return new SalesAnalysisResponse.AiInsight(
+                insight.getTargetMonth(),
+                SalesAiInsightStatus.INSUFFICIENT_DATA.name(),
+                List.of(),
+                "AI 인사이트를 확인하려면 최소 2주(14일) 이상의 매출 데이터가 필요합니다.",
+                null
+        );
+    }
+
+    private SalesAnalysisResponse.AiInsight failedInsight(SalesAiInsightEntity insight) {
+        return new SalesAnalysisResponse.AiInsight(
+                insight.getTargetMonth(),
+                SalesAiInsightStatus.FAILED.name(),
+                List.of(),
+                "AI 인사이트를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
+                null
+        );
     }
 
     private List<SalesOrderItemEntity> loadItems(List<SalesOrderEntity> orders) {

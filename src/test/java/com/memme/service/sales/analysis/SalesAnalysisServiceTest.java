@@ -278,7 +278,7 @@ class SalesAnalysisServiceTest {
     }
 
     @Test
-    void hidesFailedInsightWithoutFailingBaseAnalysis() {
+    void returnsFailedInsightStateWithoutFailingBaseAnalysis() {
         long storeId = 301L;
         LocalDate date = LocalDate.of(2026, 9, 8);
         SalesDailySummaryEntity dailySummary = summary(date, 100, 1);
@@ -302,8 +302,49 @@ class SalesAnalysisServiceTest {
 
         SalesAnalysisResult result = service.analyze(storeId, "TODAY", date, date);
 
-        assertThat(result).isInstanceOfSatisfying(SalesAnalysisResult.Completed.class,
-                completed -> assertThat(completed.analysis().aiInsight()).isNull());
+        assertThat(result).isInstanceOfSatisfying(SalesAnalysisResult.Completed.class, completed -> {
+            var aiInsight = completed.analysis().aiInsight();
+            assertThat(aiInsight).isNotNull();
+            assertThat(aiInsight.status()).isEqualTo("FAILED");
+            assertThat(aiInsight.helperText())
+                    .isEqualTo("AI 인사이트를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+            assertThat(aiInsight.insights()).isEmpty();
+        });
+    }
+
+    @Test
+    void returnsInsufficientInsightHelperTextWithoutFailingBaseAnalysis() {
+        long storeId = 301L;
+        LocalDate date = LocalDate.of(2026, 9, 8);
+        SalesDailySummaryEntity dailySummary = summary(date, 100, 1);
+        when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                storeId, date, date
+        )).thenReturn(List.of(dailySummary));
+        when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                storeId, date.minusDays(1), date.minusDays(1)
+        )).thenReturn(List.of());
+        when(orderRepository
+                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
+                        storeId,
+                        date.atStartOfDay(),
+                        date.plusDays(1).atStartOfDay()
+                )).thenReturn(List.of());
+
+        SalesAiInsightEntity insight = mock(SalesAiInsightEntity.class);
+        when(insight.getStatus()).thenReturn(SalesAiInsightStatus.INSUFFICIENT_DATA);
+        when(insight.getTargetMonth()).thenReturn(YearMonth.of(2026, 9));
+        when(insightRepository.findByStoreIdAndTargetMonth(storeId, YearMonth.of(2026, 9)))
+                .thenReturn(Optional.of(insight));
+
+        SalesAnalysisResult result = service.analyze(storeId, "TODAY", date, date);
+
+        assertThat(result).isInstanceOfSatisfying(SalesAnalysisResult.Completed.class, completed -> {
+            var aiInsight = completed.analysis().aiInsight();
+            assertThat(aiInsight.status()).isEqualTo("INSUFFICIENT_DATA");
+            assertThat(aiInsight.helperText())
+                    .isEqualTo("AI 인사이트를 확인하려면 최소 2주(14일) 이상의 매출 데이터가 필요합니다.");
+            assertThat(aiInsight.insights()).isEmpty();
+        });
     }
 
     private SalesDailySummaryEntity summary(LocalDate date, long sales, int orderCount) {

@@ -49,6 +49,7 @@ class SalesInsightMetricsAssemblerTest {
         when(summaries.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
                 1L, august.atDay(1), august.atEndOfMonth()
         )).thenReturn(previous);
+        when(summaries.findAllByStoreIdOrderBySalesDateAsc(1L)).thenReturn(current);
         when(orders.findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
                 1L, september.atDay(1).atStartOfDay(), september.atEndOfMonth().plusDays(1).atStartOfDay()
         )).thenReturn(List.of());
@@ -97,6 +98,82 @@ class SalesInsightMetricsAssemblerTest {
         when(orders.findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
                 1L, august.atDay(1).atStartOfDay(), august.atEndOfMonth().plusDays(1).atStartOfDay()
         )).thenReturn(List.of());
+
+        assertThat(assembler.assemble(1L, september).sufficientData()).isFalse();
+    }
+
+    @Test
+    void treatsFourteenContinuousDaysAcrossMonthBoundaryAsSufficient() {
+        SalesDailySummaryRepository summaries = mock(SalesDailySummaryRepository.class);
+        SalesOrderRepository orders = mock(SalesOrderRepository.class);
+        SalesOrderItemRepository items = mock(SalesOrderItemRepository.class);
+        var assembler = new SalesInsightMetricsAssembler(summaries, orders, items);
+        YearMonth september = YearMonth.of(2026, 9);
+        List<SalesDailySummaryEntity> current = IntStream.rangeClosed(1, 13)
+                .mapToObj(day -> SalesDailySummaryEntity.create(
+                        1L,
+                        LocalDate.of(2026, 9, day),
+                        100_000,
+                        80_000,
+                        10,
+                        12
+                ))
+                .toList();
+        SalesDailySummaryEntity augustLastDay = SalesDailySummaryEntity.create(
+                1L,
+                LocalDate.of(2026, 8, 31),
+                100_000,
+                80_000,
+                10,
+                12
+        );
+        when(summaries.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                1L, september.atDay(1), september.atEndOfMonth()
+        )).thenReturn(current);
+        when(summaries.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                1L, september.minusMonths(1).atDay(1), september.minusMonths(1).atEndOfMonth()
+        )).thenReturn(List.of(augustLastDay));
+        when(summaries.findAllByStoreIdOrderBySalesDateAsc(1L))
+                .thenReturn(java.util.stream.Stream.concat(
+                        java.util.stream.Stream.of(augustLastDay),
+                        current.stream()
+                ).toList());
+        when(orders.findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
+                1L, september.atDay(1).atStartOfDay(), september.atEndOfMonth().plusDays(1).atStartOfDay()
+        )).thenReturn(List.of());
+        when(orders.findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
+                1L,
+                september.minusMonths(1).atDay(1).atStartOfDay(),
+                september.minusMonths(1).atEndOfMonth().plusDays(1).atStartOfDay()
+        )).thenReturn(List.of());
+
+        assertThat(assembler.assemble(1L, september).sufficientData()).isTrue();
+    }
+
+    @Test
+    void treatsAnOlderFourteenDayRunAsInsufficientWhenTheTargetMonthHasNoSales() {
+        SalesDailySummaryRepository summaries = mock(SalesDailySummaryRepository.class);
+        SalesOrderRepository orders = mock(SalesOrderRepository.class);
+        SalesOrderItemRepository items = mock(SalesOrderItemRepository.class);
+        var assembler = new SalesInsightMetricsAssembler(summaries, orders, items);
+        YearMonth september = YearMonth.of(2026, 9);
+        List<SalesDailySummaryEntity> augustRun = IntStream.rangeClosed(1, 14)
+                .mapToObj(day -> SalesDailySummaryEntity.create(
+                        1L,
+                        LocalDate.of(2026, 8, day),
+                        100_000,
+                        80_000,
+                        10,
+                        12
+                ))
+                .toList();
+        when(summaries.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                1L, september.atDay(1), september.atEndOfMonth()
+        )).thenReturn(List.of());
+        when(summaries.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                1L, september.minusMonths(1).atDay(1), september.minusMonths(1).atEndOfMonth()
+        )).thenReturn(augustRun);
+        when(summaries.findAllByStoreIdOrderBySalesDateAsc(1L)).thenReturn(augustRun);
 
         assertThat(assembler.assemble(1L, september).sufficientData()).isFalse();
     }

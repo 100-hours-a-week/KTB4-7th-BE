@@ -43,7 +43,9 @@ public record SalesAnalysisResponse(
 
     public record AiInsight(
             YearMonth targetMonth,
+            String status,
             List<String> insights,
+            String helperText,
             OffsetDateTime generatedAt
     ) {
         public AiInsight {

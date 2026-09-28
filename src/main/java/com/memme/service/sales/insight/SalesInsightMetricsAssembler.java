@@ -76,7 +76,39 @@ public class SalesInsightMetricsAssembler {
                 categorySales(current, previous, currentTotals.menuSales()),
                 menuRankings(current, previous, currentTotals.menuSales())
         );
-        return new Result(metrics, current.summaries().size() >= MINIMUM_SALES_DAYS);
+        return new Result(metrics, hasMinimumContinuousSalesDays(storeId, targetMonth));
+    }
+
+    private boolean hasMinimumContinuousSalesDays(Long storeId, YearMonth targetMonth) {
+        List<LocalDate> dates = dailySummaryRepository.findAllByStoreIdOrderBySalesDateAsc(storeId)
+                .stream()
+                .map(SalesDailySummaryEntity::getSalesDate)
+                .filter(date -> !date.isAfter(targetMonth.atEndOfMonth()))
+                .toList();
+        if (dates.isEmpty()) {
+            return false;
+        }
+
+        LocalDate expectedDate = dates.stream()
+                .filter(date -> !date.isBefore(targetMonth.atDay(1)))
+                .reduce((ignored, date) -> date)
+                .orElse(null);
+        if (expectedDate == null) {
+            return false;
+        }
+        int continuousDays = 0;
+        for (int index = dates.size() - 1; index >= 0; index--) {
+            LocalDate date = dates.get(index);
+            if (!date.equals(expectedDate)) {
+                break;
+            }
+            continuousDays++;
+            if (continuousDays >= MINIMUM_SALES_DAYS) {
+                return true;
+            }
+            expectedDate = expectedDate.minusDays(1);
+        }
+        return false;
     }
 
     private MonthData loadMonth(Long storeId, YearMonth month) {
