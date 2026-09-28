@@ -82,7 +82,7 @@ class InternalSalesQueryServiceTest {
                         420,
                         new BigDecimal("7619"),
                         new SalesAnalysisResponse.Changes(
-                                new BigDecimal("0.125"),
+                                new BigDecimal("12.5"),
                                 BigDecimal.ZERO,
                                 BigDecimal.ZERO
                         )
@@ -108,6 +108,35 @@ class InternalSalesQueryServiceTest {
         assertThat(response.totalSales()).isEqualByComparingTo("3200000");
         assertThat(response.orderCount()).isEqualTo(420);
         assertThat(response.changeRate()).isEqualByComparingTo("0.125");
+    }
+
+    @Test
+    void 카테고리_비율을_AI_툴_계약의_소수로_반환한다() {
+        SalesPeriod period = new SalesPeriod(
+                "THIS_MONTH",
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 26)
+        );
+        when(periodResolver.resolvePeriod("THIS_MONTH", null, null)).thenReturn(period);
+        when(analysisService.analyze(2L, "THIS_MONTH", period.startDate(), period.endDate()))
+                .thenReturn(new SalesAnalysisResult.Completed(
+                        analysis(period),
+                        new SalesCategoriesResponse(
+                                List.of(new SalesCategoriesResponse.Category(
+                                        "커피",
+                                        new BigDecimal("563000"),
+                                        new BigDecimal("56.3")
+                                )),
+                                List.of()
+                        )
+                ));
+
+        var response = service.categories(2L, "THIS_MONTH", null, null);
+
+        assertThat(response.categories()).singleElement().satisfies(category -> {
+            assertThat(category.menuSales()).isEqualByComparingTo("563000");
+            assertThat(category.ratio()).isEqualByComparingTo("0.563");
+        });
     }
 
     @Test
@@ -170,6 +199,24 @@ class InternalSalesQueryServiceTest {
         return new SalesAnalysisResult.Completed(
                 analysis,
                 new SalesCategoriesResponse(List.of(), List.of())
+        );
+    }
+
+    private SalesAnalysisResponse analysis(SalesPeriod period) {
+        return new SalesAnalysisResponse(
+                period,
+                new SalesAnalysisResponse.DateRange(period.startDate(), period.endDate()),
+                new SalesAnalysisResponse.Kpis(
+                        BigDecimal.ONE,
+                        1,
+                        BigDecimal.ONE,
+                        new SalesAnalysisResponse.Changes(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO)
+                ),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                null
         );
     }
 
