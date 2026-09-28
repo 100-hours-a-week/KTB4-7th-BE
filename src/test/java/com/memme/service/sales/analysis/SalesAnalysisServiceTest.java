@@ -9,12 +9,14 @@ import java.util.Optional;
 import com.memme.entity.sales.SalesAiInsightEntity;
 import com.memme.entity.sales.SalesAiInsightStatus;
 import com.memme.entity.sales.SalesDailySummaryEntity;
+import com.memme.entity.sales.SalesForecastEntity;
 import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
 import com.memme.entity.sales.SalesOrderItemType;
 import com.memme.entity.sales.SalesStandardMenuCategory;
 import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesDailySummaryRepository;
+import com.memme.repository.sales.SalesForecastRepository;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesOrderRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +34,7 @@ class SalesAnalysisServiceTest {
     private SalesOrderRepository orderRepository;
     private SalesOrderItemRepository itemRepository;
     private SalesAiInsightRepository insightRepository;
+    private SalesForecastRepository forecastRepository;
     private SalesAnalysisService service;
 
     @BeforeEach
@@ -40,11 +43,13 @@ class SalesAnalysisServiceTest {
         orderRepository = mock(SalesOrderRepository.class);
         itemRepository = mock(SalesOrderItemRepository.class);
         insightRepository = mock(SalesAiInsightRepository.class);
+        forecastRepository = mock(SalesForecastRepository.class);
         service = new SalesAnalysisService(
                 dailySummaryRepository,
                 orderRepository,
                 itemRepository,
-                insightRepository
+                insightRepository,
+                forecastRepository
         );
     }
 
@@ -116,11 +121,50 @@ class SalesAnalysisServiceTest {
                     .containsExactly("9:1000", "13:300");
             assertThat(analysis.weekdaySales()).hasSize(7);
             assertThat(analysis.aiInsight()).isNull();
+            assertThat(analysis.forecast()).isNull();
 
             assertThat(completed.categories().categories())
                     .extracting(category -> category.categoryName() + ":" + category.netSales()
                             + ":" + category.ratio())
                     .containsExactly("커피:800:61.5", "티:500:38.5");
+        });
+    }
+
+    @Test
+    void includesForecastsOverlappingTheSelectedPeriodAndTheirTotals() {
+        long storeId = 301L;
+        LocalDate start = LocalDate.of(2026, 9, 1);
+        LocalDate end = LocalDate.of(2026, 9, 2);
+        SalesDailySummaryEntity selectedSummary = summary(start, 100, 1);
+        SalesForecastEntity firstForecast = forecast(start, 1_000, 900, 1_100);
+        SalesForecastEntity secondForecast = forecast(end, 2_000, 1_800, 2_200);
+        when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                storeId, start, end
+        )).thenReturn(List.of(selectedSummary));
+        when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                storeId, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2)
+        )).thenReturn(List.of());
+        when(orderRepository
+                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
+                        storeId, start.atStartOfDay(), end.plusDays(1).atStartOfDay()
+                )).thenReturn(List.of());
+        when(forecastRepository.findAllByStoreIdAndTargetDateBetweenOrderByTargetDateAsc(
+                storeId, start, end
+        )).thenReturn(List.of(
+                firstForecast,
+                secondForecast
+        ));
+
+        SalesAnalysisResult result = service.analyze(storeId, "THIS_MONTH", start, end);
+
+        assertThat(result).isInstanceOfSatisfying(SalesAnalysisResult.Completed.class, completed -> {
+            var forecast = completed.analysis().forecast();
+            assertThat(forecast.predictedSalesAmount()).isEqualByComparingTo("3000");
+            assertThat(forecast.lowerBound()).isEqualByComparingTo("2700");
+            assertThat(forecast.upperBound()).isEqualByComparingTo("3300");
+            assertThat(forecast.dailyForecasts())
+                    .extracting(daily -> daily.targetDate() + ":" + daily.predictedSalesAmount())
+                    .containsExactly("2026-09-01:1000", "2026-09-02:2000");
         });
     }
 
@@ -381,5 +425,24 @@ class SalesAnalysisServiceTest {
         when(item.getNetAmount()).thenReturn(netAmount);
         when(item.getStandardCategory()).thenReturn(category);
         return item;
+    }
+
+    private SalesForecastEntity forecast(
+            LocalDate targetDate,
+            long predictedSalesAmount,
+            long lowerBound,
+            long upperBound
+    ) {
+        return SalesForecastEntity.create(
+                301L,
+                11L,
+                targetDate,
+                targetDate.minusDays(1),
+                predictedSalesAmount,
+                lowerBound,
+                upperBound,
+                "v1",
+                targetDate.atStartOfDay()
+        );
     }
 }

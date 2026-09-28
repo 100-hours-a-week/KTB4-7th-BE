@@ -20,6 +20,12 @@ public interface SalesForecastRepository extends JpaRepository<SalesForecastEnti
             LocalDate targetDate
     );
 
+    List<SalesForecastEntity> findAllByStoreIdAndTargetDateBetweenOrderByTargetDateAsc(
+            Long storeId,
+            LocalDate startDate,
+            LocalDate endDate
+    );
+
     @Query("""
             select max(forecast.targetDate)
             from SalesForecastEntity forecast

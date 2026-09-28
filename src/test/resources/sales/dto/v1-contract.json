@@ -451,6 +451,19 @@
             "salesAmount": 610000
           }
         ],
+        "forecast": {
+          "predictedSalesAmount": 450000,
+          "lowerBound": 400000,
+          "upperBound": 500000,
+          "dailyForecasts": [
+            {
+              "targetDate": "2026-09-09",
+              "predictedSalesAmount": 450000,
+              "lowerBound": 400000,
+              "upperBound": 500000
+            }
+          ]
+        },
         "aiInsight": {
           "targetMonth": "2026-09",
           "status": "COMPLETED",
@@ -494,6 +507,7 @@
         "menuRankings": [],
         "hourlySales": [],
         "weekdaySales": [],
+        "forecast": null,
         "aiInsight": null
       }
     }
