@@ -165,12 +165,14 @@ AI 호출이 실패해도 원본 파일 저장, 주문 정제, 통계 저장과 
 {
   "aiInsight": {
     "targetMonth": "2026-09",
+    "status": "COMPLETED",
     "insights": [
       "9월 총 매출은 7,920,000원으로 이전 기간보다 4.2% 증가했습니다."
     ],
+    "helperText": null,
     "generatedAt": "2026-09-08T00:00:00+09:00"
   }
 }
 ```
 
-저장된 인사이트가 없거나 상태가 `PENDING`, `GENERATING`, `INSUFFICIENT_DATA`, `FAILED`이면 기본 매출 분석 응답은 그대로 `COMPLETED`로 반환하고 `aiInsight`만 `null`로 반환한다.
+기본 매출 분석 응답은 인사이트 상태와 무관하게 그대로 `COMPLETED`로 반환한다. 인사이트가 `INSUFFICIENT_DATA` 또는 `FAILED`이면 `aiInsight.status`와 `helperText`를 반환하고, KPI·그래프 데이터는 유지한다. 저장된 인사이트가 없거나 `PENDING`, `GENERATING` 상태이면 `aiInsight`는 `null`로 반환한다.

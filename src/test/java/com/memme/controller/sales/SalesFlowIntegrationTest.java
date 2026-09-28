@@ -120,7 +120,9 @@ class SalesFlowIntegrationTest {
                     .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"))
                     .andExpect(jsonPath("$.data.kpis.totalSales").value(expectedSales))
                     .andExpect(jsonPath("$.data.kpis.orderCount").value(expectedOrders))
-                    .andExpect(jsonPath("$.data.aiInsight").isEmpty());
+                    .andExpect(jsonPath("$.data.aiInsight.status").value("INSUFFICIENT_DATA"))
+                    .andExpect(jsonPath("$.data.aiInsight.helperText")
+                            .value("AI 인사이트를 확인하려면 최소 2주(14일) 이상의 매출 데이터가 필요합니다."));
         }
         // Invalid workbook must not replace previously successful sales.
         mvc.perform(multipart("/v1/sales/uploads")
