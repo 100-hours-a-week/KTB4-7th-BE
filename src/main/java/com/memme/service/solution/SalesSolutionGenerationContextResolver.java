@@ -94,9 +94,6 @@ public class SalesSolutionGenerationContextResolver {
         }
         Set<LocalDate> availableDates = new HashSet<>(dates);
         LocalDate latestDate = dates.getLast();
-        if (!latestDate.equals(targetDate.minusDays(1))) {
-            return HistoryCoverage.INSUFFICIENT;
-        }
         LocalDate continuousStart = latestDate;
         while (availableDates.contains(continuousStart.minusDays(1))) {
             continuousStart = continuousStart.minusDays(1);

@@ -169,7 +169,7 @@ class SalesSolutionGenerationContextResolverTest {
     }
 
     @Test
-    void treatsARecentGapAfterAnOlderContinuousPeriodAsInsufficient() {
+    void classifiesLatestContinuousHistoryEvenWhenItDoesNotEndYesterday() {
         LocalDate targetDate = LocalDate.of(2026, 11, 1);
         List<SalesDailySummaryEntity> history = summariesBetween(
                 LocalDate.of(2026, 7, 1),
@@ -179,7 +179,21 @@ class SalesSolutionGenerationContextResolverTest {
 
         var coverage = resolver.historyCoverage(10L, targetDate);
 
-        assertThat(coverage).isEqualTo(SalesSolutionGenerationContextResolver.HistoryCoverage.INSUFFICIENT);
+        assertThat(coverage).isEqualTo(SalesSolutionGenerationContextResolver.HistoryCoverage.LIMITED);
+    }
+
+    @Test
+    void classifiesFourToSeptemberTwentySixContinuousHistoryAsLimitedOnSeptemberTwentyEighth() {
+        LocalDate targetDate = LocalDate.of(2026, 9, 28);
+        List<SalesDailySummaryEntity> history = summariesBetween(
+                LocalDate.of(2026, 4, 1),
+                LocalDate.of(2026, 9, 26)
+        );
+        when(dailySummaryRepository.findAllByStoreIdOrderBySalesDateAsc(10L)).thenReturn(history);
+
+        var coverage = resolver.historyCoverage(10L, targetDate);
+
+        assertThat(coverage).isEqualTo(SalesSolutionGenerationContextResolver.HistoryCoverage.LIMITED);
     }
 
     @Test
