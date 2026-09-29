@@ -31,6 +31,7 @@ import com.memme.exception.store.InvalidStoreProfileUpdateRequestException;
 import com.memme.exception.store.StoreProfileNotFoundException;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -47,11 +48,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<StatusResponse<ChatMissingDataResponse>> handleChatInsufficientData(
             ChatInsufficientDataException exception
     ) {
-        return ResponseEntity.ok(new StatusResponse<>(
-                exception.getMessage(),
-                "INSUFFICIENT_DATA",
-                new ChatMissingDataResponse(List.of("INSUFFICIENT_HISTORY"))
-        ));
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new StatusResponse<>(
+                        exception.getMessage(),
+                        "INSUFFICIENT_DATA",
+                        new ChatMissingDataResponse(List.of("INSUFFICIENT_HISTORY"))
+                ));
     }
 
     @ExceptionHandler(ChatRequestException.class)
@@ -63,6 +66,7 @@ public class GlobalExceptionHandler {
                     HttpStatus.UNPROCESSABLE_CONTENT;
         };
         return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(new ApiResponse<>(exception.getMessage(), null));
     }
 
@@ -130,6 +134,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthenticationRequiredException.class)
     public ResponseEntity<ApiResponse<Void>> handleMissingSession(AuthenticationRequiredException exception) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(new ApiResponse<>("로그인이 필요합니다.", null));
     }
 
