@@ -82,7 +82,7 @@ CREATE TABLE stores (
 CREATE TABLE store_business_hours (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   store_id BIGINT UNSIGNED NOT NULL,
-  day_of_week TINYINT UNSIGNED NOT NULL,
+  day_of_week INT NOT NULL,
   opens_at TIME NULL,
   closes_at TIME NULL,
   is_closed BOOLEAN NOT NULL DEFAULT FALSE,

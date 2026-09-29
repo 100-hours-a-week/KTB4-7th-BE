@@ -4,7 +4,9 @@ CREATE TABLE sales_analyses (
   summary_text TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uk_sales_analysis_run (analysis_run_id)
+  UNIQUE KEY uk_sales_analysis_run (analysis_run_id),
+  CONSTRAINT fk_sales_analyses_analysis_run
+    FOREIGN KEY (analysis_run_id) REFERENCES analysis_runs(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE sales_ai_insights (
