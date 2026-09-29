@@ -7,6 +7,11 @@
 -- database until the preflight query at the end confirms there are no legacy
 -- orphan analysis rows. Fresh databases receive that FK through init SQL.
 
+-- StoreBusinessHours maps day_of_week to Integer. Existing initialization SQL
+-- previously created this column as TINYINT UNSIGNED, which fails Hibernate
+-- schema validation on MySQL 8.
+ALTER TABLE store_business_hours MODIFY COLUMN day_of_week INT NOT NULL;
+
 CREATE TABLE IF NOT EXISTS analysis_runs (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   store_id BIGINT UNSIGNED NOT NULL,

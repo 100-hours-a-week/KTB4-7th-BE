@@ -1,7 +1,8 @@
 # 기존 DB 마이그레이션 안내
 
 `20260929-add-analysis-schema.sql`은 분석 실행 이력 스키마가 추가되기 전에
-생성된 QA·운영 DB에 적용하는 마이그레이션 SQL입니다.
+생성된 QA·운영 DB에 적용하는 마이그레이션 SQL입니다. 이 스크립트는 Hibernate
+엔티티와 맞지 않던 `store_business_hours.day_of_week` 타입도 함께 보정합니다.
 
 ## 적용 순서
 
