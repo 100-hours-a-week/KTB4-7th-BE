@@ -1,18 +1,16 @@
-# Existing database migration
+# 기존 DB 마이그레이션 안내
 
-`20260929-add-analysis-schema.sql` is for QA and production databases that
-were created before the analysis-run schema was added.
+`20260929-add-analysis-schema.sql`은 분석 실행 이력 스키마가 추가되기 전에
+생성된 QA·운영 DB에 적용하는 마이그레이션 SQL입니다.
 
-## Apply order
+## 적용 순서
 
-1. Take or confirm a database backup.
-2. Run `20260929-add-analysis-schema.sql` once.
-3. Save the two result sets printed by the script.
-4. Run the BE smoke flow: application startup, sales upload, analysis, insight,
-   forecast, and solution generation.
-5. Review legacy `sales_analyses` rows returned by the orphan query with BE
-   before adding the deferred `sales_analyses.analysis_run_id` foreign key.
+1. DB 백업 여부를 확인하거나 백업을 생성합니다.
+2. `20260929-add-analysis-schema.sql`을 한 번 실행합니다.
+3. 스크립트가 출력하는 두 개의 조회 결과를 저장합니다.
+4. BE 기동, 매출 업로드, 분석, 인사이트, 예측, 솔루션 생성 순서로 스모크 테스트를 진행합니다.
+5. 고아 `sales_analyses` 행 조회 결과를 BE와 검토한 뒤,
+   보류된 `sales_analyses.analysis_run_id` 외래 키 추가 여부를 결정합니다.
 
-The migration does not delete or modify existing business data. Fresh databases
-use `docker/mysql/init` and receive the complete schema, including the foreign
-key, during initialization.
+이 마이그레이션은 기존 비즈니스 데이터를 삭제하거나 변경하지 않습니다.
+신규 DB는 `docker/mysql/init`을 통해 초기화하며, 이 경우 분석 실행 이력 외래 키까지 포함한 전체 스키마가 생성됩니다.
