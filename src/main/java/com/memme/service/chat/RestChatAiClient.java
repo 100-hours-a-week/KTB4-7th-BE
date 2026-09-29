@@ -17,6 +17,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -24,6 +27,7 @@ import tools.jackson.databind.ObjectMapper;
 public class RestChatAiClient implements ChatAiClient {
 
     private static final String CHAT_PATH = "/internal/v1/ai/chat/messages";
+    private static final Logger log = LoggerFactory.getLogger(RestChatAiClient.class);
 
     private final HttpClient httpClient;
     private final URI chatUri;
@@ -53,6 +57,7 @@ public class RestChatAiClient implements ChatAiClient {
 
     @Override
     public void stream(ChatAiRequest request, Consumer<ChatAiEvent> eventConsumer) {
+        long startedAt = System.nanoTime();
         HttpRequest.Builder builder = HttpRequest.newBuilder(chatUri)
                 .timeout(readTimeout)
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -63,14 +68,21 @@ public class RestChatAiClient implements ChatAiClient {
         }
 
         try {
+            log.debug("AI SSE request started: messageId={}, uri={}", messageId(), chatUri);
             HttpResponse<java.io.InputStream> response = httpClient.send(
                     builder.build(),
                     HttpResponse.BodyHandlers.ofInputStream()
             );
+            log.debug(
+                    "AI SSE response headers received: messageId={}, status={}, elapsedMs={}",
+                    messageId(),
+                    response.statusCode(),
+                    elapsedMillis(startedAt)
+            );
             if (response.statusCode() != 200) {
                 throw new ChatAiException("AI 챗봇 호출에 실패했습니다: " + response.statusCode());
             }
-            readEvents(response, eventConsumer);
+            readEvents(response, eventConsumer, startedAt);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new ChatAiException("AI 챗봇 호출이 중단됐습니다.", exception);
@@ -81,24 +93,51 @@ public class RestChatAiClient implements ChatAiClient {
 
     private void readEvents(
             HttpResponse<java.io.InputStream> response,
-            Consumer<ChatAiEvent> eventConsumer
+            Consumer<ChatAiEvent> eventConsumer,
+            long startedAt
     ) throws IOException {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(
                 response.body(),
                 StandardCharsets.UTF_8
         ))) {
             String line;
+            int chunkIndex = 0;
             while ((line = reader.readLine()) != null) {
                 if (!line.startsWith("data:")) {
                     continue;
                 }
                 String data = line.substring("data:".length()).trim();
                 if ("[DONE]".equals(data)) {
+                    log.debug(
+                            "AI SSE done received: messageId={}, chunkCount={}, elapsedMs={}",
+                            messageId(),
+                            chunkIndex,
+                            elapsedMillis(startedAt)
+                    );
                     return;
                 }
-                eventConsumer.accept(parseEvent(data));
+                ChatAiEvent event = parseEvent(data);
+                chunkIndex++;
+                log.debug(
+                        "AI SSE chunk received: messageId={}, chunkIndex={}, type={}, contentLength={}, elapsedMs={}",
+                        messageId(),
+                        chunkIndex,
+                        event.type(),
+                        event.content() == null ? 0 : event.content().length(),
+                        elapsedMillis(startedAt)
+                );
+                eventConsumer.accept(event);
             }
         }
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
+    }
+
+    private String messageId() {
+        String messageId = MDC.get("chatMessageId");
+        return messageId == null ? "unknown" : messageId;
     }
 
     private ChatAiEvent parseEvent(String data) {

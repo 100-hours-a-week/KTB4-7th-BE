@@ -31,6 +31,9 @@ import com.memme.repository.solution.SolutionRepository;
 import com.memme.repository.store.StoreOwnershipRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import tools.jackson.databind.ObjectMapper;
 
 import static com.memme.exception.chat.ChatRequestException.Reason.GENERATION_IN_PROGRESS;
@@ -42,6 +45,7 @@ import static com.memme.exception.chat.ChatRequestException.Reason.STORE_OWNER_R
 @Service
 public class ChatService {
 
+    private static final Logger log = LoggerFactory.getLogger(ChatService.class);
     private static final String SERVICE_GUIDE =
             "매출과 오늘의 솔루션을 바탕으로 운영 질문에 답변해드려요.";
     private static final List<String> RECOMMENDED_QUESTIONS = List.of(
@@ -174,11 +178,15 @@ public class ChatService {
     }
 
     public void stream(ChatStreamPlan plan, OutputStream outputStream) {
+        long startedAt = System.nanoTime();
         StringBuilder answer = new StringBuilder();
         AtomicReference<String> evidenceJson = new AtomicReference<>();
         AtomicBoolean started = new AtomicBoolean();
         AtomicBoolean failed = new AtomicBoolean();
+        java.util.concurrent.atomic.AtomicInteger chunkCount = new java.util.concurrent.atomic.AtomicInteger();
+        MDC.put("chatMessageId", String.valueOf(plan.assistantMessageId()));
         try {
+            log.debug("Chat SSE relay started: messageId={}", plan.assistantMessageId());
             aiClient.stream(plan.aiRequest(), event -> {
                 if (event.type() == ChatAiEvent.Type.ERROR) {
                     failed.set(true);
@@ -196,6 +204,7 @@ public class ChatService {
                 if (event.content() == null || event.content().isEmpty() || failed.get()) {
                     return;
                 }
+                int chunkIndex = chunkCount.incrementAndGet();
                 if (started.compareAndSet(false, true)) {
                     persistenceService.startStreaming(plan.assistantMessageId());
                 }
@@ -204,6 +213,13 @@ public class ChatService {
                     evidenceJson.set(event.evidenceJson());
                 }
                 writeChunk(outputStream, plan.assistantMessageId(), event);
+                log.debug(
+                        "Chat SSE chunk flushed to client: messageId={}, chunkIndex={}, contentLength={}, elapsedMs={}",
+                        plan.assistantMessageId(),
+                        chunkIndex,
+                        event.content().length(),
+                        elapsedMillis(startedAt)
+                );
             });
             if (!failed.get()) {
                 if (answer.isEmpty()) {
@@ -228,8 +244,22 @@ public class ChatService {
                 ));
             }
         } finally {
-            writeRaw(outputStream, "data: [DONE]\n\n");
+            try {
+                writeRaw(outputStream, "data: [DONE]\n\n");
+                log.debug(
+                        "Chat SSE relay finished: messageId={}, chunkCount={}, elapsedMs={}",
+                        plan.assistantMessageId(),
+                        chunkCount.get(),
+                        elapsedMillis(startedAt)
+                );
+            } finally {
+                MDC.remove("chatMessageId");
+            }
         }
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return java.time.Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
     }
 
     private void writeChunk(OutputStream outputStream, Long messageId, ChatAiEvent event) {
