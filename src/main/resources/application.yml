@@ -30,6 +30,11 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENVIRONMENT:local}
+  send-default-pii: false
+
 password-reset:
   url: ${PASSWORD_RESET_URL}
 
