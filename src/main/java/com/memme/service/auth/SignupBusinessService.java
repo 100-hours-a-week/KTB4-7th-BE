@@ -36,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SignupBusinessService {
 
     private static final LocalTime NEXT_DAY_CLOSE_LIMIT = LocalTime.of(6, 0);
+    private static final LocalTime MIDNIGHT = LocalTime.MIDNIGHT;
 
     private final SignupDraftRepository signupDraftRepository;
     private final BusinessVerificationRepository businessVerificationRepository;
@@ -137,6 +138,9 @@ public class SignupBusinessService {
             LocalTime openTime = LocalTime.parse(hours.openTime());
             LocalTime closeTime = LocalTime.parse(hours.closeTime());
             if (openTime.getMinute() % 10 != 0 || closeTime.getMinute() % 10 != 0) {
+                throw invalidBusinessHours();
+            }
+            if (openTime.equals(closeTime) && !openTime.equals(MIDNIGHT)) {
                 throw invalidBusinessHours();
             }
             if (closeTime.isBefore(openTime) && closeTime.isAfter(NEXT_DAY_CLOSE_LIMIT)) {

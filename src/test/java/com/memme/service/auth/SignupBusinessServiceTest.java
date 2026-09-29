@@ -123,6 +123,32 @@ class SignupBusinessServiceTest {
         verify(userRepository, never()).save(any());
     }
 
+    @Test
+    void 자정부터_자정까지는_24시간_영업으로_회원가입할_수_있다() {
+        SignupBusinessRequest request = requestWithMondayHours("00:00", "00:00");
+        when(signupDraftRepository.findBySignupTokenHash(any())).thenReturn(Optional.of(draft(NOW.plusHours(1))));
+        when(businessVerificationRepository.findById(1L)).thenReturn(Optional.of(verification(NOW.plusMinutes(10))));
+        when(storeRepository.existsByBusinessRegistrationNo("1234567890")).thenReturn(false);
+        when(userRepository.save(any())).thenAnswer(invocation -> withId(invocation.getArgument(0), 10L));
+        when(storeRepository.save(any())).thenAnswer(invocation -> withId(invocation.getArgument(0), 20L));
+
+        service.completeSignup(SIGNUP_TOKEN, request);
+
+        verify(storeBusinessHoursRepository).saveAll(any());
+    }
+
+    @Test
+    void 자정이_아닌_동일_시각의_영업시간은_422_예외를_던진다() {
+        SignupBusinessRequest request = requestWithMondayHours("10:00", "10:00");
+        when(signupDraftRepository.findBySignupTokenHash(any())).thenReturn(Optional.of(draft(NOW.plusHours(1))));
+        when(businessVerificationRepository.findById(1L)).thenReturn(Optional.of(verification(NOW.plusMinutes(10))));
+        when(storeRepository.existsByBusinessRegistrationNo("1234567890")).thenReturn(false);
+
+        assertThrows(InvalidSignupRequestException.class, () -> service.completeSignup(SIGNUP_TOKEN, request));
+
+        verify(userRepository, never()).save(any());
+    }
+
     private SignupBusinessRequest validRequest() {
         return new SignupBusinessRequest(
                 "맴매카페", "1234567890", 1L, "06236", "서울특별시 강남구 테헤란로 123", "101호",
@@ -136,6 +162,18 @@ class SignupBusinessServiceTest {
 
     private SignupBusinessRequest.BusinessHours hours(java.time.DayOfWeek dayOfWeek) {
         return new SignupBusinessRequest.BusinessHours(dayOfWeek, false, "09:00", "18:00");
+    }
+
+    private SignupBusinessRequest requestWithMondayHours(String openTime, String closeTime) {
+        return new SignupBusinessRequest(
+                "맴매카페", "1234567890", 1L, "06236", "서울특별시 강남구 테헤란로 123", "101호",
+                List.of(
+                        new SignupBusinessRequest.BusinessHours(java.time.DayOfWeek.MONDAY, false, openTime, closeTime),
+                        hours(java.time.DayOfWeek.TUESDAY), hours(java.time.DayOfWeek.WEDNESDAY),
+                        hours(java.time.DayOfWeek.THURSDAY), hours(java.time.DayOfWeek.FRIDAY),
+                        hours(java.time.DayOfWeek.SATURDAY), hours(java.time.DayOfWeek.SUNDAY)
+                )
+        );
     }
 
     private SignupDraft draft(LocalDateTime expiresAt) {

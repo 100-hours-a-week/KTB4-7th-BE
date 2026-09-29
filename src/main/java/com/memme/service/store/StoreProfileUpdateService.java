@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class StoreProfileUpdateService {
 
     private static final LocalTime NEXT_DAY_CLOSE_LIMIT = LocalTime.of(6, 0);
+    private static final LocalTime MIDNIGHT = LocalTime.MIDNIGHT;
 
     private final StoreRepository storeRepository;
     private final StoreBusinessHoursRepository storeBusinessHoursRepository;
@@ -108,6 +109,9 @@ public class StoreProfileUpdateService {
 
             LocalTime openTime = LocalTime.parse(businessHour.openTime());
             LocalTime closeTime = LocalTime.parse(businessHour.closeTime());
+            if (openTime.equals(closeTime) && !openTime.equals(MIDNIGHT)) {
+                throw invalidBusinessHours();
+            }
             if (closeTime.isBefore(openTime) && closeTime.isAfter(NEXT_DAY_CLOSE_LIMIT)) {
                 throw invalidBusinessHours();
             }
