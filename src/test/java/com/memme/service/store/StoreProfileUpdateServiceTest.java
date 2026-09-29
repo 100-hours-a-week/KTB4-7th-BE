@@ -138,6 +138,39 @@ class StoreProfileUpdateServiceTest {
         );
     }
 
+    @Test
+    void 자정부터_자정까지는_24시간_영업으로_수정할_수_있다() {
+        Store store = store(10L);
+        List<StoreBusinessHours> currentBusinessHours = businessHours(store);
+        when(storeRepository.findByOwnerId(1L)).thenReturn(Optional.of(store));
+        when(storeBusinessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L))
+                .thenReturn(currentBusinessHours);
+
+        StoreProfileUpdateResponse response = storeProfileUpdateService.updateProfile(1L, new StoreProfileUpdateRequest(
+                null,
+                null,
+                updatedBusinessHoursWithMondayHours("00:00", "00:00")
+        ));
+
+        assertThat(response.store().businessHours().getFirst().openTime()).isEqualTo(LocalTime.MIDNIGHT);
+        assertThat(response.store().businessHours().getFirst().closeTime()).isEqualTo(LocalTime.MIDNIGHT);
+    }
+
+    @Test
+    void 자정이_아닌_동일_시각의_영업시간_수정은_422_예외를_던진다() {
+        Store store = store(10L);
+        when(storeRepository.findByOwnerId(1L)).thenReturn(Optional.of(store));
+
+        assertThrows(
+                InvalidStoreProfileUpdateRequestException.class,
+                () -> storeProfileUpdateService.updateProfile(1L, new StoreProfileUpdateRequest(
+                        null,
+                        null,
+                        updatedBusinessHoursWithMondayHours("10:00", "10:00")
+                ))
+        );
+    }
+
     private Store store(Long id) {
         User owner = User.create(
                 "owner@memme.com", "encoded-password", "01012345678", LocalDateTime.of(2026, 9, 24, 9, 0)
@@ -181,6 +214,21 @@ class StoreProfileUpdateServiceTest {
     private List<StoreProfileUpdateRequest.BusinessHours> updatedBusinessHours() {
         return List.of(
                 updateBusinessHours(DayOfWeek.MONDAY, false),
+                updateBusinessHours(DayOfWeek.TUESDAY, false),
+                updateBusinessHours(DayOfWeek.WEDNESDAY, false),
+                updateBusinessHours(DayOfWeek.THURSDAY, false),
+                updateBusinessHours(DayOfWeek.FRIDAY, false),
+                updateBusinessHours(DayOfWeek.SATURDAY, false),
+                updateBusinessHours(DayOfWeek.SUNDAY, true)
+        );
+    }
+
+    private List<StoreProfileUpdateRequest.BusinessHours> updatedBusinessHoursWithMondayHours(
+            String openTime,
+            String closeTime
+    ) {
+        return List.of(
+                new StoreProfileUpdateRequest.BusinessHours(DayOfWeek.MONDAY, false, openTime, closeTime),
                 updateBusinessHours(DayOfWeek.TUESDAY, false),
                 updateBusinessHours(DayOfWeek.WEDNESDAY, false),
                 updateBusinessHours(DayOfWeek.THURSDAY, false),
