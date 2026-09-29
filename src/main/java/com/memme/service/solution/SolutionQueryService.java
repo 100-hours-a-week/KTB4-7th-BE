@@ -35,7 +35,7 @@ public class SolutionQueryService {
     private static final String INSUFFICIENT_HISTORY_HELPER_TEXT =
             "솔루션 생성을 위해 최소 3개월 이상의 데이터가 필요합니다.";
     private static final String LIMITED_HISTORY_HELPER_TEXT =
-            "데이터가 충분하지 않아 솔루션의 정확도가 낮을 수 있어요. "
+            "솔루션의 정확도를 높이려면 최소 1년 이상의 연속된 매출 데이터가 필요해요. "
                     + "데이터가 쌓일수록 더 정확한 분석을 제공할 수 있어요.";
 
     private final SolutionBundleRepository bundleRepository;

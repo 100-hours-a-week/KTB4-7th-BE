@@ -67,7 +67,7 @@ class SolutionQueryServiceTest {
 
         assertThat(response.status()).isEqualTo("COMPLETED");
         assertThat(response.data().helperText()).isEqualTo(
-                "데이터가 충분하지 않아 솔루션의 정확도가 낮을 수 있어요. "
+                "솔루션의 정확도를 높이려면 최소 1년 이상의 연속된 매출 데이터가 필요해요. "
                         + "데이터가 쌓일수록 더 정확한 분석을 제공할 수 있어요."
         );
     }
@@ -102,7 +102,7 @@ class SolutionQueryServiceTest {
 
         assertThat(response.status()).isEqualTo("PENDING");
         assertThat(response.data().helperText()).isEqualTo(
-                "데이터가 충분하지 않아 솔루션의 정확도가 낮을 수 있어요. "
+                "솔루션의 정확도를 높이려면 최소 1년 이상의 연속된 매출 데이터가 필요해요. "
                         + "데이터가 쌓일수록 더 정확한 분석을 제공할 수 있어요."
         );
     }
