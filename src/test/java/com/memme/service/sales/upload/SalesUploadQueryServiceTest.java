@@ -16,6 +16,7 @@ import com.memme.entity.sales.SalesUploadStatus;
 import com.memme.exception.sales.SalesUploadQueryException;
 import com.memme.repository.sales.AnalysisRunRepository;
 import com.memme.repository.sales.SalesAiInsightRepository;
+import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.repository.store.StoreOwnershipRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +33,7 @@ import static org.mockito.Mockito.when;
 class SalesUploadQueryServiceTest {
 
     private SalesUploadRepository uploadRepository;
+    private SalesOrderItemRepository salesOrderItemRepository;
     private AnalysisRunRepository analysisRunRepository;
     private SalesAiInsightRepository insightRepository;
     private StoreOwnershipRepository storeOwnershipRepository;
@@ -40,11 +42,13 @@ class SalesUploadQueryServiceTest {
     @BeforeEach
     void setUp() {
         uploadRepository = mock(SalesUploadRepository.class);
+        salesOrderItemRepository = mock(SalesOrderItemRepository.class);
         analysisRunRepository = mock(AnalysisRunRepository.class);
         insightRepository = mock(SalesAiInsightRepository.class);
         storeOwnershipRepository = mock(StoreOwnershipRepository.class);
         service = new SalesUploadQueryService(
                 uploadRepository,
+                salesOrderItemRepository,
                 analysisRunRepository,
                 insightRepository,
                 storeOwnershipRepository
@@ -64,8 +68,7 @@ class SalesUploadQueryServiceTest {
         )).thenReturn(new PageImpl<>(List.of(upload), pageable, 1));
         when(uploadRepository.findFirstByStoreIdOrderByUploadedAtDesc(storeId))
                 .thenReturn(Optional.of(upload));
-        when(uploadRepository.sumAppliedRecordCount(storeId, SalesUploadStatus.COMPLETED))
-                .thenReturn(31L);
+        when(salesOrderItemRepository.countCurrentItemsByStoreId(storeId)).thenReturn(31L);
 
         var response = service.getHistory(
                 userId,
@@ -83,6 +86,7 @@ class SalesUploadQueryServiceTest {
         });
         assertThat(response.page()).isEqualTo(1);
         assertThat(response.totalCount()).isEqualTo(1L);
+        verify(salesOrderItemRepository).countCurrentItemsByStoreId(storeId);
     }
 
     @Test

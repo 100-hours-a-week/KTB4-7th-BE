@@ -18,6 +18,7 @@ import com.memme.entity.sales.SalesUploadStatus;
 import com.memme.exception.sales.SalesUploadQueryException;
 import com.memme.repository.sales.AnalysisRunRepository;
 import com.memme.repository.sales.SalesAiInsightRepository;
+import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.repository.store.StoreOwnershipRepository;
 import org.springframework.data.domain.Page;
@@ -37,17 +38,20 @@ public class SalesUploadQueryService {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
     private final SalesUploadRepository uploadRepository;
+    private final SalesOrderItemRepository salesOrderItemRepository;
     private final AnalysisRunRepository analysisRunRepository;
     private final SalesAiInsightRepository insightRepository;
     private final StoreOwnershipRepository storeOwnershipRepository;
 
     public SalesUploadQueryService(
             SalesUploadRepository uploadRepository,
+            SalesOrderItemRepository salesOrderItemRepository,
             AnalysisRunRepository analysisRunRepository,
             SalesAiInsightRepository insightRepository,
             StoreOwnershipRepository storeOwnershipRepository
     ) {
         this.uploadRepository = uploadRepository;
+        this.salesOrderItemRepository = salesOrderItemRepository;
         this.analysisRunRepository = analysisRunRepository;
         this.insightRepository = insightRepository;
         this.storeOwnershipRepository = storeOwnershipRepository;
@@ -130,7 +134,7 @@ public class SalesUploadQueryService {
     private SalesUploadHistoryResponse.Connection connection(Long storeId) {
         SalesUploadEntity latest = uploadRepository.findFirstByStoreIdOrderByUploadedAtDesc(storeId)
                 .orElse(null);
-        long totalApplied = uploadRepository.sumAppliedRecordCount(storeId, SalesUploadStatus.COMPLETED);
+        long totalApplied = salesOrderItemRepository.countCurrentItemsByStoreId(storeId);
         return new SalesUploadHistoryResponse.Connection(
                 latest == null ? null : toOffsetDateTime(latest),
                 totalApplied,
