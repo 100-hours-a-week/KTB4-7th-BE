@@ -84,7 +84,7 @@ public final class TossPosWorkbookParser {
 
             SummarySheetHandler summaryHandler = new SummarySheetHandler(dataBasis);
             parseSheet(reader, PRODUCT_SUMMARY_SHEET, summaryHandler);
-            Map<LocalDate, Long> posSummary = summaryHandler.result();
+            List<ProductSummary> posSummary = summaryHandler.result();
 
             validateProductSummary(items, posSummary);
             List<SalesOrder> orders = groupOrders(items);
@@ -220,23 +220,43 @@ public final class TossPosWorkbookParser {
 
     private void validateProductSummary(
         List<SalesOrderItem> items,
-        Map<LocalDate, Long> posSummary
+        List<ProductSummary> posSummary
     ) {
         Map<LocalDate, Long> detailSummary = new HashMap<>();
         for (SalesOrderItem item : items) {
             detailSummary.merge(item.orderDate(), item.netAmount(), TossPosWorkbookParser::addExact);
         }
-        Set<LocalDate> dates = new HashSet<>(detailSummary.keySet());
-        dates.addAll(posSummary.keySet());
-        for (LocalDate date : dates) {
-            long detailAmount = detailSummary.getOrDefault(date, 0L);
-            long summaryAmount = posSummary.getOrDefault(date, 0L);
+
+        Map<DateRange, Long> summariesByPeriod = new LinkedHashMap<>();
+        for (ProductSummary summary : posSummary) {
+            DateRange period = new DateRange(summary.startDate(), summary.endDate());
+            summariesByPeriod.merge(period, summary.amount(), TossPosWorkbookParser::addExact);
+        }
+
+        Set<LocalDate> validatedDates = new HashSet<>();
+        for (Map.Entry<DateRange, Long> summaryEntry : summariesByPeriod.entrySet()) {
+            DateRange summary = summaryEntry.getKey();
+            long detailAmount = detailSummary.entrySet().stream()
+                .filter(detailEntry -> !detailEntry.getKey().isBefore(summary.startDate())
+                    && !detailEntry.getKey().isAfter(summary.endDate()))
+                .mapToLong(Map.Entry::getValue)
+                .reduce(0L, TossPosWorkbookParser::addExact);
+            long summaryAmount = summaryEntry.getValue();
             if (detailAmount != summaryAmount) {
                 throw validation(
                     "상품 주문 상세내역과 상품 주문 합계의 실판매금액이 일치하지 않습니다. "
-                        + "기간=" + date + ", 상세=" + detailAmount + ", 합계=" + summaryAmount
+                        + "기간=" + summary.displayPeriod() + ", 상세=" + detailAmount + ", 합계=" + summaryAmount
                 );
             }
+            for (LocalDate date : detailSummary.keySet()) {
+                if (!date.isBefore(summary.startDate()) && !date.isAfter(summary.endDate())
+                    && !validatedDates.add(date)) {
+                    throw validation("상품 주문 합계의 기간이 서로 겹칩니다: " + summary.displayPeriod());
+                }
+            }
+        }
+        if (validatedDates.size() != detailSummary.size()) {
+            throw validation("상품 주문 상세내역의 일부 날짜가 상품 주문 합계 기간에 포함되지 않습니다.");
         }
     }
 
@@ -509,7 +529,7 @@ public final class TossPosWorkbookParser {
     private final class SummarySheetHandler extends StreamingSheetHandler {
 
         private final DataBasis dataBasis;
-        private final Map<LocalDate, Long> summary = new HashMap<>();
+        private final List<ProductSummary> summary = new ArrayList<>();
         private Map<String, Integer> columns;
 
         private SummarySheetHandler(DataBasis dataBasis) {
@@ -524,24 +544,45 @@ public final class TossPosWorkbookParser {
                 if (columns == null) {
                     throw validation("상품 주문 합계 시트의 컬럼 행이 없습니다.");
                 }
-                LocalDate date = parseDate(requiredText(PRODUCT_SUMMARY_SHEET, row, columns, "기간"), PRODUCT_SUMMARY_SHEET, row, "기간");
-                if (date.isBefore(dataBasis.periodStart()) || date.isAfter(dataBasis.periodEnd())) {
+                DateRange period = parseSummaryPeriod(
+                    requiredText(PRODUCT_SUMMARY_SHEET, row, columns, "기간"), row
+                );
+                if (period.endDate().isBefore(dataBasis.periodStart())
+                    || period.startDate().isAfter(dataBasis.periodEnd())) {
                     throw rowValidation(PRODUCT_SUMMARY_SHEET, row, "기간이 데이터 기준 범위를 벗어났습니다.");
                 }
                 long amount = parseLong(
                     requiredText(PRODUCT_SUMMARY_SHEET, row, columns, "실 판매 금액 (할인, 옵션 포함)"),
                     PRODUCT_SUMMARY_SHEET, row, "실 판매 금액"
                 );
-                summary.merge(date, amount, TossPosWorkbookParser::addExact);
+                summary.add(new ProductSummary(period.startDate(), period.endDate(), amount));
             }
         }
 
-        private Map<LocalDate, Long> result() {
+        private List<ProductSummary> result() {
             if (summary.isEmpty()) {
                 throw validation("상품 주문 합계에 데이터 행이 없습니다.");
             }
-            return Map.copyOf(summary);
+            return List.copyOf(summary);
         }
+    }
+
+    private DateRange parseSummaryPeriod(String value, SheetRow row) {
+        String[] boundaries = value.split("~", -1);
+        if (boundaries.length == 1) {
+            LocalDate date = parseDate(value, PRODUCT_SUMMARY_SHEET, row, "기간");
+            return new DateRange(date, date);
+        }
+        if (boundaries.length != 2) {
+            throw rowValidation(PRODUCT_SUMMARY_SHEET, row,
+                "기간은 YYYY-MM-DD 또는 YYYY-MM-DD~YYYY-MM-DD 형식이어야 합니다.");
+        }
+        LocalDate startDate = parseDate(boundaries[0].trim(), PRODUCT_SUMMARY_SHEET, row, "기간 시작일");
+        LocalDate endDate = parseDate(boundaries[1].trim(), PRODUCT_SUMMARY_SHEET, row, "기간 종료일");
+        if (startDate.isAfter(endDate)) {
+            throw rowValidation(PRODUCT_SUMMARY_SHEET, row, "기간의 시작일자가 종료일자보다 늦습니다.");
+        }
+        return new DateRange(startDate, endDate);
     }
 
     private abstract static class StreamingSheetHandler
@@ -593,6 +634,15 @@ public final class TossPosWorkbookParser {
     }
 
     private record DataBasis(LocalDate periodStart, LocalDate periodEnd) {
+    }
+
+    private record DateRange(LocalDate startDate, LocalDate endDate) {
+        private String displayPeriod() {
+            return startDate.equals(endDate) ? startDate.toString() : startDate + "~" + endDate;
+        }
+    }
+
+    private record ProductSummary(LocalDate startDate, LocalDate endDate, long amount) {
     }
 
     private static final class MutableDailySummary {

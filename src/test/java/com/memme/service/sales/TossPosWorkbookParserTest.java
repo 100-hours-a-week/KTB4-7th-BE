@@ -147,6 +147,17 @@ class TossPosWorkbookParserTest {
             .hasMessageContaining("2026-01-01");
     }
 
+    @Test
+    void 월간_상품_주문_합계의_기간_범위를_파싱한다() throws Exception {
+        TossPosWorkbookData result = parser.parse(new ByteArrayInputStream(
+            syntheticMonthlyWorkbook()
+        ));
+
+        assertThat(result.periodStart()).isEqualTo(LocalDate.of(2026, 1, 1));
+        assertThat(result.periodEnd()).isEqualTo(LocalDate.of(2026, 1, 2));
+        assertThat(result.dailySummaries()).hasSize(2);
+    }
+
     private TossPosWorkbookData parseSynthetic(
         boolean missingNetAmountColumn,
         long summaryDelta
@@ -165,6 +176,17 @@ class TossPosWorkbookParserTest {
             createDataBasis(workbook);
             createProductSummary(workbook, summaryDelta);
             createProductDetails(workbook, missingNetAmountColumn);
+            workbook.write(outputStream);
+            return outputStream.toByteArray();
+        }
+    }
+
+    private byte[] syntheticMonthlyWorkbook() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            createDataBasis(workbook);
+            createMonthlyProductSummary(workbook);
+            createProductDetails(workbook, false);
             workbook.write(outputStream);
             return outputStream.toByteArray();
         }
@@ -202,6 +224,15 @@ class TossPosWorkbookParserTest {
             "2026-01-01", "합계", "", "", 1, 3_000, 0, 0, 3_000 + summaryDelta, 273);
         writeRow(sheet.createRow(2),
             "2026-01-02", "합계", "", "", 1, 2_200, 0, 0, 2_200, 200);
+    }
+
+    private void createMonthlyProductSummary(Workbook workbook) {
+        Sheet sheet = workbook.createSheet("상품 주문 합계");
+        writeRow(sheet.createRow(0),
+            "기간", "상품명", "상품코드", "카테고리", "판매건수", "상품가격",
+            "옵션가격", "할인", "실 판매 금액\n(할인, 옵션 포함)", "부가세액");
+        writeRow(sheet.createRow(1),
+            "2026-01-01~2026-01-31", "합계", "", "", 2, 5_200, 0, 0, 5_200, 473);
     }
 
     private void createProductDetails(Workbook workbook, boolean missingNetAmountColumn) {
