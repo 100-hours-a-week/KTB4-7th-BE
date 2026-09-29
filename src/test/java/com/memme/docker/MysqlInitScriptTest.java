@@ -54,7 +54,7 @@ class MysqlInitScriptTest {
         assertThat(sql)
                 .contains("CREATE TABLE store_business_hours")
                 .contains("store_id BIGINT UNSIGNED NOT NULL")
-                .contains("day_of_week TINYINT UNSIGNED NOT NULL")
+                .contains("day_of_week INT NOT NULL")
                 .contains("opens_at TIME NULL")
                 .contains("closes_at TIME NULL")
                 .contains("is_closed BOOLEAN NOT NULL DEFAULT FALSE")
