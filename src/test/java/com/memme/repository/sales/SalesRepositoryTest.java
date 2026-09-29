@@ -159,6 +159,32 @@ class SalesRepositoryTest {
     }
 
     @Test
+    void countsOnlyCurrentOrderItemsForStore() {
+        SalesOrderEntity firstStoreOrder = orderRepository.save(SalesOrderEntity.create(
+                11L,
+                1L,
+                SalesOrderChannel.POS,
+                "000123",
+                LocalDateTime.of(2026, 9, 1, 0, 0),
+                true
+        ));
+        SalesOrderEntity secondStoreOrder = orderRepository.save(SalesOrderEntity.create(
+                12L,
+                2L,
+                SalesOrderChannel.POS,
+                "000456",
+                LocalDateTime.of(2026, 9, 1, 0, 0),
+                true
+        ));
+        itemRepository.save(item(firstStoreOrder.getId(), "아메리카노", 1, 4_000));
+        itemRepository.save(item(firstStoreOrder.getId(), "카페라떼", 1, 5_000));
+        itemRepository.save(item(secondStoreOrder.getId(), "카푸치노", 1, 5_500));
+
+        assertThat(itemRepository.countCurrentItemsByStoreId(1L)).isEqualTo(2L);
+        assertThat(itemRepository.countCurrentItemsByStoreId(2L)).isEqualTo(1L);
+    }
+
+    @Test
     void findsDailySummariesWithinStoreAndDateRange() {
         dailySummaryRepository.save(SalesDailySummaryEntity.create(
                 1L, LocalDate.of(2026, 9, 1), 120_000, 110_000, 18, 24
