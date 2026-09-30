@@ -6,4 +6,4 @@
 
 ALTER TABLE stores
   MODIFY COLUMN business_registration_no CHAR(10) NULL,
-  MODIFY COLUMN business_verified_at DATETIME NULL;
+  MODIFY COLUMN business_verified_at DATETIME(6) NULL;
