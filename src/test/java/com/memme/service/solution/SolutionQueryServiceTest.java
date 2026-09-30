@@ -127,6 +127,44 @@ class SolutionQueryServiceTest {
                 .isEqualTo("솔루션 생성을 위해 최소 3개월 이상의 데이터가 필요합니다.");
     }
 
+    @Test
+    void returnsEmptyWhenTodaysForecastIsNotAvailableWithoutASolutionBundle() {
+        givenAuthorizedStore();
+        when(contextResolver.historyCoverage(10L, TODAY))
+                .thenReturn(SalesSolutionGenerationContextResolver.HistoryCoverage.SUFFICIENT);
+        when(bundleRepository.findByStoreIdAndTargetDate(10L, TODAY)).thenReturn(Optional.empty());
+        when(contextResolver.resolve(10L, TODAY)).thenReturn(
+                new SalesSolutionGenerationContextResolver.Resolution(
+                        SalesSolutionGenerationContextResolver.Availability.FORECAST_PENDING,
+                        null
+                )
+        );
+
+        var response = service.today(1L, 10L);
+
+        assertThat(response.status()).isEqualTo("EMPTY");
+        assertThat(response.message()).isEqualTo("오늘의 솔루션은 매일 자정에 준비됩니다.");
+    }
+
+    @Test
+    void returnsEmptyWhenForecastExistsWithoutASolutionBundle() {
+        givenAuthorizedStore();
+        when(contextResolver.historyCoverage(10L, TODAY))
+                .thenReturn(SalesSolutionGenerationContextResolver.HistoryCoverage.SUFFICIENT);
+        when(bundleRepository.findByStoreIdAndTargetDate(10L, TODAY)).thenReturn(Optional.empty());
+        when(contextResolver.resolve(10L, TODAY)).thenReturn(
+                new SalesSolutionGenerationContextResolver.Resolution(
+                        SalesSolutionGenerationContextResolver.Availability.READY,
+                        mock(SalesSolutionGenerationContext.class)
+                )
+        );
+
+        var response = service.today(1L, 10L);
+
+        assertThat(response.status()).isEqualTo("EMPTY");
+        assertThat(response.message()).isEqualTo("오늘의 솔루션은 매일 자정에 준비됩니다.");
+    }
+
     private void givenAuthorizedStore() {
         Store store = mock(Store.class);
         when(ownershipRepository.existsActiveStoreOwnedBy(10L, 1L)).thenReturn(true);

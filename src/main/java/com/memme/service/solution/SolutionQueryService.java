@@ -158,26 +158,22 @@ public class SolutionQueryService {
                     INSUFFICIENT_HISTORY_HELPER_TEXT
             );
             case FORECAST_PENDING -> response(
-                    "매출 예측을 생성하고 있습니다.",
-                    "GENERATING",
+                    "오늘의 솔루션은 매일 자정에 준비됩니다.",
+                    "EMPTY",
                     null,
                     null,
                     targetDate,
                     List.of(),
-                    historyCoverage == SalesSolutionGenerationContextResolver.HistoryCoverage.LIMITED
-                            ? LIMITED_HISTORY_HELPER_TEXT
-                            : null
+                    null
             );
             case READY -> response(
-                    "오늘의 솔루션을 생성하고 있습니다.",
-                    "GENERATING",
+                    "오늘의 솔루션은 매일 자정에 준비됩니다.",
+                    "EMPTY",
                     null,
                     null,
                     targetDate,
                     List.of(),
-                    historyCoverage == SalesSolutionGenerationContextResolver.HistoryCoverage.LIMITED
-                            ? LIMITED_HISTORY_HELPER_TEXT
-                            : null
+                    null
             );
         };
     }
