@@ -90,6 +90,32 @@ class SignupBusinessDtoTest {
     }
 
     @Test
+    void 사업자등록번호와_인증결과는_입력하지_않아도_된다() {
+        SignupBusinessRequest request = new SignupBusinessRequest(
+                "맴매카페",
+                null,
+                null,
+                "06236",
+                "서울특별시 강남구 테헤란로 123",
+                null,
+                List.of(
+                        new SignupBusinessRequest.BusinessHours(DayOfWeek.MONDAY, false, "09:00", "18:00"),
+                        new SignupBusinessRequest.BusinessHours(DayOfWeek.TUESDAY, false, "09:00", "18:00"),
+                        new SignupBusinessRequest.BusinessHours(DayOfWeek.WEDNESDAY, false, "09:00", "18:00"),
+                        new SignupBusinessRequest.BusinessHours(DayOfWeek.THURSDAY, false, "09:00", "18:00"),
+                        new SignupBusinessRequest.BusinessHours(DayOfWeek.FRIDAY, false, "09:00", "18:00"),
+                        new SignupBusinessRequest.BusinessHours(DayOfWeek.SATURDAY, false, "09:00", "18:00"),
+                        new SignupBusinessRequest.BusinessHours(DayOfWeek.SUNDAY, false, "09:00", "18:00")
+                )
+        );
+
+        Set<ConstraintViolation<SignupBusinessRequest>> violations = validator.validate(request);
+
+        assertFalse(violations.stream().map(violation -> violation.getPropertyPath().toString())
+                .anyMatch(path -> path.equals("businessRegNumber") || path.equals("businessVerificationId")));
+    }
+
+    @Test
     void 매장명은_요구사항의_허용문자와_최대_십오자_규칙을_검증한다() {
         SignupBusinessRequest invalidCharacter = validRequest("맴매@카페");
         SignupBusinessRequest tooLong = validRequest("가나다라마바사아자차카타파하하거");
