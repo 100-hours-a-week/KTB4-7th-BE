@@ -1,25 +1,28 @@
 package com.memme.service.chat;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import com.memme.dto.chat.ChatAiRequest;
 import com.memme.exception.chat.ChatAiException;
+import io.netty.channel.ChannelOption;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
+import reactor.netty.http.HttpProtocol;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.client.HttpClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -29,7 +32,7 @@ public class RestChatAiClient implements ChatAiClient {
     private static final String CHAT_PATH = "/internal/v1/ai/chat/messages";
     private static final Logger log = LoggerFactory.getLogger(RestChatAiClient.class);
 
-    private final HttpClient httpClient;
+    private final WebClient webClient;
     private final URI chatUri;
     private final String internalAiToken;
     private final Duration readTimeout;
@@ -45,89 +48,102 @@ public class RestChatAiClient implements ChatAiClient {
         if (connectTimeoutSeconds <= 0 || readTimeoutSeconds <= 0) {
             throw new IllegalArgumentException("AI timeout must be positive");
         }
-        this.httpClient = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .connectTimeout(Duration.ofSeconds(connectTimeoutSeconds))
-                .build();
         this.chatUri = URI.create(baseUrl + CHAT_PATH);
         this.internalAiToken = internalAiToken == null ? "" : internalAiToken.trim();
         this.readTimeout = Duration.ofSeconds(readTimeoutSeconds);
+        this.webClient = WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(
+                        HttpClient.create()
+                                .protocol(HttpProtocol.HTTP11)
+                                .option(
+                                        ChannelOption.CONNECT_TIMEOUT_MILLIS,
+                                        Math.toIntExact(Duration.ofSeconds(connectTimeoutSeconds).toMillis())
+                                )
+                                .responseTimeout(readTimeout)
+                ))
+                .build();
         this.objectMapper = objectMapper;
     }
 
     @Override
     public void stream(ChatAiRequest request, Consumer<ChatAiEvent> eventConsumer) {
         long startedAt = System.nanoTime();
-        HttpRequest.Builder builder = HttpRequest.newBuilder(chatUri)
-                .timeout(readTimeout)
-                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE)
-                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(request)));
-        if (!internalAiToken.isBlank()) {
-            builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + internalAiToken);
-        }
-
+        String messageId = messageId();
+        AtomicInteger chunkIndex = new AtomicInteger();
         try {
-            log.debug("AI SSE request started: messageId={}, uri={}", messageId(), chatUri);
-            HttpResponse<java.io.InputStream> response = httpClient.send(
-                    builder.build(),
-                    HttpResponse.BodyHandlers.ofInputStream()
-            );
-            log.debug(
-                    "AI SSE response headers received: messageId={}, status={}, elapsedMs={}",
-                    messageId(),
-                    response.statusCode(),
-                    elapsedMillis(startedAt)
-            );
-            if (response.statusCode() != 200) {
-                throw new ChatAiException("AI 챗봇 호출에 실패했습니다: " + response.statusCode());
-            }
-            readEvents(response, eventConsumer, startedAt);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new ChatAiException("AI 챗봇 호출이 중단됐습니다.", exception);
-        } catch (IOException exception) {
+            log.debug("AI SSE request started: messageId={}, uri={}", messageId, chatUri);
+            webClient.post()
+                    .uri(chatUri)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .accept(MediaType.TEXT_EVENT_STREAM)
+                    .headers(headers -> addAuthorizationHeader(headers))
+                    .bodyValue(request)
+                    .exchangeToFlux(response -> toEventStream(response, messageId, startedAt))
+                    .publishOn(Schedulers.boundedElastic(), 1)
+                    .takeUntil(event -> "[DONE]".equals(event.data()))
+                    .doOnNext(event -> consumeEvent(event, eventConsumer, messageId, startedAt, chunkIndex))
+                    .blockLast(readTimeout);
+        } catch (ChatAiException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
             throw new ChatAiException("AI 챗봇 서버에 연결하지 못했습니다.", exception);
         }
     }
 
-    private void readEvents(
-            HttpResponse<java.io.InputStream> response,
-            Consumer<ChatAiEvent> eventConsumer,
+    private Flux<ServerSentEvent<String>> toEventStream(
+            org.springframework.web.reactive.function.client.ClientResponse response,
+            String messageId,
             long startedAt
-    ) throws IOException {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-                response.body(),
-                StandardCharsets.UTF_8
-        ))) {
-            String line;
-            int chunkIndex = 0;
-            while ((line = reader.readLine()) != null) {
-                if (!line.startsWith("data:")) {
-                    continue;
-                }
-                String data = line.substring("data:".length()).trim();
-                if ("[DONE]".equals(data)) {
-                    log.debug(
-                            "AI SSE done received: messageId={}, chunkCount={}, elapsedMs={}",
-                            messageId(),
-                            chunkIndex,
-                            elapsedMillis(startedAt)
-                    );
-                    return;
-                }
-                ChatAiEvent event = parseEvent(data);
-                chunkIndex++;
-                log.debug(
-                        "AI SSE chunk received: messageId={}, chunkIndex={}, type={}, contentLength={}, elapsedMs={}",
-                        messageId(),
-                        chunkIndex,
-                        event.type(),
-                        event.content() == null ? 0 : event.content().length(),
-                        elapsedMillis(startedAt)
-                );
-                eventConsumer.accept(event);
-            }
+    ) {
+        log.debug(
+                "AI SSE response headers received: messageId={}, status={}, elapsedMs={}",
+                messageId,
+                response.statusCode().value(),
+                elapsedMillis(startedAt)
+        );
+        if (!response.statusCode().is2xxSuccessful()) {
+            return response.bodyToMono(String.class)
+                    .defaultIfEmpty("")
+                    .flatMapMany(body -> Flux.error(new ChatAiException(
+                            "AI 챗봇 호출에 실패했습니다: " + response.statusCode().value()
+                    )));
+        }
+        return response.bodyToFlux(new ParameterizedTypeReference<ServerSentEvent<String>>() {
+        });
+    }
+
+    private void consumeEvent(
+            ServerSentEvent<String> event,
+            Consumer<ChatAiEvent> eventConsumer,
+            String messageId,
+            long startedAt,
+            AtomicInteger chunkIndex
+    ) {
+        String data = event.data();
+        if (data == null || data.isBlank()) {
+            return;
+        }
+        if ("[DONE]".equals(data)) {
+            log.debug("AI SSE done received: messageId={}, elapsedMs={}", messageId, elapsedMillis(startedAt));
+            return;
+        }
+        ChatAiEvent chatAiEvent = parseEvent(data);
+        log.debug(
+                "AI SSE chunk received: messageId={}, chunkIndex={}, type={}, contentLength={}, elapsedMs={}",
+                messageId,
+                chunkIndex.incrementAndGet(),
+                chatAiEvent.type(),
+                chatAiEvent.content() == null ? 0 : chatAiEvent.content().length(),
+                elapsedMillis(startedAt)
+        );
+        try (MDC.MDCCloseable ignored = MDC.putCloseable("chatMessageId", messageId)) {
+            eventConsumer.accept(chatAiEvent);
+        }
+    }
+
+    private void addAuthorizationHeader(HttpHeaders headers) {
+        if (!internalAiToken.isBlank()) {
+            headers.setBearerAuth(internalAiToken);
         }
     }
 
