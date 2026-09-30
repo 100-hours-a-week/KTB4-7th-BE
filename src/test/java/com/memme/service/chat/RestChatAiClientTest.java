@@ -3,8 +3,9 @@ package com.memme.service.chat;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.memme.dto.chat.ChatAiRequest;
 import com.sun.net.httpserver.HttpServer;
@@ -26,20 +27,32 @@ class RestChatAiClientTest {
     }
 
     @Test
-    void AI_SSE_청크와_완료_이벤트를_읽는다() throws Exception {
+    void AI_SSE_청크를_응답_완료_전에_즉시_읽는다() throws Exception {
+        AtomicLong secondChunkWrittenAt = new AtomicLong();
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/internal/v1/ai/chat/messages", exchange -> {
             assertThat(exchange.getRequestMethod()).isEqualTo("POST");
             String requestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             assertThat(requestBody).contains("오늘 뭘 해야 해?");
-            byte[] body = ("data: {\"event\":\"answerChunk\",\"data\":{"
+            byte[] firstChunk = ("data: {\"event\":\"answerChunk\",\"data\":{"
                     + "\"content\":\"재고를 확인하세요.\","
-                    + "\"evidence\":{\"metric\":\"sales_summary\"}}}\n\n"
+                    + "\"evidence\":{\"metric\":\"sales_summary\"}}}\n\n").getBytes(StandardCharsets.UTF_8);
+            byte[] secondChunk = ("data: {\"event\":\"answerChunk\",\"data\":{"
+                    + "\"content\":\"오늘 판매량도 확인하세요.\"}}\n\n"
                     + "data: [DONE]\n\n").getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
-            exchange.sendResponseHeaders(200, body.length);
+            exchange.sendResponseHeaders(200, 0);
             try (OutputStream output = exchange.getResponseBody()) {
-                output.write(body);
+                output.write(firstChunk);
+                output.flush();
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                }
+                secondChunkWrittenAt.set(System.nanoTime());
+                output.write(secondChunk);
+                output.flush();
             }
         });
         server.start();
@@ -50,7 +63,8 @@ class RestChatAiClientTest {
                 10,
                 JsonMapper.builder().build()
         );
-        List<ChatAiEvent> events = new ArrayList<>();
+        List<ChatAiEvent> events = new CopyOnWriteArrayList<>();
+        List<Long> receivedAt = new CopyOnWriteArrayList<>();
 
         client.stream(new ChatAiRequest(
                 1L,
@@ -59,12 +73,18 @@ class RestChatAiClientTest {
                 "오늘 뭘 해야 해?",
                 List.of(),
                 List.of()
-        ), events::add);
+        ), event -> {
+            events.add(event);
+            receivedAt.add(System.nanoTime());
+        });
 
-        assertThat(events).singleElement().satisfies(event -> {
+        assertThat(events).hasSize(2);
+        assertThat(receivedAt.getFirst()).isLessThan(secondChunkWrittenAt.get());
+        assertThat(events.getFirst()).satisfies(event -> {
             assertThat(event.type()).isEqualTo(ChatAiEvent.Type.CHUNK);
             assertThat(event.content()).isEqualTo("재고를 확인하세요.");
             assertThat(event.evidenceJson()).contains("sales_summary");
         });
+        assertThat(events.get(1).content()).isEqualTo("오늘 판매량도 확인하세요.");
     }
 }
