@@ -55,8 +55,8 @@ CREATE TABLE business_verifications (
 CREATE TABLE stores (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   owner_user_id BIGINT UNSIGNED NOT NULL,
-  business_registration_no CHAR(10) NOT NULL,
-  business_verified_at DATETIME NOT NULL,
+  business_registration_no CHAR(10) NULL,
+  business_verified_at DATETIME NULL,
   name VARCHAR(100) NOT NULL,
   postal_code CHAR(5) NOT NULL,
   address VARCHAR(255) NOT NULL,

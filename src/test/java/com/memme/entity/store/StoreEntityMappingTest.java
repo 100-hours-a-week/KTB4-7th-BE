@@ -22,7 +22,7 @@ class StoreEntityMappingTest {
         assertThat(storeClass.getAnnotation(Table.class).name()).isEqualTo("stores");
 
         assertOwnerUser(storeClass);
-        assertColumn(storeClass, "businessRegistrationNo", "business_registration_no", 10, false, true);
+        assertColumn(storeClass, "businessRegistrationNo", "business_registration_no", 10, true, true);
         assertColumn(storeClass, "name", "name", 100, false, false);
         assertColumn(storeClass, "postalCode", "postal_code", 5, false, false);
         assertColumn(storeClass, "address", "address", 255, false, false);
@@ -37,6 +37,7 @@ class StoreEntityMappingTest {
         Class<?> storeClass = Store.class;
 
         assertThat(storeClass.getDeclaredField("businessVerifiedAt").getType()).isEqualTo(LocalDateTime.class);
+        assertThat(storeClass.getDeclaredField("businessVerifiedAt").getAnnotation(Column.class).nullable()).isTrue();
         assertThat(storeClass.getDeclaredField("latitude").getType()).isEqualTo(BigDecimal.class);
         assertThat(storeClass.getDeclaredField("longitude").getType()).isEqualTo(BigDecimal.class);
         assertThat(storeClass.getDeclaredField("createdAt").getType()).isEqualTo(LocalDateTime.class);

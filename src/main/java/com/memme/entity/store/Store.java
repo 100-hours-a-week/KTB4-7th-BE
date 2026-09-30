@@ -28,10 +28,10 @@ public class Store {
     @JoinColumn(name = "owner_user_id", nullable = false, unique = true)
     private User owner;
 
-    @Column(name = "business_registration_no", nullable = false, unique = true, length = 10, columnDefinition = "CHAR(10)")
+    @Column(name = "business_registration_no", unique = true, length = 10, columnDefinition = "CHAR(10)")
     private String businessRegistrationNo;
 
-    @Column(name = "business_verified_at", nullable = false)
+    @Column(name = "business_verified_at")
     private LocalDateTime businessVerifiedAt;
 
     @Column(name = "name", nullable = false, length = 100)

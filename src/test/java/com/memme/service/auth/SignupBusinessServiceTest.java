@@ -1,10 +1,12 @@
 package com.memme.service.auth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.memme.dto.auth.SignupBusinessRequest;
@@ -106,6 +108,45 @@ class SignupBusinessServiceTest {
     }
 
     @Test
+    void 사업자정보를_입력하지_않아도_회원가입을_완료하고_인증을_조회하지_않는다() throws Exception {
+        when(signupDraftRepository.findBySignupTokenHash(any())).thenReturn(Optional.of(draft(NOW.plusHours(1))));
+        when(userRepository.save(any())).thenAnswer(invocation -> withId(invocation.getArgument(0), 10L));
+        when(storeRepository.save(any())).thenAnswer(invocation -> withId(invocation.getArgument(0), 20L));
+
+        SignupBusinessResponse response = service.completeSignup(SIGNUP_TOKEN, requestWithoutBusinessVerification());
+
+        assertEquals(20L, response.store().id());
+        ArgumentCaptor<Store> storeCaptor = ArgumentCaptor.forClass(Store.class);
+        verify(storeRepository).save(storeCaptor.capture());
+        assertNull(storeCaptor.getValue().getBusinessRegistrationNo());
+        assertNull(fieldValue(storeCaptor.getValue(), "businessVerifiedAt"));
+        verifyNoInteractions(businessVerificationRepository);
+    }
+
+    @Test
+    void 빈_사업자등록번호는_null로_저장한다() throws Exception {
+        when(signupDraftRepository.findBySignupTokenHash(any())).thenReturn(Optional.of(draft(NOW.plusHours(1))));
+        when(userRepository.save(any())).thenAnswer(invocation -> withId(invocation.getArgument(0), 10L));
+        when(storeRepository.save(any())).thenAnswer(invocation -> withId(invocation.getArgument(0), 20L));
+
+        SignupBusinessRequest request = new SignupBusinessRequest(
+                "맴매카페", "", null, "06236", "서울특별시 강남구 테헤란로 123", "101호",
+                List.of(
+                        hours(java.time.DayOfWeek.MONDAY), hours(java.time.DayOfWeek.TUESDAY),
+                        hours(java.time.DayOfWeek.WEDNESDAY), hours(java.time.DayOfWeek.THURSDAY),
+                        hours(java.time.DayOfWeek.FRIDAY), hours(java.time.DayOfWeek.SATURDAY),
+                        hours(java.time.DayOfWeek.SUNDAY)
+                )
+        );
+
+        service.completeSignup(SIGNUP_TOKEN, request);
+
+        ArgumentCaptor<Store> storeCaptor = ArgumentCaptor.forClass(Store.class);
+        verify(storeRepository).save(storeCaptor.capture());
+        assertNull(storeCaptor.getValue().getBusinessRegistrationNo());
+    }
+
+    @Test
     void 영업시간이_10분_단위가_아니면_422_예외를_던진다() {
         SignupBusinessRequest request = new SignupBusinessRequest(
                 "맴매카페", "1234567890", 1L, "06236", "서울특별시 강남구 테헤란로 123", "101호",
@@ -155,6 +196,18 @@ class SignupBusinessServiceTest {
                 List.of(
                         hours(java.time.DayOfWeek.MONDAY), hours(java.time.DayOfWeek.TUESDAY), hours(java.time.DayOfWeek.WEDNESDAY),
                         hours(java.time.DayOfWeek.THURSDAY), hours(java.time.DayOfWeek.FRIDAY), hours(java.time.DayOfWeek.SATURDAY),
+                        hours(java.time.DayOfWeek.SUNDAY)
+                )
+        );
+    }
+
+    private SignupBusinessRequest requestWithoutBusinessVerification() {
+        return new SignupBusinessRequest(
+                "맴매카페", null, null, "06236", "서울특별시 강남구 테헤란로 123", "101호",
+                List.of(
+                        hours(java.time.DayOfWeek.MONDAY), hours(java.time.DayOfWeek.TUESDAY),
+                        hours(java.time.DayOfWeek.WEDNESDAY), hours(java.time.DayOfWeek.THURSDAY),
+                        hours(java.time.DayOfWeek.FRIDAY), hours(java.time.DayOfWeek.SATURDAY),
                         hours(java.time.DayOfWeek.SUNDAY)
                 )
         );

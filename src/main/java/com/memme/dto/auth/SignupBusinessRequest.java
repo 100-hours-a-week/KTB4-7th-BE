@@ -17,10 +17,8 @@ public record SignupBusinessRequest(
                 message = "매장명에 사용할 수 없는 문자가 포함되어 있습니다."
         )
         String storeName,
-        @NotBlank(message = "사업자등록번호를 입력해 주세요.")
         @Pattern(regexp = "^$|^\\d{10}$", message = "사업자등록번호는 숫자 10자리여야 합니다.")
         String businessRegNumber,
-        @NotNull(message = "사업자 인증 결과를 입력해 주세요.")
         @Positive(message = "사업자 인증 결과를 확인해 주세요.")
         Long businessVerificationId,
         @NotBlank(message = "우편번호를 입력해 주세요.")

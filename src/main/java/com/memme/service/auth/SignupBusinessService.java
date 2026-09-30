@@ -73,27 +73,17 @@ public class SignupBusinessService {
             throw new SignupCompletionExpiredException(SignupCompletionExpiredException.Reason.SIGNUP_DRAFT);
         }
 
-        BusinessVerification verification = businessVerificationRepository.findById(request.businessVerificationId())
-                .orElseThrow(BusinessStatusNotEligibleException::new);
-        if (verification.isExpiredAt(now)) {
-            throw new SignupCompletionExpiredException(SignupCompletionExpiredException.Reason.BUSINESS_VERIFICATION);
-        }
-        if (verification.isUsed() || !verification.matchesBusinessRegNumber(request.businessRegNumber())) {
-            throw new BusinessStatusNotEligibleException();
-        }
-        if (storeRepository.existsByBusinessRegistrationNo(request.businessRegNumber())) {
-            throw new DuplicateSignupException(List.of(
-                    new FieldError("businessRegNumber", "이미 등록된 사업자등록번호입니다.")
-            ));
-        }
+        BusinessVerification verification = verifyBusinessInformation(request, now);
 
         validateBusinessHours(request.businessHours());
+        String businessRegNumber = normalizeBusinessRegNumber(request.businessRegNumber());
 
         User user = userRepository.save(User.create(
                 signupDraft.getEmail(), signupDraft.getPasswordHash(), signupDraft.getPhone(), now
         ));
         Store store = storeRepository.save(Store.create(
-                user, request.businessRegNumber(), verification.getVerifiedAt(), request.storeName(), request.postalCode(),
+                user, businessRegNumber, verification == null ? null : verification.getVerifiedAt(),
+                request.storeName(), request.postalCode(),
                 request.address(), request.addressDetail(), now
         ));
         List<StoreBusinessHours> businessHours = request.businessHours().stream()
@@ -108,13 +98,47 @@ public class SignupBusinessService {
                 .toList();
         storeBusinessHoursRepository.saveAll(businessHours);
         notificationPreferenceRepository.save(NotificationPreference.create(user, now));
-        verification.markUsedAt(now);
+        if (verification != null) {
+            verification.markUsedAt(now);
+        }
 
         return new SignupBusinessResponse(
                 new SignupBusinessResponse.User(user.getId(), user.getEmail()),
                 new SignupBusinessResponse.Store(store.getId(), store.getStoreName()),
                 "LOGIN"
         );
+    }
+
+    private BusinessVerification verifyBusinessInformation(SignupBusinessRequest request, LocalDateTime now) {
+        boolean businessRegNumberOmitted = normalizeBusinessRegNumber(request.businessRegNumber()) == null;
+        boolean businessVerificationOmitted = request.businessVerificationId() == null;
+        if (businessRegNumberOmitted && businessVerificationOmitted) {
+            return null;
+        }
+        if (businessRegNumberOmitted || businessVerificationOmitted) {
+            throw new InvalidSignupRequestException(List.of(
+                    new FieldError("businessRegNumber", "사업자등록번호와 인증 결과를 함께 입력해 주세요.")
+            ));
+        }
+
+        BusinessVerification verification = businessVerificationRepository.findById(request.businessVerificationId())
+                .orElseThrow(BusinessStatusNotEligibleException::new);
+        if (verification.isExpiredAt(now)) {
+            throw new SignupCompletionExpiredException(SignupCompletionExpiredException.Reason.BUSINESS_VERIFICATION);
+        }
+        if (verification.isUsed() || !verification.matchesBusinessRegNumber(request.businessRegNumber())) {
+            throw new BusinessStatusNotEligibleException();
+        }
+        if (storeRepository.existsByBusinessRegistrationNo(request.businessRegNumber())) {
+            throw new DuplicateSignupException(List.of(
+                    new FieldError("businessRegNumber", "이미 등록된 사업자등록번호입니다.")
+            ));
+        }
+        return verification;
+    }
+
+    private String normalizeBusinessRegNumber(String businessRegNumber) {
+        return businessRegNumber == null || businessRegNumber.isBlank() ? null : businessRegNumber;
     }
 
     private void validateBusinessHours(List<SignupBusinessRequest.BusinessHours> businessHours) {
