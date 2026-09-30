@@ -9,7 +9,6 @@ import com.memme.dto.chat.ChatAiRequest;
 import com.memme.exception.chat.ChatAiException;
 import io.netty.channel.ChannelOption;
 import reactor.core.publisher.Flux;
-import reactor.core.scheduler.Schedulers;
 import reactor.netty.http.HttpProtocol;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.beans.factory.annotation.Value;
@@ -72,17 +71,18 @@ public class RestChatAiClient implements ChatAiClient {
         AtomicInteger chunkIndex = new AtomicInteger();
         try {
             log.debug("AI SSE request started: messageId={}, uri={}", messageId, chatUri);
-            webClient.post()
+            Flux<ServerSentEvent<String>> eventStream = webClient.post()
                     .uri(chatUri)
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.TEXT_EVENT_STREAM)
                     .headers(headers -> addAuthorizationHeader(headers))
                     .bodyValue(request)
                     .exchangeToFlux(response -> toEventStream(response, messageId, startedAt))
-                    .publishOn(Schedulers.boundedElastic(), 1)
                     .takeUntil(event -> "[DONE]".equals(event.data()))
-                    .doOnNext(event -> consumeEvent(event, eventConsumer, messageId, startedAt, chunkIndex))
-                    .blockLast(readTimeout);
+                    .timeout(readTimeout);
+            for (ServerSentEvent<String> event : eventStream.toIterable()) {
+                consumeEvent(event, eventConsumer, messageId, startedAt, chunkIndex);
+            }
         } catch (ChatAiException exception) {
             throw exception;
         } catch (RuntimeException exception) {
