@@ -18,6 +18,28 @@ import static org.mockito.Mockito.when;
 class SalesAiPostProcessingJobTest {
 
     @Test
+    void generatesTodaySolutionWhenTodayIsWithinForecastHorizon() {
+        SalesForecastGenerationService forecastGenerationService = mock(SalesForecastGenerationService.class);
+        SalesSolutionGenerationService solutionGenerationService = mock(SalesSolutionGenerationService.class);
+        Clock clock = Clock.fixed(Instant.parse("2026-10-02T00:00:00Z"), ZoneOffset.UTC);
+        SalesAiPostProcessingJob job = new SalesAiPostProcessingJob(
+                forecastGenerationService,
+                solutionGenerationService,
+                clock
+        );
+        LocalDate forecastStartDate = LocalDate.of(2026, 10, 1);
+        when(forecastGenerationService.generate(10L, 20L, 30L, forecastStartDate))
+                .thenReturn(new SalesForecastGenerationResult(
+                        SalesForecastGenerationResult.Status.COMPLETED,
+                        false
+                ));
+
+        job.start(10L, 20L, 30L, forecastStartDate);
+
+        verify(solutionGenerationService).generateAfterUpload(10L, LocalDate.of(2026, 10, 2));
+    }
+
+    @Test
     void generatesTodaySolutionAfterFirstUploadEndingYesterday() {
         SalesForecastGenerationService forecastGenerationService = mock(SalesForecastGenerationService.class);
         SalesSolutionGenerationService solutionGenerationService = mock(SalesSolutionGenerationService.class);
@@ -40,7 +62,7 @@ class SalesAiPostProcessingJobTest {
     }
 
     @Test
-    void doesNotGenerateTodaySolutionWhenUploadContainsTodaySales() {
+    void excludesTodaySalesFromForecastWhenUploadContainsTodaySales() {
         SalesForecastGenerationService forecastGenerationService = mock(SalesForecastGenerationService.class);
         SalesSolutionGenerationService solutionGenerationService = mock(SalesSolutionGenerationService.class);
         Clock clock = Clock.fixed(Instant.parse("2026-09-30T00:00:00Z"), ZoneOffset.UTC);
@@ -50,7 +72,8 @@ class SalesAiPostProcessingJobTest {
                 clock
         );
         LocalDate tomorrow = LocalDate.of(2026, 10, 1);
-        when(forecastGenerationService.generate(10L, 20L, 30L, tomorrow))
+        LocalDate today = LocalDate.of(2026, 9, 30);
+        when(forecastGenerationService.generate(10L, 20L, 30L, today))
                 .thenReturn(new SalesForecastGenerationResult(
                         SalesForecastGenerationResult.Status.COMPLETED,
                         false
@@ -58,7 +81,8 @@ class SalesAiPostProcessingJobTest {
 
         job.start(10L, 20L, 30L, tomorrow);
 
-        verify(solutionGenerationService, never()).generateAfterUpload(10L, tomorrow);
+        verify(forecastGenerationService).generate(10L, 20L, 30L, today);
+        verify(solutionGenerationService).generateAfterUpload(10L, today);
     }
 
     @Test
@@ -71,7 +95,7 @@ class SalesAiPostProcessingJobTest {
                 solutionGenerationService,
                 clock
         );
-        LocalDate forecastStartDate = LocalDate.of(2026, 10, 1);
+        LocalDate forecastStartDate = LocalDate.of(2026, 8, 26);
         when(forecastGenerationService.generate(10L, 20L, 30L, forecastStartDate))
                 .thenReturn(new SalesForecastGenerationResult(
                         SalesForecastGenerationResult.Status.COMPLETED,

@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class SalesAiPostProcessingJob {
 
+    private static final int FORECAST_HORIZON_DAYS = 35;
+
     private final SalesForecastGenerationService forecastGenerationService;
     private final SalesSolutionGenerationService solutionGenerationService;
     private final Clock clock;
@@ -33,15 +35,20 @@ public class SalesAiPostProcessingJob {
             Long analysisRunId,
             LocalDate forecastStartDate
     ) {
+        LocalDate today = LocalDate.now(clock);
+        LocalDate effectiveForecastStartDate = forecastStartDate.isAfter(today)
+                ? today
+                : forecastStartDate;
         SalesForecastGenerationResult forecastResult = forecastGenerationService.generate(
                 storeId,
                 uploadId,
                 analysisRunId,
-                forecastStartDate
+                effectiveForecastStartDate
         );
         if (forecastResult.status() == SalesForecastGenerationResult.Status.COMPLETED
-                && forecastStartDate.equals(LocalDate.now(clock))) {
-            solutionGenerationService.generateAfterUpload(storeId, forecastStartDate);
+                && !today.isBefore(effectiveForecastStartDate)
+                && today.isBefore(effectiveForecastStartDate.plusDays(FORECAST_HORIZON_DAYS))) {
+            solutionGenerationService.generateAfterUpload(storeId, today);
         }
     }
 }
