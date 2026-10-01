@@ -143,7 +143,28 @@ class SolutionQueryServiceTest {
         var response = service.today(1L, 10L);
 
         assertThat(response.status()).isEqualTo("EMPTY");
-        assertThat(response.message()).isEqualTo("오늘의 솔루션은 매일 자정에 준비됩니다.");
+        assertThat(response.message()).isEqualTo("오늘의 솔루션을 준비하고 있습니다.");
+    }
+
+    @Test
+    void asksForRecentSalesWhenTodaysForecastIsOutsideTheAvailableRange() {
+        givenAuthorizedStore();
+        when(contextResolver.historyCoverage(10L, TODAY))
+                .thenReturn(SalesSolutionGenerationContextResolver.HistoryCoverage.LIMITED);
+        when(bundleRepository.findByStoreIdAndTargetDate(10L, TODAY)).thenReturn(Optional.empty());
+        when(contextResolver.resolve(10L, TODAY)).thenReturn(
+                new SalesSolutionGenerationContextResolver.Resolution(
+                        SalesSolutionGenerationContextResolver.Availability.valueOf("FORECAST_OUT_OF_RANGE"),
+                        null
+                )
+        );
+
+        var response = service.today(1L, 10L);
+
+        assertThat(response.status()).isEqualTo("FORECAST_OUT_OF_RANGE");
+        assertThat(response.message()).isEqualTo("2026년 8월 24일 이후 매출이 포함된 파일을 업로드해 주세요.");
+        assertThat(response.data().helperText())
+                .isEqualTo("솔루션 생성에는 연속 3개월 이상의 매출 이력도 필요합니다.");
     }
 
     @Test
@@ -162,7 +183,7 @@ class SolutionQueryServiceTest {
         var response = service.today(1L, 10L);
 
         assertThat(response.status()).isEqualTo("EMPTY");
-        assertThat(response.message()).isEqualTo("오늘의 솔루션은 매일 자정에 준비됩니다.");
+        assertThat(response.message()).isEqualTo("오늘의 솔루션을 준비하고 있습니다.");
     }
 
     private void givenAuthorizedStore() {

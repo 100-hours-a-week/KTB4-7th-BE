@@ -183,6 +183,45 @@ class SalesSolutionGenerationContextResolverTest {
     }
 
     @Test
+    void identifiesSalesOutsideTheThirtyFiveDayForecastWindow() {
+        LocalDate targetDate = LocalDate.of(2026, 10, 1);
+        AnalysisRunEntity run = mock(AnalysisRunEntity.class);
+        SalesAnalysisEntity analysis = mock(SalesAnalysisEntity.class);
+        when(run.getId()).thenReturn(34L);
+        when(runRepository.findFirstByStoreIdAndStatusOrderByCompletedAtDescIdDesc(
+                10L, AnalysisRunStatus.COMPLETED
+        )).thenReturn(Optional.of(run));
+        when(analysisRepository.findByAnalysisRunId(34L)).thenReturn(Optional.of(analysis));
+        List<SalesDailySummaryEntity> history = summariesBetween(
+                LocalDate.of(2026, 4, 1), LocalDate.of(2026, 6, 30));
+        when(dailySummaryRepository.findAllByStoreIdOrderBySalesDateAsc(10L)).thenReturn(history);
+
+        var result = resolver.resolve(10L, targetDate);
+
+        assertThat(result.availability().name()).isEqualTo("FORECAST_OUT_OF_RANGE");
+    }
+
+    @Test
+    void keepsForecastPendingAtTheThirtyFiveDayBoundary() {
+        LocalDate targetDate = LocalDate.of(2026, 10, 1);
+        AnalysisRunEntity run = mock(AnalysisRunEntity.class);
+        SalesAnalysisEntity analysis = mock(SalesAnalysisEntity.class);
+        when(run.getId()).thenReturn(34L);
+        when(runRepository.findFirstByStoreIdAndStatusOrderByCompletedAtDescIdDesc(
+                10L, AnalysisRunStatus.COMPLETED
+        )).thenReturn(Optional.of(run));
+        when(analysisRepository.findByAnalysisRunId(34L)).thenReturn(Optional.of(analysis));
+        List<SalesDailySummaryEntity> history = summariesBetween(
+                LocalDate.of(2026, 5, 27), LocalDate.of(2026, 8, 27));
+        when(dailySummaryRepository.findAllByStoreIdOrderBySalesDateAsc(10L)).thenReturn(history);
+
+        var result = resolver.resolve(10L, targetDate);
+
+        assertThat(result.availability())
+                .isEqualTo(SalesSolutionGenerationContextResolver.Availability.FORECAST_PENDING);
+    }
+
+    @Test
     void classifiesFourToSeptemberTwentySixContinuousHistoryAsLimitedOnSeptemberTwentyEighth() {
         LocalDate targetDate = LocalDate.of(2026, 9, 28);
         List<SalesDailySummaryEntity> history = summariesBetween(
