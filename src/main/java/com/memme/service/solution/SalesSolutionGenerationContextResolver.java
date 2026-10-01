@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class SalesSolutionGenerationContextResolver {
 
+    private static final int FORECAST_HORIZON_DAYS = 35;
+
     private final AnalysisRunRepository analysisRunRepository;
     private final SalesAnalysisRepository salesAnalysisRepository;
     private final SalesForecastRepository forecastRepository;
@@ -63,7 +65,11 @@ public class SalesSolutionGenerationContextResolver {
                         )
                 ))
                 .orElseGet(() -> new Resolution(
-                        Availability.FORECAST_PENDING,
+                        latestSalesDate(storeId, targetDate)
+                                .filter(date -> date.isBefore(targetDate.minusDays(FORECAST_HORIZON_DAYS)))
+                                .isPresent()
+                                ? Availability.FORECAST_OUT_OF_RANGE
+                                : Availability.FORECAST_PENDING,
                         null
                 ));
     }
@@ -79,6 +85,14 @@ public class SalesSolutionGenerationContextResolver {
                 storeId,
                 AnalysisRunStatus.COMPLETED
         );
+    }
+
+    private Optional<LocalDate> latestSalesDate(Long storeId, LocalDate targetDate) {
+        return dailySummaryRepository.findAllByStoreIdOrderBySalesDateAsc(storeId)
+                .stream()
+                .map(summary -> summary.getSalesDate())
+                .filter(date -> date.isBefore(targetDate))
+                .max(LocalDate::compareTo);
     }
 
     public HistoryCoverage historyCoverage(Long storeId, LocalDate targetDate) {
@@ -114,6 +128,7 @@ public class SalesSolutionGenerationContextResolver {
     public enum Availability {
         READY,
         FORECAST_PENDING,
+        FORECAST_OUT_OF_RANGE,
         INSUFFICIENT_HISTORY,
         EMPTY
     }

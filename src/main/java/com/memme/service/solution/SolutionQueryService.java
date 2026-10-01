@@ -158,7 +158,7 @@ public class SolutionQueryService {
                     INSUFFICIENT_HISTORY_HELPER_TEXT
             );
             case FORECAST_PENDING -> response(
-                    "오늘의 솔루션은 매일 자정에 준비됩니다.",
+                    "오늘의 솔루션을 준비하고 있습니다.",
                     "EMPTY",
                     null,
                     null,
@@ -166,8 +166,17 @@ public class SolutionQueryService {
                     List.of(),
                     null
             );
+            case FORECAST_OUT_OF_RANGE -> response(
+                    recentSalesUploadMessage(targetDate),
+                    "FORECAST_OUT_OF_RANGE",
+                    null,
+                    null,
+                    targetDate,
+                    List.of(),
+                    "솔루션 생성에는 연속 3개월 이상의 매출 이력도 필요합니다."
+            );
             case READY -> response(
-                    "오늘의 솔루션은 매일 자정에 준비됩니다.",
+                    "오늘의 솔루션을 준비하고 있습니다.",
                     "EMPTY",
                     null,
                     null,
@@ -176,6 +185,12 @@ public class SolutionQueryService {
                     null
             );
         };
+    }
+
+    private String recentSalesUploadMessage(LocalDate targetDate) {
+        LocalDate earliestSalesDate = targetDate.minusDays(35);
+        return earliestSalesDate.getYear() + "년 " + earliestSalesDate.getMonthValue() + "월 "
+                + earliestSalesDate.getDayOfMonth() + "일 이후 매출이 포함된 파일을 업로드해 주세요.";
     }
 
     private SolutionTodayResponse response(

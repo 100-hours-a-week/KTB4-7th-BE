@@ -171,7 +171,7 @@ public class SalesSolutionGenerationService {
                     SalesSolutionGenerationResult.Status.INSUFFICIENT_HISTORY,
                     null
             );
-            case FORECAST_PENDING -> SalesSolutionGenerationResult.of(
+            case FORECAST_PENDING, FORECAST_OUT_OF_RANGE -> SalesSolutionGenerationResult.of(
                     SalesSolutionGenerationResult.Status.FORECAST_PENDING,
                     null
             );
