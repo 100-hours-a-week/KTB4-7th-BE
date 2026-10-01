@@ -46,7 +46,9 @@ public class SalesSolutionMetricsAssembler {
             SalesForecastEntity forecast
     ) {
         LocalDate start = analysisRun.getPeriodStart();
-        LocalDate end = analysisRun.getPeriodEnd();
+        LocalDate end = analysisRun.getPeriodEnd().isBefore(forecast.getTargetDate())
+                ? analysisRun.getPeriodEnd()
+                : forecast.getTargetDate().minusDays(1);
         long days = ChronoUnit.DAYS.between(start, end) + 1;
         LocalDate previousEnd = start.minusDays(1);
         LocalDate previousStart = previousEnd.minusDays(days - 1);
