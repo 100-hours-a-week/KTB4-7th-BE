@@ -27,9 +27,15 @@ public class LoginController {
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(
             @Valid @RequestBody LoginRequest request,
-            HttpSession session
+            HttpServletRequest servletRequest
     ) {
         LoginService.LoginResult result = loginService.login(request);
+        HttpSession session = servletRequest.getSession(false);
+        if (session == null) {
+            session = servletRequest.getSession();
+        } else {
+            servletRequest.changeSessionId();
+        }
         session.setAttribute(
                 AuthenticatedUserSession.SESSION_ATTRIBUTE,
                 new AuthenticatedUserSession(result.userId(), result.storeId())

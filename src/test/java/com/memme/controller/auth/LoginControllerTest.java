@@ -1,6 +1,8 @@
 package com.memme.controller.auth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -12,6 +14,7 @@ import com.memme.dto.auth.LoginRequest;
 import com.memme.dto.auth.LoginResponse;
 import com.memme.dto.common.ApiResponse;
 import com.memme.exception.GlobalExceptionHandler;
+import com.memme.exception.auth.InvalidLoginException;
 import com.memme.service.auth.LoginService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -25,6 +28,67 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 class LoginControllerTest {
+
+    @Test
+    void 기존_세션으로_로그인에_성공하면_세션_ID를_교체한다() throws Exception {
+        LoginService loginService = mock(LoginService.class);
+        LoginRequest loginRequest = new LoginRequest("owner@memme.com", "password");
+        when(loginService.login(loginRequest))
+                .thenReturn(new LoginService.LoginResult(1L, "owner@memme.com", 10L));
+        MockHttpSession session = new MockHttpSession();
+        String previousSessionId = session.getId();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new LoginController(loginService)).build();
+
+        var result = mockMvc.perform(MockMvcRequestBuilders.post("/v1/auth/login")
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"owner@memme.com\",\"password\":\"password\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertNotEquals(previousSessionId, result.getRequest().getSession(false).getId());
+        assertEquals(new AuthenticatedUserSession(1L, 10L),
+                result.getRequest().getSession(false).getAttribute(AuthenticatedUserSession.SESSION_ATTRIBUTE));
+    }
+
+    @Test
+    void 세션이_없는_상태에서_로그인하면_새_인증_세션을_만든다() throws Exception {
+        LoginService loginService = mock(LoginService.class);
+        LoginRequest loginRequest = new LoginRequest("owner@memme.com", "password");
+        when(loginService.login(loginRequest))
+                .thenReturn(new LoginService.LoginResult(1L, "owner@memme.com", 10L));
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new LoginController(loginService)).build();
+
+        var result = mockMvc.perform(MockMvcRequestBuilders.post("/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"owner@memme.com\",\"password\":\"password\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertEquals(new AuthenticatedUserSession(1L, 10L),
+                result.getRequest().getSession(false).getAttribute(AuthenticatedUserSession.SESSION_ATTRIBUTE));
+    }
+
+    @Test
+    void 로그인에_실패하면_기존_비인증_세션_ID를_유지한다() throws Exception {
+        LoginService loginService = mock(LoginService.class);
+        LoginRequest loginRequest = new LoginRequest("owner@memme.com", "wrong-password");
+        when(loginService.login(loginRequest)).thenThrow(new InvalidLoginException());
+        MockHttpSession session = new MockHttpSession();
+        String previousSessionId = session.getId();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new LoginController(loginService))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/v1/auth/login")
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"owner@memme.com\",\"password\":\"wrong-password\"}"))
+                .andExpect(status().isUnauthorized());
+
+        assertEquals(previousSessionId, session.getId());
+        assertNull(session.getAttribute(AuthenticatedUserSession.SESSION_ATTRIBUTE));
+    }
 
     @Test
     void 로그인_세션을_무효화하고_204_응답을_반환한다() {
@@ -58,9 +122,11 @@ class LoginControllerTest {
         LoginController loginController = new LoginController(loginService);
         LoginRequest request = new LoginRequest("owner@memme.com", "password");
         MockHttpSession session = new MockHttpSession();
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        servletRequest.setSession(session);
         when(loginService.login(request)).thenReturn(new LoginService.LoginResult(1L, "owner@memme.com", 10L));
 
-        ResponseEntity<ApiResponse<LoginResponse>> response = loginController.login(request, session);
+        ResponseEntity<ApiResponse<LoginResponse>> response = loginController.login(request, servletRequest);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("로그인에 성공했습니다.", response.getBody().message());
