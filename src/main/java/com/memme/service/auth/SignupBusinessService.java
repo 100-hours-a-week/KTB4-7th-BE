@@ -97,7 +97,9 @@ public class SignupBusinessService {
                 ))
                 .toList();
         storeBusinessHoursRepository.saveAll(businessHours);
-        notificationPreferenceRepository.save(NotificationPreference.create(user, now));
+        NotificationPreference notificationPreference = NotificationPreference.create(user, now);
+        notificationPreference.updatePreferences(true, null, now);
+        notificationPreferenceRepository.save(notificationPreference);
         if (verification != null) {
             verification.markUsedAt(now);
         }
