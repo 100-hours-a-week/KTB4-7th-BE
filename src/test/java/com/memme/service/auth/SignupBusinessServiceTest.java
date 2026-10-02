@@ -1,8 +1,10 @@
 package com.memme.service.auth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -82,7 +84,10 @@ class SignupBusinessServiceTest {
         assertEquals("맴매카페", response.store().storeName());
         assertEquals("LOGIN", response.next());
         verify(storeBusinessHoursRepository).saveAll(any());
-        verify(notificationPreferenceRepository).save(any(NotificationPreference.class));
+        ArgumentCaptor<NotificationPreference> preferenceCaptor = ArgumentCaptor.forClass(NotificationPreference.class);
+        verify(notificationPreferenceRepository).save(preferenceCaptor.capture());
+        assertTrue(preferenceCaptor.getValue().isSolutionEnabled());
+        assertFalse(preferenceCaptor.getValue().isSalesUploadReminderEnabled());
         assertEquals(NOW, fieldValue(verification, "usedAt"));
     }
 
