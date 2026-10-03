@@ -1,6 +1,7 @@
 package com.memme.exception;
 
 import com.memme.dto.auth.PasswordResetEmailRequest;
+import com.memme.dto.auth.PasswordResetRateLimitErrorResponse;
 import com.memme.dto.common.ApiResponse;
 import com.memme.dto.common.FieldError;
 import com.memme.dto.common.FieldErrors;
@@ -13,6 +14,7 @@ import com.memme.exception.auth.InvalidPasswordChangeRequestException;
 import com.memme.exception.auth.InvalidPasswordResetRequestException;
 import com.memme.exception.auth.InvalidSignupRequestException;
 import com.memme.exception.auth.PasswordResetTokenExpiredException;
+import com.memme.exception.auth.PasswordResetRateLimitExceededException;
 import com.memme.exception.auth.SignupCompletionExpiredException;
 import com.memme.exception.chat.ChatInsufficientDataException;
 import com.memme.exception.chat.ChatRequestException;
@@ -230,6 +232,16 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity.status(HttpStatus.GONE)
                 .body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
+    @ExceptionHandler(PasswordResetRateLimitExceededException.class)
+    public ResponseEntity<PasswordResetRateLimitErrorResponse> handlePasswordResetRateLimitExceeded(
+            PasswordResetRateLimitExceededException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(new PasswordResetRateLimitErrorResponse(
+                        exception.getMessage(), null, exception.getRetryAfterSeconds()
+                ));
     }
 
     @ExceptionHandler(BusinessStatusNotEligibleException.class)

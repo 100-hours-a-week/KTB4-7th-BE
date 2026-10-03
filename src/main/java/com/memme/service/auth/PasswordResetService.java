@@ -29,6 +29,7 @@ public class PasswordResetService {
     private final UserRepository userRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordResetMailSender passwordResetMailSender;
+    private final PasswordResetRateLimiter passwordResetRateLimiter;
     private final PasswordEncoder passwordEncoder;
     private final String passwordResetUrl;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -37,17 +38,20 @@ public class PasswordResetService {
             UserRepository userRepository,
             PasswordResetTokenRepository passwordResetTokenRepository,
             PasswordResetMailSender passwordResetMailSender,
+            PasswordResetRateLimiter passwordResetRateLimiter,
             PasswordEncoder passwordEncoder,
             @Value("${password-reset.url}") String passwordResetUrl
     ) {
         this.userRepository = userRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.passwordResetMailSender = passwordResetMailSender;
+        this.passwordResetRateLimiter = passwordResetRateLimiter;
         this.passwordEncoder = passwordEncoder;
         this.passwordResetUrl = passwordResetUrl;
     }
 
-    public void requestResetEmail(PasswordResetEmailRequest request) {
+    public void requestResetEmail(PasswordResetEmailRequest request, String clientIp) {
+        passwordResetRateLimiter.recordIfAllowed(request.email(), clientIp);
         userRepository.findByEmailAndDeletedAtIsNull(request.email()).ifPresent(user -> {
             LocalDateTime now = LocalDateTime.now();
             String rawToken = generateRawToken();

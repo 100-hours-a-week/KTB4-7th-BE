@@ -39,6 +39,11 @@ password-reset:
   url: ${PASSWORD_RESET_URL}
 
 app:
+  security:
+    trust-x-forwarded-for: ${TRUST_X_FORWARDED_FOR:false}
+  password-reset:
+    rate-limit:
+      hash-key: ${PASSWORD_RESET_RATE_LIMIT_HASH_KEY:}
   qa-account:
     enabled: ${QA_ACCOUNT_ENABLED:false}
     email: ${QA_ACCOUNT_EMAIL:}

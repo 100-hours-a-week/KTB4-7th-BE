@@ -12,6 +12,7 @@ import com.memme.dto.auth.PasswordResetRequest;
 import com.memme.dto.common.FieldError;
 import com.memme.exception.GlobalExceptionHandler;
 import com.memme.exception.auth.InvalidPasswordResetRequestException;
+import com.memme.exception.auth.PasswordResetRateLimitExceededException;
 import com.memme.exception.auth.PasswordResetTokenExpiredException;
 import com.memme.service.auth.PasswordResetService;
 import java.util.List;
@@ -36,7 +37,27 @@ class PasswordResetControllerTest {
                 .andExpect(jsonPath("$.message").value("입력한 이메일로 비밀번호 재설정 안내를 보냈습니다."))
                 .andExpect(jsonPath("$.data").doesNotExist());
 
-        verify(passwordResetService).requestResetEmail(new PasswordResetEmailRequest("owner@memme.com"));
+        verify(passwordResetService).requestResetEmail(
+                new PasswordResetEmailRequest("owner@memme.com"), "127.0.0.1"
+        );
+    }
+
+    @Test
+    void 비밀번호_재설정_요청_제한_초과는_429와_재시도_초를_반환한다() throws Exception {
+        PasswordResetService passwordResetService = mock(PasswordResetService.class);
+        doThrow(new PasswordResetRateLimitExceededException(120))
+                .when(passwordResetService).requestResetEmail(
+                        new PasswordResetEmailRequest("owner@memme.com"), "127.0.0.1"
+                );
+        MockMvc mockMvc = mockMvc(passwordResetService);
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/v1/auth/password-reset/email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": \"owner@memme.com\"}"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.message").value("요청이 너무 많습니다. 잠시 후 다시 시도해주세요."))
+                .andExpect(jsonPath("$.data").doesNotExist())
+                .andExpect(jsonPath("$.retryAfterSeconds").value(120));
     }
 
     @Test
@@ -124,7 +145,9 @@ class PasswordResetControllerTest {
     private MockMvc mockMvc(PasswordResetService passwordResetService) {
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
-        return MockMvcBuilders.standaloneSetup(new PasswordResetController(passwordResetService))
+        return MockMvcBuilders.standaloneSetup(new PasswordResetController(
+                        passwordResetService, new ClientIpResolver(false)
+                ))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
                 .build();

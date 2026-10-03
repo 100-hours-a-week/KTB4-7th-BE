@@ -13,6 +13,7 @@ import com.memme.dto.auth.PasswordResetRequest;
 import com.memme.entity.auth.PasswordResetToken;
 import com.memme.entity.auth.User;
 import com.memme.exception.auth.InvalidPasswordResetRequestException;
+import com.memme.exception.auth.PasswordResetRateLimitExceededException;
 import com.memme.exception.auth.PasswordResetTokenExpiredException;
 import com.memme.repository.auth.PasswordResetTokenRepository;
 import com.memme.repository.auth.UserRepository;
@@ -31,11 +32,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 class PasswordResetServiceTest {
 
     private static final String EMAIL = "owner@memme.com";
+    private static final String CLIENT_IP = "203.0.113.15";
     private static final String FRONTEND_RESET_URL = "http://localhost:5173/password-reset";
 
     @Mock private UserRepository userRepository;
     @Mock private PasswordResetTokenRepository passwordResetTokenRepository;
     @Mock private PasswordResetMailSender passwordResetMailSender;
+    @Mock private PasswordResetRateLimiter passwordResetRateLimiter;
     @Mock private PasswordEncoder passwordEncoder;
 
     private PasswordResetService passwordResetService;
@@ -46,6 +49,7 @@ class PasswordResetServiceTest {
                 userRepository,
                 passwordResetTokenRepository,
                 passwordResetMailSender,
+                passwordResetRateLimiter,
                 passwordEncoder,
                 FRONTEND_RESET_URL
         );
@@ -57,7 +61,7 @@ class PasswordResetServiceTest {
         when(userRepository.findByEmailAndDeletedAtIsNull(EMAIL)).thenReturn(Optional.of(user));
         LocalDateTime beforeRequest = LocalDateTime.now();
 
-        passwordResetService.requestResetEmail(new PasswordResetEmailRequest(EMAIL));
+        passwordResetService.requestResetEmail(new PasswordResetEmailRequest(EMAIL), CLIENT_IP);
 
         ArgumentCaptor<PasswordResetToken> tokenCaptor = ArgumentCaptor.forClass(PasswordResetToken.class);
         ArgumentCaptor<String> linkCaptor = ArgumentCaptor.forClass(String.class);
@@ -79,10 +83,23 @@ class PasswordResetServiceTest {
     void 가입되지_않은_이메일이어도_동일하게_처리하고_토큰과_메일을_만들지_않는다() {
         when(userRepository.findByEmailAndDeletedAtIsNull(EMAIL)).thenReturn(Optional.empty());
 
-        passwordResetService.requestResetEmail(new PasswordResetEmailRequest(EMAIL));
+        passwordResetService.requestResetEmail(new PasswordResetEmailRequest(EMAIL), CLIENT_IP);
 
+        verify(passwordResetRateLimiter).recordIfAllowed(EMAIL, CLIENT_IP);
         verify(passwordResetTokenRepository, never()).save(any());
         verifyNoInteractions(passwordResetMailSender);
+    }
+
+    @Test
+    void 요청_제한에_걸리면_계정조회와_토큰저장_메일발송을_하지_않는다() {
+        org.mockito.Mockito.doThrow(new PasswordResetRateLimitExceededException(120))
+                .when(passwordResetRateLimiter).recordIfAllowed(EMAIL, CLIENT_IP);
+
+        assertThatThrownBy(() -> passwordResetService.requestResetEmail(
+                new PasswordResetEmailRequest(EMAIL), CLIENT_IP
+        )).isInstanceOf(PasswordResetRateLimitExceededException.class);
+
+        verifyNoInteractions(userRepository, passwordResetTokenRepository, passwordResetMailSender);
     }
 
     @Test
