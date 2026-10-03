@@ -41,6 +41,17 @@ CREATE TABLE password_reset_tokens (
     FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB;
 
+CREATE TABLE password_reset_email_attempts (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  email_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  ip_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  requested_at DATETIME(6) NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_password_reset_attempts_email_requested (email_hash, requested_at),
+  KEY idx_password_reset_attempts_ip_requested (ip_hash, requested_at),
+  KEY idx_password_reset_attempts_requested_at (requested_at)
+) ENGINE=InnoDB;
+
 CREATE TABLE business_verifications (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   business_reg_number CHAR(10) NOT NULL,

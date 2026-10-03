@@ -27,3 +27,8 @@ sentry:
 
 password-reset:
   url: http://localhost:5173/password-reset
+
+app:
+  password-reset:
+    rate-limit:
+      hash-key: test-password-reset-rate-limit-key

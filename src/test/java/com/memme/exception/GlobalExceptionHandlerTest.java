@@ -12,6 +12,7 @@ import com.memme.exception.auth.InvalidCurrentPasswordException;
 import com.memme.exception.auth.InvalidLoginException;
 import com.memme.exception.auth.InvalidPasswordChangeRequestException;
 import com.memme.exception.auth.InvalidSignupRequestException;
+import com.memme.exception.auth.PasswordResetRateLimitExceededException;
 import com.memme.exception.auth.SignupCompletionExpiredException;
 import com.memme.exception.store.AddressSearchFailedException;
 import com.memme.exception.store.BusinessStatusNotEligibleException;
@@ -119,6 +120,18 @@ class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         assertEquals("이메일 또는 비밀번호가 올바르지 않습니다.", response.getBody().message());
         assertNull(response.getBody().data());
+    }
+
+    @Test
+    void 비밀번호_재설정_제한_초과는_429와_retryAfterSeconds로_응답한다() {
+        var response = exceptionHandler.handlePasswordResetRateLimitExceeded(
+                new PasswordResetRateLimitExceededException(120)
+        );
+
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, response.getStatusCode());
+        assertEquals("요청이 너무 많습니다. 잠시 후 다시 시도해주세요.", response.getBody().message());
+        assertNull(response.getBody().data());
+        assertEquals(120, response.getBody().retryAfterSeconds());
     }
 
     @Test
