@@ -63,6 +63,19 @@ class StoreProfileUpdateRequestTest {
     }
 
     @Test
+    void 매장명은_괄호를_허용하되_십오자를_넘길_수_없다() {
+        StoreProfileUpdateRequest branchName = new StoreProfileUpdateRequest(
+                "스타벅스(강남점)", null, null, null, null
+        );
+        StoreProfileUpdateRequest tooLong = new StoreProfileUpdateRequest(
+                "가나다라마바사아자차카타파하하거", null, null, null, null
+        );
+
+        assertTrue(validator.validate(branchName).isEmpty());
+        assertTrue(paths(validator.validate(tooLong)).contains("storeName"));
+    }
+
+    @Test
     void 단순_입력값_형식은_Bean_Validation으로_검증한다() {
         StoreProfileUpdateRequest request = new StoreProfileUpdateRequest(
                 "맴매@카페",

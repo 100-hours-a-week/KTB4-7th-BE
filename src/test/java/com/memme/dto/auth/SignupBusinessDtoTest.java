@@ -117,9 +117,11 @@ class SignupBusinessDtoTest {
 
     @Test
     void 매장명은_요구사항의_허용문자와_최대_십오자_규칙을_검증한다() {
+        SignupBusinessRequest branchName = validRequest("스타벅스(강남점)");
         SignupBusinessRequest invalidCharacter = validRequest("맴매@카페");
         SignupBusinessRequest tooLong = validRequest("가나다라마바사아자차카타파하하거");
 
+        assertTrue(validator.validate(branchName).isEmpty());
         assertTrue(validator.validate(invalidCharacter).stream()
                 .map(violation -> violation.getPropertyPath().toString())
                 .anyMatch(path -> path.equals("storeName")));
