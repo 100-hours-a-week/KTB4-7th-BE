@@ -46,6 +46,9 @@ app:
   password-reset:
     rate-limit:
       hash-key: ${PASSWORD_RESET_RATE_LIMIT_HASH_KEY:}
+  login:
+    rate-limit:
+      hash-key: ${LOGIN_RATE_LIMIT_HASH_KEY:}
   qa-account:
     enabled: ${QA_ACCOUNT_ENABLED:false}
     email: ${QA_ACCOUNT_EMAIL:}

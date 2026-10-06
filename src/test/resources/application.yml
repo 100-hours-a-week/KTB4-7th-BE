@@ -34,3 +34,6 @@ app:
   password-reset:
     rate-limit:
       hash-key: test-password-reset-rate-limit-key
+  login:
+    rate-limit:
+      hash-key: test-login-rate-limit-key
