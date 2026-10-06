@@ -29,6 +29,8 @@ password-reset:
   url: http://localhost:5173/password-reset
 
 app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   password-reset:
     rate-limit:
       hash-key: test-password-reset-rate-limit-key
