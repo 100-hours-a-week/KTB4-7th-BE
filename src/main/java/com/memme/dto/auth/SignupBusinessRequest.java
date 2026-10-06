@@ -13,7 +13,7 @@ public record SignupBusinessRequest(
         @NotBlank(message = "매장명을 입력해 주세요.")
         @Size(max = 15, message = "매장명은 15자 이하여야 합니다.")
         @Pattern(
-                regexp = "^$|^[가-힣A-Za-z0-9 ,&·-]+$",
+                regexp = "^$|^[가-힣A-Za-z0-9 ,&·()-]+$",
                 message = "매장명에 사용할 수 없는 문자가 포함되어 있습니다."
         )
         String storeName,
