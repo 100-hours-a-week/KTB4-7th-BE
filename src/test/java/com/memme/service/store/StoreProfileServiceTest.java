@@ -71,14 +71,29 @@ class StoreProfileServiceTest {
         assertThrows(StoreProfileNotFoundException.class, () -> storeProfileService.getProfile(1L));
     }
 
+    @Test
+    void 사업자등록번호가_없는_매장도_조회한다() throws Exception {
+        Store store = store(10L, null);
+        when(storeRepository.findByOwnerId(1L)).thenReturn(Optional.of(store));
+        when(storeBusinessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(List.of());
+
+        StoreProfileResponse response = storeProfileService.getProfile(1L);
+
+        assertThat(response.store().businessRegNumber()).isNull();
+    }
+
     private Store store(Long id) throws Exception {
+        return store(id, "1234567890");
+    }
+
+    private Store store(Long id, String businessRegistrationNo) throws Exception {
         User owner = User.create(
                 "owner@memme.com", "encoded-password", "01012345678", LocalDateTime.of(2026, 9, 24, 9, 0)
         );
         Store store = Store.create(
                 owner,
-                "1234567890",
-                LocalDateTime.of(2026, 9, 24, 9, 0),
+                businessRegistrationNo,
+                businessRegistrationNo == null ? null : LocalDateTime.of(2026, 9, 24, 9, 0),
                 "맴매카페",
                 "06236",
                 "서울특별시 강남구 테헤란로 123",

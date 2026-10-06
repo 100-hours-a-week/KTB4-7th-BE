@@ -57,6 +57,9 @@ public class StoreProfileService {
     }
 
     private String maskBusinessRegistrationNo(String businessRegistrationNo) {
+        if (businessRegistrationNo == null || businessRegistrationNo.isBlank()) {
+            return null;
+        }
         return businessRegistrationNo.substring(0, 3) + "-"
                 + businessRegistrationNo.substring(3, 5) + "-"
                 + "*****";
