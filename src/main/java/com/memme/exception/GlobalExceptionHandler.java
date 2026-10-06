@@ -32,6 +32,10 @@ import com.memme.exception.store.EmptyStoreProfileUpdateException;
 import com.memme.exception.store.InvalidStoreProfileUpdateRequestException;
 import com.memme.exception.store.StoreProfileNotFoundException;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -42,9 +46,13 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
+@Order(Ordered.LOWEST_PRECEDENCE)
 public class GlobalExceptionHandler {
 
     private static final String INVALID_REQUEST_FORMAT_MESSAGE = "요청 형식이 올바르지 않습니다.";
+    private static final String INTERNAL_SERVER_ERROR_MESSAGE =
+            "서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ChatInsufficientDataException.class)
     public ResponseEntity<StatusResponse<ChatMissingDataResponse>> handleChatInsufficientData(
@@ -286,6 +294,13 @@ public class GlobalExceptionHandler {
                 .toList();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiResponse<>("입력값을 확인해 주세요.", new FieldErrors(fieldErrors)));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnhandledException(Exception exception) {
+        log.error("Unhandled server exception", exception);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(INTERNAL_SERVER_ERROR_MESSAGE, null));
     }
 
     private ResponseEntity<ApiResponse<Void>> badRequestResponse() {
