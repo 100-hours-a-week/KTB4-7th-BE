@@ -15,6 +15,7 @@ import com.memme.dto.common.FieldErrors;
 import com.memme.exception.auth.DuplicateSignupException;
 import com.memme.exception.auth.InvalidCurrentPasswordException;
 import com.memme.exception.auth.InvalidLoginException;
+import com.memme.exception.auth.LoginRateLimitExceededException;
 import com.memme.exception.auth.InvalidPasswordChangeRequestException;
 import com.memme.exception.auth.InvalidSignupRequestException;
 import com.memme.exception.auth.PasswordResetRateLimitExceededException;
@@ -167,6 +168,16 @@ class GlobalExceptionHandlerTest {
         assertEquals("요청이 너무 많습니다. 잠시 후 다시 시도해주세요.", response.getBody().message());
         assertNull(response.getBody().data());
         assertEquals(120, response.getBody().retryAfterSeconds());
+    }
+
+    @Test
+    void 로그인_제한_초과는_일반적인_429와_retryAfterSeconds로_응답한다() {
+        var response = exceptionHandler.handleLoginRateLimitExceeded(new LoginRateLimitExceededException(30));
+
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, response.getStatusCode());
+        assertEquals("요청이 너무 많습니다. 잠시 후 다시 시도해주세요.", response.getBody().message());
+        assertNull(response.getBody().data());
+        assertEquals(30, response.getBody().retryAfterSeconds());
     }
 
     @Test

@@ -15,27 +15,42 @@ public class LoginService {
     private final UserRepository userRepository;
     private final StoreRepository storeRepository;
     private final PasswordEncoder passwordEncoder;
+    private final LoginRateLimiter loginRateLimiter;
 
     public LoginService(
             UserRepository userRepository,
             StoreRepository storeRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            LoginRateLimiter loginRateLimiter
     ) {
         this.userRepository = userRepository;
         this.storeRepository = storeRepository;
         this.passwordEncoder = passwordEncoder;
+        this.loginRateLimiter = loginRateLimiter;
     }
 
-    public LoginResult login(LoginRequest request) {
-        User user = userRepository.findByEmailAndDeletedAtIsNull(request.email())
-                .orElseThrow(InvalidLoginException::new);
-        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new InvalidLoginException();
+    public LoginResult login(LoginRequest request, String ipAddress) {
+        loginRateLimiter.checkAllowed(request.email(), ipAddress);
+        User user = userRepository.findByEmailAndDeletedAtIsNull(request.email()).orElse(null);
+        if (user == null) {
+            return rejectLogin(request.email(), ipAddress);
         }
-        Store store = storeRepository.findByOwnerId(user.getId())
-                .orElseThrow(InvalidLoginException::new);
+        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            return rejectLogin(request.email(), ipAddress);
+        }
+        Store store = storeRepository.findByOwnerId(user.getId()).orElse(null);
+        if (store == null) {
+            return rejectLogin(request.email(), ipAddress);
+        }
+
+        loginRateLimiter.clearAccountFailures(request.email(), ipAddress);
 
         return new LoginResult(user.getId(), user.getEmail(), store.getId());
+    }
+
+    private LoginResult rejectLogin(String email, String ipAddress) {
+        loginRateLimiter.recordFailure(email, ipAddress);
+        throw new InvalidLoginException();
     }
 
     public record LoginResult(Long userId, String email, Long storeId) {

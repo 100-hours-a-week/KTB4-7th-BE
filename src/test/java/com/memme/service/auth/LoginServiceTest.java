@@ -2,17 +2,25 @@ package com.memme.service.auth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.memme.dto.auth.LoginRequest;
 import com.memme.entity.auth.User;
 import com.memme.entity.store.Store;
 import com.memme.exception.auth.InvalidLoginException;
+import com.memme.exception.auth.LoginRateLimitExceededException;
+import com.memme.repository.auth.LoginRateLimitRepository;
 import com.memme.repository.auth.UserRepository;
 import com.memme.repository.store.StoreRepository;
 import java.lang.reflect.Field;
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,12 +34,27 @@ class LoginServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private StoreRepository storeRepository;
     @Mock private PasswordEncoder passwordEncoder;
+    @Mock private LoginRateLimitRepository loginRateLimitRepository;
+    @Mock private LoginRateLimitKeyHasher loginRateLimitKeyHasher;
 
     private LoginService loginService;
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 6, 12, 0);
 
     @BeforeEach
     void setUp() {
-        loginService = new LoginService(userRepository, storeRepository, passwordEncoder);
+        Clock clock = Clock.fixed(NOW.atZone(ZoneId.of("Asia/Seoul")).toInstant(), ZoneId.of("Asia/Seoul"));
+        lenient().when(loginRateLimitKeyHasher.hashEmail(anyString())).thenReturn("email-hash");
+        lenient().when(loginRateLimitKeyHasher.hashIp(anyString())).thenReturn("ip-hash");
+        lenient().when(loginRateLimitRepository.checkAllowed(anyString(), anyString(), any()))
+                .thenReturn(Optional.empty());
+        lenient().when(loginRateLimitRepository.recordFailureIfAllowed(anyString(), anyString(), any()))
+                .thenReturn(Optional.empty());
+        lenient().when(loginRateLimitRepository.clearAccountFailuresIfAllowed(anyString(), anyString(), any()))
+                .thenReturn(Optional.empty());
+        LoginRateLimiter rateLimiter = new LoginRateLimiter(
+                loginRateLimitRepository, loginRateLimitKeyHasher, clock
+        );
+        loginService = new LoginService(userRepository, storeRepository, passwordEncoder, rateLimiter);
     }
 
     @Test
@@ -42,7 +65,9 @@ class LoginServiceTest {
         when(passwordEncoder.matches("password", "encoded-password")).thenReturn(true);
         when(storeRepository.findByOwnerId(1L)).thenReturn(Optional.of(store));
 
-        LoginService.LoginResult result = loginService.login(new LoginRequest("owner@memme.com", "password"));
+        LoginService.LoginResult result = loginService.login(
+                new LoginRequest("owner@memme.com", "password"), "203.0.113.8"
+        );
 
         assertEquals(1L, result.userId());
         assertEquals("owner@memme.com", result.email());
@@ -55,7 +80,7 @@ class LoginServiceTest {
 
         assertThrows(
                 InvalidLoginException.class,
-                () -> loginService.login(new LoginRequest("missing@memme.com", "password"))
+                () -> loginService.login(new LoginRequest("missing@memme.com", "password"), "203.0.113.8")
         );
     }
 
@@ -67,8 +92,33 @@ class LoginServiceTest {
 
         assertThrows(
                 InvalidLoginException.class,
-                () -> loginService.login(new LoginRequest("owner@memme.com", "wrong-password"))
+                () -> loginService.login(new LoginRequest("owner@memme.com", "wrong-password"), "203.0.113.8")
         );
+    }
+
+    @Test
+    void 다섯번_실패한_뒤_계정_쿨다운에_걸리면_429용_예외를_던진다() {
+        LoginRequest request = new LoginRequest("missing@memme.com", "wrong-password");
+        AtomicInteger recordedFailures = new AtomicInteger();
+        when(userRepository.findByEmailAndDeletedAtIsNull(request.email())).thenReturn(Optional.empty());
+        when(loginRateLimitRepository.checkAllowed(anyString(), anyString(), any()))
+                .thenAnswer(invocation -> recordedFailures.get() >= 5
+                        ? Optional.of(NOW.plusSeconds(30))
+                        : Optional.empty());
+        when(loginRateLimitRepository.recordFailureIfAllowed(anyString(), anyString(), any()))
+                .thenAnswer(invocation -> {
+                    recordedFailures.incrementAndGet();
+                    return Optional.empty();
+                });
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+            assertThrows(InvalidLoginException.class, () -> loginService.login(request, "203.0.113.8"));
+        }
+
+        LoginRateLimitExceededException exception = assertThrows(
+                LoginRateLimitExceededException.class, () -> loginService.login(request, "203.0.113.8")
+        );
+        assertEquals(30, exception.getRetryAfterSeconds());
     }
 
     private User user(Long id) throws Exception {

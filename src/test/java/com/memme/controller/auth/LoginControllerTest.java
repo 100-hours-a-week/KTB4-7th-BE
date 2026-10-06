@@ -15,6 +15,7 @@ import com.memme.dto.auth.LoginResponse;
 import com.memme.dto.common.ApiResponse;
 import com.memme.exception.GlobalExceptionHandler;
 import com.memme.exception.auth.InvalidLoginException;
+import com.memme.exception.auth.LoginRateLimitExceededException;
 import com.memme.service.auth.LoginService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -33,11 +34,11 @@ class LoginControllerTest {
     void 기존_세션으로_로그인에_성공하면_세션_ID를_교체한다() throws Exception {
         LoginService loginService = mock(LoginService.class);
         LoginRequest loginRequest = new LoginRequest("owner@memme.com", "password");
-        when(loginService.login(loginRequest))
+        when(loginService.login(loginRequest, "127.0.0.1"))
                 .thenReturn(new LoginService.LoginResult(1L, "owner@memme.com", 10L));
         MockHttpSession session = new MockHttpSession();
         String previousSessionId = session.getId();
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new LoginController(loginService)).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller(loginService)).build();
 
         var result = mockMvc.perform(MockMvcRequestBuilders.post("/v1/auth/login")
                         .session(session)
@@ -55,9 +56,9 @@ class LoginControllerTest {
     void 세션이_없는_상태에서_로그인하면_새_인증_세션을_만든다() throws Exception {
         LoginService loginService = mock(LoginService.class);
         LoginRequest loginRequest = new LoginRequest("owner@memme.com", "password");
-        when(loginService.login(loginRequest))
+        when(loginService.login(loginRequest, "127.0.0.1"))
                 .thenReturn(new LoginService.LoginResult(1L, "owner@memme.com", 10L));
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new LoginController(loginService)).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller(loginService)).build();
 
         var result = mockMvc.perform(MockMvcRequestBuilders.post("/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -73,10 +74,10 @@ class LoginControllerTest {
     void 로그인에_실패하면_기존_비인증_세션_ID를_유지한다() throws Exception {
         LoginService loginService = mock(LoginService.class);
         LoginRequest loginRequest = new LoginRequest("owner@memme.com", "wrong-password");
-        when(loginService.login(loginRequest)).thenThrow(new InvalidLoginException());
+        when(loginService.login(loginRequest, "127.0.0.1")).thenThrow(new InvalidLoginException());
         MockHttpSession session = new MockHttpSession();
         String previousSessionId = session.getId();
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new LoginController(loginService))
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller(loginService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -91,9 +92,28 @@ class LoginControllerTest {
     }
 
     @Test
+    void 요청_제한에_걸리면_429와_retryAfterSeconds를_반환하고_세션을_만들지_않는다() throws Exception {
+        LoginService loginService = mock(LoginService.class);
+        LoginRequest loginRequest = new LoginRequest("owner@memme.com", "password");
+        when(loginService.login(loginRequest, "127.0.0.1"))
+                .thenThrow(new LoginRateLimitExceededException(30));
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller(loginService))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"owner@memme.com\",\"password\":\"password\"}"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.message").value("요청이 너무 많습니다. 잠시 후 다시 시도해주세요."))
+                .andExpect(jsonPath("$.data").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.retryAfterSeconds").value(30));
+    }
+
+    @Test
     void 로그인_세션을_무효화하고_204_응답을_반환한다() {
         LoginService loginService = mock(LoginService.class);
-        LoginController loginController = new LoginController(loginService);
+        LoginController loginController = controller(loginService);
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpSession session = new MockHttpSession();
         request.setSession(session);
@@ -108,7 +128,7 @@ class LoginControllerTest {
     @Test
     void 로그인_세션이_없어도_204_응답을_반환한다() {
         LoginService loginService = mock(LoginService.class);
-        LoginController loginController = new LoginController(loginService);
+        LoginController loginController = controller(loginService);
 
         ResponseEntity<Void> response = loginController.logout(new MockHttpServletRequest());
 
@@ -119,12 +139,13 @@ class LoginControllerTest {
     @Test
     void 로그인에_성공하면_세션에_인증사용자를_저장하고_200_응답을_반환한다() {
         LoginService loginService = mock(LoginService.class);
-        LoginController loginController = new LoginController(loginService);
+        LoginController loginController = controller(loginService);
         LoginRequest request = new LoginRequest("owner@memme.com", "password");
         MockHttpSession session = new MockHttpSession();
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         servletRequest.setSession(session);
-        when(loginService.login(request)).thenReturn(new LoginService.LoginResult(1L, "owner@memme.com", 10L));
+        when(loginService.login(request, "127.0.0.1"))
+                .thenReturn(new LoginService.LoginResult(1L, "owner@memme.com", 10L));
 
         ResponseEntity<ApiResponse<LoginResponse>> response = loginController.login(request, servletRequest);
 
@@ -136,7 +157,7 @@ class LoginControllerTest {
                 new AuthenticatedUserSession(1L, 10L),
                 session.getAttribute(AuthenticatedUserSession.SESSION_ATTRIBUTE)
         );
-        verify(loginService).login(request);
+        verify(loginService).login(request, "127.0.0.1");
     }
 
     @Test
@@ -144,7 +165,7 @@ class LoginControllerTest {
         LoginService loginService = mock(LoginService.class);
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new LoginController(loginService))
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller(loginService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
                 .build();
@@ -174,7 +195,7 @@ class LoginControllerTest {
         LoginService loginService = org.mockito.Mockito.mock(LoginService.class);
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new LoginController(loginService))
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller(loginService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
                 .build();
@@ -189,5 +210,9 @@ class LoginControllerTest {
                         "$.data").doesNotExist());
 
         verifyNoInteractions(loginService);
+    }
+
+    private LoginController controller(LoginService loginService) {
+        return new LoginController(loginService, new ClientIpResolver(false));
     }
 }

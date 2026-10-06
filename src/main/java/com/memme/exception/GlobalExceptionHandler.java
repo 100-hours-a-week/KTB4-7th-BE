@@ -2,6 +2,7 @@ package com.memme.exception;
 
 import com.memme.dto.auth.PasswordResetEmailRequest;
 import com.memme.dto.auth.PasswordResetRateLimitErrorResponse;
+import com.memme.dto.auth.LoginRateLimitErrorResponse;
 import com.memme.dto.common.ApiResponse;
 import com.memme.dto.common.FieldError;
 import com.memme.dto.common.FieldErrors;
@@ -10,6 +11,7 @@ import com.memme.exception.auth.AuthenticationRequiredException;
 import com.memme.exception.auth.DuplicateSignupException;
 import com.memme.exception.auth.InvalidCurrentPasswordException;
 import com.memme.exception.auth.InvalidLoginException;
+import com.memme.exception.auth.LoginRateLimitExceededException;
 import com.memme.exception.auth.InvalidPasswordChangeRequestException;
 import com.memme.exception.auth.InvalidPasswordResetRequestException;
 import com.memme.exception.auth.InvalidSignupRequestException;
@@ -188,6 +190,16 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleInvalidLogin(InvalidLoginException exception) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
+    @ExceptionHandler(LoginRateLimitExceededException.class)
+    public ResponseEntity<LoginRateLimitErrorResponse> handleLoginRateLimitExceeded(
+            LoginRateLimitExceededException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(new LoginRateLimitErrorResponse(
+                        exception.getMessage(), null, exception.getRetryAfterSeconds()
+                ));
     }
 
     @ExceptionHandler(InvalidCurrentPasswordException.class)

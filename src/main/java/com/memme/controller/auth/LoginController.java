@@ -19,9 +19,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class LoginController {
 
     private final LoginService loginService;
+    private final ClientIpResolver clientIpResolver;
 
-    public LoginController(LoginService loginService) {
+    public LoginController(LoginService loginService, ClientIpResolver clientIpResolver) {
         this.loginService = loginService;
+        this.clientIpResolver = clientIpResolver;
     }
 
     @PostMapping("/login")
@@ -29,7 +31,7 @@ public class LoginController {
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest servletRequest
     ) {
-        LoginService.LoginResult result = loginService.login(request);
+        LoginService.LoginResult result = loginService.login(request, clientIpResolver.resolve(servletRequest));
         HttpSession session = servletRequest.getSession(false);
         if (session == null) {
             session = servletRequest.getSession();
