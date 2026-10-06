@@ -1,8 +1,13 @@
 package com.memme.exception;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.memme.dto.common.ApiResponse;
 import com.memme.dto.common.FieldError;
@@ -24,10 +29,40 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 class GlobalExceptionHandlerTest {
 
     private final GlobalExceptionHandler exceptionHandler = new GlobalExceptionHandler();
+
+    @Test
+    void 미처리_예외는_공통_500_응답으로_변환하고_내부정보를_숨긴다() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new UnhandledExceptionController())
+                .setControllerAdvice(exceptionHandler)
+                .build();
+
+        var result = assertDoesNotThrow(() -> mockMvc.perform(get("/test/unhandled"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.message").value("서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."))
+                .andExpect(jsonPath("$.data").doesNotExist())
+                .andReturn());
+
+        String responseBody = result.getResponse().getContentAsString();
+        assertFalse(responseBody.contains("RuntimeException"));
+        assertFalse(responseBody.contains("sensitive internal detail"));
+    }
+
+    @RestController
+    private static class UnhandledExceptionController {
+
+        @GetMapping("/test/unhandled")
+        public void triggerUnhandledException() {
+            throw new RuntimeException("sensitive internal detail");
+        }
+    }
 
     @Test
     void 중복_회원가입_예외는_409_응답으로_변환한다() {
