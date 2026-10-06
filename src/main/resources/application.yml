@@ -39,6 +39,8 @@ password-reset:
   url: ${PASSWORD_RESET_URL}
 
 app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   security:
     trust-x-forwarded-for: ${TRUST_X_FORWARDED_FOR:false}
   password-reset:
