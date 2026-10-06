@@ -3,6 +3,7 @@ package com.memme.dto.store;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.time.DayOfWeek;
 import java.util.List;
@@ -13,6 +14,10 @@ public record StoreProfileUpdateRequest(
         String storeName,
         @Valid
         Address address,
+        @Pattern(regexp = "^\\d{10}$", message = "사업자등록번호는 숫자 10자리여야 합니다.")
+        String businessRegNumber,
+        @Positive(message = "사업자 인증 ID는 양수여야 합니다.")
+        Long businessVerificationId,
         @Size(min = 7, max = 7, message = "영업시간은 월요일부터 일요일까지 7건을 입력해 주세요.")
         List<@Valid BusinessHours> businessHours
 ) {

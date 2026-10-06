@@ -14,6 +14,8 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 
     boolean existsByBusinessRegistrationNo(String businessRegistrationNo);
 
+    boolean existsByBusinessRegistrationNoAndIdNot(String businessRegistrationNo, Long storeId);
+
     List<Store> findAllByStatus(StoreStatus status);
 
     @Query("""

@@ -28,9 +28,12 @@ import com.memme.exception.sales.SalesAnalysisRequestException;
 import com.memme.exception.sales.InternalSalesDataNotFoundException;
 import com.memme.exception.solution.SolutionRequestException;
 import com.memme.exception.store.AddressSearchFailedException;
+import com.memme.exception.store.BusinessVerificationExpiredException;
+import com.memme.exception.store.DuplicateBusinessRegistrationNumberException;
 import com.memme.exception.store.BusinessStatusNotEligibleException;
 import com.memme.exception.store.BusinessVerificationFailedException;
 import com.memme.exception.store.EmptyStoreProfileUpdateException;
+import com.memme.exception.store.InvalidStoreBusinessVerificationException;
 import com.memme.exception.store.InvalidStoreProfileUpdateRequestException;
 import com.memme.exception.store.StoreProfileNotFoundException;
 import java.util.List;
@@ -183,6 +186,30 @@ public class GlobalExceptionHandler {
             InvalidStoreProfileUpdateRequestException exception
     ) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(exception.getMessage(), new FieldErrors(exception.getFieldErrors())));
+    }
+
+    @ExceptionHandler(InvalidStoreBusinessVerificationException.class)
+    public ResponseEntity<ApiResponse<FieldErrors>> handleInvalidStoreBusinessVerification(
+            InvalidStoreBusinessVerificationException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
+                .body(new ApiResponse<>(exception.getMessage(), new FieldErrors(exception.getFieldErrors())));
+    }
+
+    @ExceptionHandler(BusinessVerificationExpiredException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBusinessVerificationExpired(
+            BusinessVerificationExpiredException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.GONE)
+                .body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
+    @ExceptionHandler(DuplicateBusinessRegistrationNumberException.class)
+    public ResponseEntity<ApiResponse<FieldErrors>> handleDuplicateBusinessRegistrationNumber(
+            DuplicateBusinessRegistrationNumberException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ApiResponse<>(exception.getMessage(), new FieldErrors(exception.getFieldErrors())));
     }
 
