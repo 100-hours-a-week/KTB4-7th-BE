@@ -1,7 +1,6 @@
 package com.memme.service.auth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -87,7 +86,7 @@ class SignupBusinessServiceTest {
         ArgumentCaptor<NotificationPreference> preferenceCaptor = ArgumentCaptor.forClass(NotificationPreference.class);
         verify(notificationPreferenceRepository).save(preferenceCaptor.capture());
         assertTrue(preferenceCaptor.getValue().isSolutionEnabled());
-        assertFalse(preferenceCaptor.getValue().isSalesUploadReminderEnabled());
+        assertTrue(preferenceCaptor.getValue().isSalesUploadReminderEnabled());
         assertEquals(NOW, fieldValue(verification, "usedAt"));
     }
 
