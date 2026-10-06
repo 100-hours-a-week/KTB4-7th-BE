@@ -62,7 +62,9 @@ class StoreControllerTest {
         MockHttpSession session = new MockHttpSession();
         session.setAttribute(AuthenticatedUserSession.SESSION_ATTRIBUTE, new AuthenticatedUserSession(1L, 10L));
         request.setSession(session);
-        StoreProfileUpdateRequest updateRequest = new StoreProfileUpdateRequest("수정된 맴매카페", null, null);
+        StoreProfileUpdateRequest updateRequest = new StoreProfileUpdateRequest(
+                "수정된 맴매카페", null, null, null, null
+        );
         when(storeProfileUpdateService.updateProfile(1L, updateRequest)).thenReturn(storeProfileUpdateResponse());
 
         ResponseEntity<ApiResponse<StoreProfileUpdateResponse>> response = storeController.updateProfile(
@@ -80,7 +82,9 @@ class StoreControllerTest {
         StoreProfileService storeProfileService = mock(StoreProfileService.class);
         StoreProfileUpdateService storeProfileUpdateService = mock(StoreProfileUpdateService.class);
         StoreController storeController = new StoreController(storeProfileService, storeProfileUpdateService);
-        StoreProfileUpdateRequest updateRequest = new StoreProfileUpdateRequest("수정된 맴매카페", null, null);
+        StoreProfileUpdateRequest updateRequest = new StoreProfileUpdateRequest(
+                "수정된 맴매카페", null, null, null, null
+        );
 
         assertThrows(
                 AuthenticationRequiredException.class,

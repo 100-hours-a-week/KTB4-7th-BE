@@ -21,9 +21,12 @@ import com.memme.exception.auth.InvalidSignupRequestException;
 import com.memme.exception.auth.PasswordResetRateLimitExceededException;
 import com.memme.exception.auth.SignupCompletionExpiredException;
 import com.memme.exception.store.AddressSearchFailedException;
+import com.memme.exception.store.BusinessVerificationExpiredException;
 import com.memme.exception.store.BusinessStatusNotEligibleException;
 import com.memme.exception.store.BusinessVerificationFailedException;
+import com.memme.exception.store.DuplicateBusinessRegistrationNumberException;
 import com.memme.exception.store.EmptyStoreProfileUpdateException;
+import com.memme.exception.store.InvalidStoreBusinessVerificationException;
 import com.memme.exception.store.InvalidStoreProfileUpdateRequestException;
 import com.memme.exception.store.StoreProfileNotFoundException;
 import java.util.List;
@@ -224,6 +227,39 @@ class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertEquals("입력값을 확인해 주세요.", response.getBody().message());
         assertEquals("businessHours", response.getBody().data().fieldErrors().getFirst().field());
+    }
+
+    @Test
+    void 매장_정보_수정_사업자_인증_불일치는_422_fieldErrors_응답으로_변환한다() {
+        ResponseEntity<ApiResponse<FieldErrors>> response = exceptionHandler.handleInvalidStoreBusinessVerification(
+                new InvalidStoreBusinessVerificationException()
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_CONTENT, response.getStatusCode());
+        assertEquals("입력값을 확인해 주세요.", response.getBody().message());
+        assertEquals("businessVerificationId", response.getBody().data().fieldErrors().getFirst().field());
+    }
+
+    @Test
+    void 매장_정보_수정_사업자_인증_만료는_410_응답으로_변환한다() {
+        ResponseEntity<ApiResponse<Void>> response = exceptionHandler.handleBusinessVerificationExpired(
+                new BusinessVerificationExpiredException()
+        );
+
+        assertEquals(HttpStatus.GONE, response.getStatusCode());
+        assertEquals("사업자 인증 결과가 만료되었습니다.", response.getBody().message());
+        assertNull(response.getBody().data());
+    }
+
+    @Test
+    void 매장_정보_수정_사업자번호_중복은_409_fieldErrors_응답으로_변환한다() {
+        ResponseEntity<ApiResponse<FieldErrors>> response = exceptionHandler.handleDuplicateBusinessRegistrationNumber(
+                new DuplicateBusinessRegistrationNumberException()
+        );
+
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+        assertEquals("이미 등록된 사업자등록번호입니다.", response.getBody().message());
+        assertEquals("businessRegNumber", response.getBody().data().fieldErrors().getFirst().field());
     }
 
     @Test

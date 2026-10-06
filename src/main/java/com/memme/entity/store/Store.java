@@ -100,6 +100,10 @@ public class Store {
         return businessRegistrationNo;
     }
 
+    public LocalDateTime getBusinessVerifiedAt() {
+        return businessVerifiedAt;
+    }
+
     public String getPostalCode() {
         return postalCode;
     }
@@ -135,6 +139,16 @@ public class Store {
         if (addressDetail != null) {
             this.addressDetail = addressDetail;
         }
+        this.updatedAt = updatedAt;
+    }
+
+    public void updateBusinessRegistration(
+            String businessRegistrationNo,
+            LocalDateTime businessVerifiedAt,
+            LocalDateTime updatedAt
+    ) {
+        this.businessRegistrationNo = businessRegistrationNo;
+        this.businessVerifiedAt = businessVerifiedAt;
         this.updatedAt = updatedAt;
     }
 }

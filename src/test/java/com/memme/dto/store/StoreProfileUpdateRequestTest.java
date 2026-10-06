@@ -22,7 +22,7 @@ class StoreProfileUpdateRequestTest {
     void 매장_정보_수정_요청_DTO는_API_필드를_가진다() {
         assertTrue(StoreProfileUpdateRequest.class.isRecord());
         assertEquals(
-                List.of("storeName", "address", "businessHours"),
+                List.of("storeName", "address", "businessRegNumber", "businessVerificationId", "businessHours"),
                 componentNames(StoreProfileUpdateRequest.class)
         );
         assertEquals(
@@ -55,7 +55,9 @@ class StoreProfileUpdateRequestTest {
 
     @Test
     void 매장명_주소_영업시간은_각각_선택적으로_요청할_수_있다() {
-        StoreProfileUpdateRequest request = new StoreProfileUpdateRequest("수정된 매장명", null, null);
+        StoreProfileUpdateRequest request = new StoreProfileUpdateRequest(
+                "수정된 매장명", null, null, null, null
+        );
 
         assertTrue(validator.validate(request).isEmpty());
     }
@@ -65,6 +67,8 @@ class StoreProfileUpdateRequestTest {
         StoreProfileUpdateRequest request = new StoreProfileUpdateRequest(
                 "맴매@카페",
                 new StoreProfileUpdateRequest.Address("1234", "", "상세 주소"),
+                "123456789",
+                -1L,
                 List.of(new StoreProfileUpdateRequest.BusinessHours(DayOfWeek.MONDAY, false, "9:00", "18:00"))
         );
 
@@ -76,6 +80,8 @@ class StoreProfileUpdateRequestTest {
         assertTrue(paths(violations).contains("address.roadAddress"));
         assertTrue(paths(violations).contains("businessHours"));
         assertTrue(paths(violations).contains("businessHours[0].openTime"));
+        assertTrue(paths(violations).contains("businessRegNumber"));
+        assertTrue(paths(violations).contains("businessVerificationId"));
     }
 
     private List<String> componentNames(Class<?> type) {
