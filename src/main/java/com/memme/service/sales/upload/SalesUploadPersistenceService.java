@@ -2,6 +2,7 @@ package com.memme.service.sales.upload;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -23,6 +24,7 @@ import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.service.sales.SalesOrder;
 import com.memme.service.sales.SalesOrderItem;
 import com.memme.service.sales.TossPosWorkbookData;
+import com.memme.service.store.StoreCostCarryForwardService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,17 +35,20 @@ public class SalesUploadPersistenceService {
     private final SalesOrderRepository orderRepository;
     private final SalesOrderItemRepository itemRepository;
     private final SalesDailySummaryRepository dailySummaryRepository;
+    private final StoreCostCarryForwardService costCarryForwardService;
 
     public SalesUploadPersistenceService(
             SalesUploadRepository uploadRepository,
             SalesOrderRepository orderRepository,
             SalesOrderItemRepository itemRepository,
-            SalesDailySummaryRepository dailySummaryRepository
+            SalesDailySummaryRepository dailySummaryRepository,
+            StoreCostCarryForwardService costCarryForwardService
     ) {
         this.uploadRepository = uploadRepository;
         this.orderRepository = orderRepository;
         this.itemRepository = itemRepository;
         this.dailySummaryRepository = dailySummaryRepository;
+        this.costCarryForwardService = costCarryForwardService;
     }
 
     @Transactional
@@ -67,6 +72,9 @@ public class SalesUploadPersistenceService {
         }
 
         rebuildDailySummaries(storeId, workbookData.periodStart(), workbookData.periodEnd());
+        costCarryForwardService.copyForSalesMonths(storeId, workbookData.orders().stream()
+                .map(order -> YearMonth.from(order.key().orderedAt()))
+                .toList());
 
         return new SalesUploadResult(
                 upload.getId(),
