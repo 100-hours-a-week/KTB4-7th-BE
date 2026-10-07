@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.memme.exception.sales.TossPosWorkbookValidationException;
+import com.memme.entity.sales.SalesDailyStatus;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -158,6 +159,75 @@ class TossPosWorkbookParserTest {
         assertThat(result.dailySummaries()).hasSize(2);
     }
 
+    @Test
+    void 상세내역과_상품_합계가_모두_비어_있으면_날짜_상태를_UNKNOWN으로_파싱한다() throws Exception {
+        TossPosWorkbookData result = parser.parse(new ByteArrayInputStream(
+            syntheticEmptyWorkbook()
+        ));
+
+        assertThat(result.periodStart()).isEqualTo(LocalDate.of(2026, 1, 1));
+        assertThat(result.periodEnd()).isEqualTo(LocalDate.of(2026, 1, 2));
+        assertThat(result.dailySummaries()).hasSize(2)
+            .allSatisfy(summary -> {
+                assertThat(summary.totalNetAmount()).isZero();
+                assertThat(summary.status()).isEqualTo(SalesDailyStatus.UNKNOWN);
+            });
+    }
+
+    @Test
+    void 상품_합계와_상세에_POS의_주문없음_문구가_있으면_기간을_COMPLETE로_파싱한다() throws Exception {
+        TossPosWorkbookData result = parser.parse(new ByteArrayInputStream(
+            syntheticNoOrdersWorkbook()
+        ));
+
+        assertThat(result.dailySummaries()).hasSize(2)
+            .allSatisfy(summary -> {
+                assertThat(summary.totalNetAmount()).isZero();
+                assertThat(summary.status()).isEqualTo(SalesDailyStatus.COMPLETE);
+            });
+    }
+
+    @Test
+    void 상세내역_첫_행에_POS의_주문없음_문구가_있어도_기간을_COMPLETE로_파싱한다() throws Exception {
+        TossPosWorkbookData result = parser.parse(new ByteArrayInputStream(
+            syntheticNoOrdersWorkbookWithMarkerAfterHeader()
+        ));
+
+        assertThat(result.dailySummaries()).hasSize(2)
+            .extracting(DailySalesSummary::status)
+            .containsOnly(SalesDailyStatus.COMPLETE);
+    }
+
+    @Test
+    void 주문이_있는_파일에서_근거가_없는_중간_날짜는_UNKNOWN이다() throws Exception {
+        TossPosWorkbookData result = parser.parse(new ByteArrayInputStream(
+            syntheticWorkbookWithMissingDate()
+        ));
+
+        assertThat(result.dailySummaries())
+            .filteredOn(summary -> summary.salesDate().equals(LocalDate.of(2026, 1, 2)))
+            .singleElement()
+            .satisfies(summary -> {
+                assertThat(summary.totalNetAmount()).isZero();
+                assertThat(summary.status()).isEqualTo(SalesDailyStatus.UNKNOWN);
+            });
+    }
+
+    @Test
+    void POS_일별_요약에_0원이_명시된_날짜는_COMPLETE다() throws Exception {
+        TossPosWorkbookData result = parser.parse(new ByteArrayInputStream(
+            syntheticWorkbookWithExplicitZeroDate()
+        ));
+
+        assertThat(result.dailySummaries())
+            .filteredOn(summary -> summary.salesDate().equals(LocalDate.of(2026, 1, 2)))
+            .singleElement()
+            .satisfies(summary -> {
+                assertThat(summary.totalNetAmount()).isZero();
+                assertThat(summary.status()).isEqualTo(SalesDailyStatus.COMPLETE);
+            });
+    }
+
     private TossPosWorkbookData parseSynthetic(
         boolean missingNetAmountColumn,
         long summaryDelta
@@ -192,6 +262,120 @@ class TossPosWorkbookParserTest {
         }
     }
 
+    private byte[] syntheticEmptyWorkbook() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            createDataBasis(workbook);
+            createEmptyProductSummary(workbook);
+            createEmptyProductDetails(workbook);
+            workbook.write(outputStream);
+            return outputStream.toByteArray();
+        }
+    }
+
+    private byte[] syntheticNoOrdersWorkbook() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            createDataBasis(workbook);
+            Sheet summary = createProductSummarySheet(workbook);
+            writeRow(summary.createRow(1), "선택하신 기간에 해당하는 주문 내역을 찾을 수 없어요");
+
+            Sheet details = createProductDetailsSheet(workbook);
+            writeRow(details.createRow(2), "선택하신 기간에 해당하는 주문 내역을 찾을 수 없어요");
+
+            workbook.write(outputStream);
+            return outputStream.toByteArray();
+        }
+    }
+
+    private byte[] syntheticNoOrdersWorkbookWithMarkerAfterHeader() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            createDataBasis(workbook);
+            Sheet summary = createProductSummarySheet(workbook);
+            writeRow(summary.createRow(1), "선택하신 기간에 해당하는 주문 내역을 찾을 수 없어요");
+
+            Sheet details = createProductDetailsSheet(workbook);
+            writeRow(details.createRow(1), "선택하신 기간에 해당하는 주문 내역을 찾을 수 없어요");
+
+            workbook.write(outputStream);
+            return outputStream.toByteArray();
+        }
+    }
+
+    private byte[] syntheticWorkbookWithMissingDate() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            createDataBasis(workbook, "2026-01-01", "2026-01-03");
+            Sheet summary = createProductSummarySheet(workbook);
+            writeRow(summary.createRow(1),
+                "2026-01-01", "합계", "", "", 1, 3_000, 0, 0, 3_000, 273);
+            writeRow(summary.createRow(2),
+                "2026-01-03", "합계", "", "", 1, 2_200, 0, 0, 2_200, 200);
+
+            Sheet details = createProductDetailsSheet(workbook);
+            writeDetail(details.createRow(2), "2026-01-01", "완료", "2026-01-01 10:00:00",
+                "포스", "000201", "아메리카노", "esp", 1, 3_000, 3_000, "과세", 273);
+            writeDetail(details.createRow(3), "2026-01-03", "완료", "2026-01-03 10:00:00",
+                "포스", "000203", "카페 라떼", "non", 1, 2_200, 2_200, "과세", 200);
+
+            workbook.write(outputStream);
+            return outputStream.toByteArray();
+        }
+    }
+
+    private byte[] syntheticWorkbookWithExplicitZeroDate() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            createDataBasis(workbook, "2026-01-01", "2026-01-03");
+            Sheet summary = createProductSummarySheet(workbook);
+            writeRow(summary.createRow(1),
+                "2026-01-01", "합계", "", "", 1, 3_000, 0, 0, 3_000, 273);
+            writeRow(summary.createRow(2),
+                "2026-01-02", "합계", "", "", 0, 0, 0, 0, 0, 0);
+            writeRow(summary.createRow(3),
+                "2026-01-03", "합계", "", "", 1, 2_200, 0, 0, 2_200, 200);
+
+            Sheet details = createProductDetailsSheet(workbook);
+            writeDetail(details.createRow(2), "2026-01-01", "완료", "2026-01-01 10:00:00",
+                "포스", "000301", "아메리카노", "esp", 1, 3_000, 3_000, "과세", 273);
+            writeDetail(details.createRow(3), "2026-01-03", "완료", "2026-01-03 10:00:00",
+                "포스", "000303", "카페 라떼", "non", 1, 2_200, 2_200, "과세", 200);
+
+            workbook.write(outputStream);
+            return outputStream.toByteArray();
+        }
+    }
+
+    private void createEmptyProductSummary(Workbook workbook) {
+        createProductSummarySheet(workbook);
+    }
+
+    private Sheet createProductSummarySheet(Workbook workbook) {
+        Sheet sheet = workbook.createSheet("상품 주문 합계");
+        writeRow(sheet.createRow(0),
+            "기간", "상품명", "상품코드", "카테고리", "판매건수", "상품가격",
+            "옵션가격", "할인", "실 판매 금액\n(할인, 옵션 포함)", "부가세액");
+        return sheet;
+    }
+
+    private void createEmptyProductDetails(Workbook workbook) {
+        createProductDetailsSheet(workbook);
+    }
+
+    private Sheet createProductDetailsSheet(Workbook workbook) {
+        Sheet sheet = workbook.createSheet("상품 주문 상세내역");
+        Object[] headers = {
+            "주문기준일자", "결제상태", "주문시작시각", "주문채널", "주문번호",
+            "상품명", "상품코드", "카테고리", "옵션", "상품할인", "주문할인", "수량",
+            "상품가격", "옵션가격", "상품할인 금액", "주문할인 금액",
+            "실판매금액 \n (할인, 옵션 포함)", "과세여부", "부가세액"
+        };
+        writeRow(sheet.createRow(0), headers);
+        writeRow(sheet.createRow(1), "", "설명");
+        return sheet;
+    }
+
     private byte[] syntheticWorkbookWithPartialCancellation() throws Exception {
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
@@ -208,11 +392,15 @@ class TossPosWorkbookParserTest {
     }
 
     private void createDataBasis(Workbook workbook) {
+        createDataBasis(workbook, "2026-01-01", "2026-01-02");
+    }
+
+    private void createDataBasis(Workbook workbook, String startDate, String endDate) {
         Sheet sheet = workbook.createSheet("데이터 기준");
         writeRow(sheet.createRow(0),
             "시작일자", "종료일자", "매출 정산 기준", "매출 시작 시간", "집계 단위");
         writeRow(sheet.createRow(2),
-            "2026-01-01", "2026-01-02", "주문한 날", "00:00:00", "일간");
+            startDate, endDate, "주문한 날", "00:00:00", "일간");
     }
 
     private void createProductSummary(Workbook workbook, long summaryDelta) {

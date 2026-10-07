@@ -63,6 +63,16 @@ class MysqlInitScriptTest {
     }
 
     @Test
+    void 일별_매출_상태_컬럼을_UNKNOWN_기본값으로_초기화한다() throws IOException {
+        String sql = Files.readString(Path.of("docker/mysql/init/02-sales-core.sql"));
+
+        assertThat(sql)
+                .contains("CREATE TABLE sales_daily_summaries")
+                .contains("day_status VARCHAR(20) NOT NULL DEFAULT 'UNKNOWN'")
+                .contains("UNIQUE KEY uk_sales_daily_summaries_store_date (store_id, sales_date)");
+    }
+
+    @Test
     void 사용자별_알림_설정_테이블을_false_기본값으로_초기화한다() throws IOException {
         String sql = Files.readString(Path.of("docker/mysql/init/01-auth-signup.sql"));
 
