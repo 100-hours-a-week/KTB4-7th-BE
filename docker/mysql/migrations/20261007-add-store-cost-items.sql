@@ -1,6 +1,7 @@
+-- Existing QA/production stores.id is signed BIGINT.
 CREATE TABLE store_cost_items (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  store_id BIGINT UNSIGNED NOT NULL,
+  store_id BIGINT NOT NULL,
   cost_month DATE NOT NULL,
   rent_amount BIGINT UNSIGNED NOT NULL DEFAULT 0,
   labor_amount BIGINT UNSIGNED NOT NULL DEFAULT 0,
