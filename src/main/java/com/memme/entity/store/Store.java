@@ -14,6 +14,8 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Objects;
+import org.hibernate.annotations.ColumnDefault;
 
 @Entity
 @Table(name = "stores")
@@ -55,6 +57,10 @@ public class Store {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private StoreStatus status = StoreStatus.ACTIVE;
+
+    @ColumnDefault("0")
+    @Column(name = "menu_revision", nullable = false)
+    private long menuRevision;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -118,6 +124,18 @@ public class Store {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public long getMenuRevision() {
+        return menuRevision;
+    }
+
+    public void advanceMenuRevision(long expectedRevision, LocalDateTime updatedAt) {
+        if (menuRevision != expectedRevision) {
+            throw new IllegalStateException("메뉴 개정 번호가 일치하지 않습니다.");
+        }
+        menuRevision++;
+        this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
     }
 
     public void updateProfile(

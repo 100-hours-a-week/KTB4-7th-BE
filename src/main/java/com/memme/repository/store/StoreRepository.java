@@ -2,15 +2,21 @@ package com.memme.repository.store;
 
 import com.memme.entity.store.Store;
 import com.memme.entity.store.StoreStatus;
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface StoreRepository extends JpaRepository<Store, Long> {
 
     Optional<Store> findByOwnerId(Long ownerId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select store from Store store where store.id = :storeId")
+    Optional<Store> findForMenuUpdate(@Param("storeId") Long storeId);
 
     boolean existsByBusinessRegistrationNo(String businessRegistrationNo);
 
