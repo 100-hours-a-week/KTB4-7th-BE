@@ -1,4 +1,4 @@
-package com.memme.dto.store;
+package com.memme.dto.sales;
 
 import java.util.List;
 

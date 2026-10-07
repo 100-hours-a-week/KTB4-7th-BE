@@ -1,6 +1,6 @@
-package com.memme.repository.store;
+package com.memme.repository.sales;
 
-import com.memme.entity.store.StoreCostItem;
+import com.memme.entity.sales.StoreCostItem;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.List;

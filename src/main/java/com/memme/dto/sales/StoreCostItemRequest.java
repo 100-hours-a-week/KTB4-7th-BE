@@ -1,4 +1,4 @@
-package com.memme.dto.store;
+package com.memme.dto.sales;
 
 import tools.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.constraints.DecimalMax;

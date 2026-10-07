@@ -1,4 +1,4 @@
-package com.memme.entity.store;
+package com.memme.entity.sales;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
