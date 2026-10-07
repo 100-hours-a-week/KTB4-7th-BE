@@ -10,7 +10,7 @@ import java.util.List;
 
 public record StoreProfileUpdateRequest(
         @Size(max = 15, message = "매장명은 15자 이하여야 합니다.")
-        @Pattern(regexp = "^[가-힣A-Za-z0-9 ,&·-]+$", message = "매장명에 사용할 수 없는 문자가 포함되어 있습니다.")
+        @Pattern(regexp = "^[가-힣A-Za-z0-9 ,&·()-]+$", message = "매장명에 사용할 수 없는 문자가 포함되어 있습니다.")
         String storeName,
         @Valid
         Address address,
