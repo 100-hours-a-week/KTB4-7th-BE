@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import com.memme.entity.sales.SalesDailySummaryEntity;
+import com.memme.entity.sales.SalesDailyStatus;
 import com.memme.entity.sales.SalesOrderChannel;
 import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
@@ -16,10 +17,13 @@ import com.memme.entity.sales.SalesOrderItemStatus;
 import com.memme.entity.sales.SalesOrderItemType;
 import com.memme.entity.sales.SalesStandardMenuCategory;
 import com.memme.entity.sales.SalesUploadEntity;
+import com.memme.entity.store.StoreBusinessHours;
 import com.memme.repository.sales.SalesDailySummaryRepository;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesOrderRepository;
 import com.memme.repository.sales.SalesUploadRepository;
+import com.memme.repository.store.StoreBusinessHoursRepository;
+import com.memme.service.sales.DailySalesSummary;
 import com.memme.service.sales.SalesOrder;
 import com.memme.service.sales.SalesOrderItem;
 import com.memme.service.sales.TossPosWorkbookData;
@@ -33,17 +37,23 @@ public class SalesUploadPersistenceService {
     private final SalesOrderRepository orderRepository;
     private final SalesOrderItemRepository itemRepository;
     private final SalesDailySummaryRepository dailySummaryRepository;
+    private final StoreBusinessHoursRepository businessHoursRepository;
+    private final SalesDailyStatusResolver dailyStatusResolver;
 
     public SalesUploadPersistenceService(
             SalesUploadRepository uploadRepository,
             SalesOrderRepository orderRepository,
             SalesOrderItemRepository itemRepository,
-            SalesDailySummaryRepository dailySummaryRepository
+            SalesDailySummaryRepository dailySummaryRepository,
+            StoreBusinessHoursRepository businessHoursRepository,
+            SalesDailyStatusResolver dailyStatusResolver
     ) {
         this.uploadRepository = uploadRepository;
         this.orderRepository = orderRepository;
         this.itemRepository = itemRepository;
         this.dailySummaryRepository = dailySummaryRepository;
+        this.businessHoursRepository = businessHoursRepository;
+        this.dailyStatusResolver = dailyStatusResolver;
     }
 
     @Transactional
@@ -66,7 +76,7 @@ public class SalesUploadPersistenceService {
             appliedRecordCount = Math.addExact(appliedRecordCount, savedItems.size());
         }
 
-        rebuildDailySummaries(storeId, workbookData.periodStart(), workbookData.periodEnd());
+        rebuildDailySummaries(storeId, workbookData);
 
         return new SalesUploadResult(
                 upload.getId(),
@@ -138,7 +148,9 @@ public class SalesUploadPersistenceService {
         ));
     }
 
-    private void rebuildDailySummaries(Long storeId, LocalDate periodStart, LocalDate periodEnd) {
+    private void rebuildDailySummaries(Long storeId, TossPosWorkbookData workbookData) {
+        LocalDate periodStart = workbookData.periodStart();
+        LocalDate periodEnd = workbookData.periodEnd();
         List<SalesOrderEntity> orders = orderRepository
                 .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
                         storeId,
@@ -171,6 +183,17 @@ public class SalesUploadPersistenceService {
                 summary.menuQuantity = Math.addExact(summary.menuQuantity, item.getQuantity());
             }
         }
+
+        Map<LocalDate, DailySalesSummary> parsedSummariesByDate = new HashMap<>();
+        workbookData.dailySummaries().forEach(summary -> parsedSummariesByDate.put(summary.salesDate(), summary));
+        Map<Integer, StoreBusinessHours> businessHoursByDayOfWeek = new HashMap<>();
+        for (StoreBusinessHours businessHours : businessHoursRepository
+                .findAllByStoreIdOrderByDayOfWeekAsc(storeId)) {
+            businessHoursByDayOfWeek.put(businessHours.getDayOfWeek(), businessHours);
+        }
+
+        Map<LocalDate, Boolean> hasOrderRowsByDate = new HashMap<>();
+        workbookData.items().forEach(item -> hasOrderRowsByDate.put(item.orderDate(), true));
         for (SalesOrderEntity order : orders) {
             if (order.isValid()) {
                 MutableDailySummary summary = summaries.get(order.getOrderedAt().toLocalDate());
@@ -188,6 +211,18 @@ public class SalesUploadPersistenceService {
         List<SalesDailySummaryEntity> changedSummaries = new ArrayList<>(summaries.size());
         summaries.forEach((date, values) -> {
             SalesDailySummaryEntity summary = existingByDate.get(date);
+            StoreBusinessHours businessHours = businessHoursByDayOfWeek.get(date.getDayOfWeek().getValue());
+            Boolean storeClosed = businessHours == null ? null : dailyStatusResolver.confirmedClosedStatus(
+                    date, businessHours.getUpdatedAt(), businessHours.isClosed()
+            );
+            DailySalesSummary parsedSummary = parsedSummariesByDate.get(date);
+            boolean hasOrderRows = hasOrderRowsByDate.containsKey(date);
+            boolean zeroSalesConfirmed = parsedSummary != null
+                    && parsedSummary.status() == SalesDailyStatus.COMPLETE
+                    && !hasOrderRows;
+            SalesDailyStatus dayStatus = dailyStatusResolver.resolve(
+                    hasOrderRows, zeroSalesConfirmed, storeClosed
+            );
             if (summary == null) {
                 summary = SalesDailySummaryEntity.create(
                         storeId,
@@ -195,14 +230,16 @@ public class SalesUploadPersistenceService {
                         values.totalNetAmount,
                         values.menuNetAmount,
                         values.orderCount,
-                        values.menuQuantity
+                        values.menuQuantity,
+                        dayStatus
                 );
             } else {
                 summary.update(
                         values.totalNetAmount,
                         values.menuNetAmount,
                         values.orderCount,
-                        values.menuQuantity
+                        values.menuQuantity,
+                        dayStatus
                 );
             }
             changedSummaries.add(summary);
