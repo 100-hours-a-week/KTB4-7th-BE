@@ -6,6 +6,9 @@ import com.memme.dto.auth.LoginRateLimitErrorResponse;
 import com.memme.dto.common.ApiResponse;
 import com.memme.dto.common.FieldError;
 import com.memme.dto.common.FieldErrors;
+import com.memme.dto.sales.StoreCostItemRequest;
+import com.memme.dto.sales.StoreCostItemValidationErrors;
+import com.memme.dto.sales.StoreCostItemValidationErrors.StoreCostItemFieldError;
 import com.memme.dto.solution.SolutionNavigationErrorResponse;
 import com.memme.exception.auth.AuthenticationRequiredException;
 import com.memme.exception.auth.DuplicateSignupException;
@@ -25,6 +28,7 @@ import com.memme.dto.common.StatusResponse;
 import com.memme.exception.noti.NotificationNotFoundException;
 import com.memme.exception.noti.InvalidNotificationCursorException;
 import com.memme.exception.sales.SalesAnalysisRequestException;
+import com.memme.exception.sales.InvalidStoreCostMonthException;
 import com.memme.exception.sales.InternalSalesDataNotFoundException;
 import com.memme.exception.solution.SolutionRequestException;
 import com.memme.exception.store.AddressSearchFailedException;
@@ -97,6 +101,14 @@ public class GlobalExceptionHandler {
             MethodArgumentTypeMismatchException exception
     ) {
         return badRequestResponse();
+    }
+
+    @ExceptionHandler(InvalidStoreCostMonthException.class)
+    public ResponseEntity<ApiResponse<StoreCostItemValidationErrors>> handleInvalidStoreCostMonth(
+            InvalidStoreCostMonthException exception) {
+        return ResponseEntity.badRequest().body(new ApiResponse<>("입력값을 확인해 주세요.",
+                new StoreCostItemValidationErrors(List.of(
+                        new StoreCostItemFieldError("costMonth", "INVALID_FORMAT", exception.getMessage())))));
     }
 
     @ExceptionHandler(SalesAnalysisRequestException.class)
@@ -317,6 +329,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<?> handleMethodArgumentNotValid(
             MethodArgumentNotValidException exception
     ) {
+        if (exception.getBindingResult().getTarget() instanceof StoreCostItemRequest) {
+            List<StoreCostItemFieldError> errors = exception.getBindingResult().getFieldErrors().stream()
+                    .map(error -> new StoreCostItemFieldError(error.getField(),
+                            switch (error.getCode() == null ? "" : error.getCode()) {
+                                case "NotNull" -> "REQUIRED";
+                                case "DecimalMin", "DecimalMax" -> "OUT_OF_RANGE";
+                                default -> "INVALID_FORMAT";
+                            }, error.getDefaultMessage()))
+                    .toList();
+            return ResponseEntity.badRequest().body(new ApiResponse<>("입력값을 확인해 주세요.",
+                    new StoreCostItemValidationErrors(errors)));
+        }
         if (exception.getBindingResult().getFieldErrors().stream().anyMatch(
                 fieldError -> fieldError.isBindingFailure()
         )) {
