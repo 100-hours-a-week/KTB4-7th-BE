@@ -77,6 +77,7 @@ CREATE TABLE sales_daily_summaries (
   menu_net_amount BIGINT NOT NULL,
   order_count INT NOT NULL,
   menu_quantity INT NOT NULL,
+  day_status VARCHAR(20) NOT NULL DEFAULT 'UNKNOWN',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uk_sales_daily_summaries_store_date (store_id, sales_date),

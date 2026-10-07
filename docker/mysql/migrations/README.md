@@ -51,3 +51,11 @@ Cloud 배포 설정:
 기존 DB에는 BE 배포 전에 `20261007-add-store-cost-items.sql`을 한 번 실행합니다.
 신규 DB는 `docker/mysql/init/06-profit-costs.sql`에서 같은 테이블을 생성합니다.
 매장과 비용 기준 월에 UNIQUE 제약을 적용하며, 기존 데이터는 변경하지 않습니다.
+
+## 일별 매출 상태 (#391)
+
+기존 QA·운영 DB에는 BE 배포 전에 `20261007-add-sales-daily-status.sql`을 한 번 실행합니다.
+기존 `sales_daily_summaries` 행은 기본값 `UNKNOWN`으로 유지하며, 근거 없이 과거 상태를 추정하지 않습니다.
+신규 DB는 `docker/mysql/init/02-sales-core.sql`에서 `day_status`를 생성합니다.
+
+권장 배포 순서는 DB 백업 확인 → SQL 적용 및 기존 행의 `UNKNOWN` 확인 → BE 배포 → 매출 업로드 후 `COMPLETE`/`CLOSED`/`MISSING`/`UNKNOWN` 상태 확인입니다.

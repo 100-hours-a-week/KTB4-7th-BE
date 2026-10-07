@@ -1,5 +1,6 @@
 package com.memme.service.sales;
 
+import com.memme.entity.sales.SalesDailyStatus;
 import com.memme.exception.sales.TossPosWorkbookValidationException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,6 +42,7 @@ public final class TossPosWorkbookParser {
     private static final String DATA_BASIS_SHEET = "데이터 기준";
     private static final String PRODUCT_SUMMARY_SHEET = "상품 주문 합계";
     private static final String PRODUCT_DETAIL_SHEET = "상품 주문 상세내역";
+    private static final String NO_ORDERS_MESSAGE = "선택하신 기간에 해당하는 주문 내역을 찾을 수 없어요";
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter
         .ofPattern("uuuu-MM-dd").withResolverStyle(ResolverStyle.STRICT);
@@ -86,19 +88,28 @@ public final class TossPosWorkbookParser {
             parseSheet(reader, PRODUCT_SUMMARY_SHEET, summaryHandler);
             List<ProductSummary> posSummary = summaryHandler.result();
 
+            boolean detailHasNoOrdersMessage = detailHandler.hasNoOrdersMessage();
+            boolean summaryHasNoOrdersMessage = summaryHandler.hasNoOrdersMessage();
+            if (detailHasNoOrdersMessage != summaryHasNoOrdersMessage) {
+                throw validation("상품 주문 합계와 상세내역의 주문 없음 상태가 일치하지 않습니다.");
+            }
+            boolean noOrdersConfirmed = detailHasNoOrdersMessage && summaryHasNoOrdersMessage;
+            if (noOrdersConfirmed && (!items.isEmpty() || !posSummary.isEmpty())) {
+                throw validation("주문 없음 안내가 있지만 상품 주문 데이터가 함께 존재합니다.");
+            }
+
             validateProductSummary(items, posSummary);
             List<SalesOrder> orders = groupOrders(items);
-            LocalDate coverageStart = items.stream()
-                .map(SalesOrderItem::orderDate)
-                .min(LocalDate::compareTo)
-                .orElseThrow(() -> validation("상품 주문 상세내역에 데이터 행이 없습니다."));
+            LocalDate coverageStart = dataBasis.periodStart();
 
             return new TossPosWorkbookData(
                 coverageStart,
                 dataBasis.periodEnd(),
                 orders,
                 items,
-                aggregateDaily(items, orders, coverageStart, dataBasis.periodEnd())
+                aggregateDaily(
+                    items, orders, posSummary, noOrdersConfirmed, coverageStart, dataBasis.periodEnd()
+                )
             );
         } catch (TossPosWorkbookValidationException exception) {
             throw exception;
@@ -279,14 +290,19 @@ public final class TossPosWorkbookParser {
     private List<DailySalesSummary> aggregateDaily(
         List<SalesOrderItem> items,
         List<SalesOrder> orders,
+        List<ProductSummary> posSummary,
+        boolean noOrdersConfirmed,
         LocalDate coverageStart,
         LocalDate coverageEnd
     ) {
         Map<LocalDate, MutableDailySummary> summaries = new TreeMap<>();
+        Set<LocalDate> datesWithItems = new HashSet<>();
+        Set<LocalDate> explicitZeroDates = new HashSet<>();
         for (LocalDate date = coverageStart; !date.isAfter(coverageEnd); date = date.plusDays(1)) {
             summaries.put(date, new MutableDailySummary());
         }
         for (SalesOrderItem item : items) {
+            datesWithItems.add(item.orderDate());
             MutableDailySummary summary = summaries.get(item.orderDate());
             summary.totalNetAmount = addExact(summary.totalNetAmount, item.netAmount());
             if (item.itemType() == SalesItemType.MENU) {
@@ -300,10 +316,21 @@ public final class TossPosWorkbookParser {
                 summary.orderCount = Math.incrementExact(summary.orderCount);
             }
         }
+        for (ProductSummary productSummary : posSummary) {
+            if (productSummary.amount() == 0
+                && productSummary.startDate().equals(productSummary.endDate())) {
+                explicitZeroDates.add(productSummary.startDate());
+            }
+        }
         return summaries.entrySet().stream()
             .map(entry -> new DailySalesSummary(
                 entry.getKey(), entry.getValue().totalNetAmount, entry.getValue().menuNetAmount,
-                entry.getValue().orderCount, entry.getValue().menuQuantity
+                entry.getValue().orderCount, entry.getValue().menuQuantity,
+                datesWithItems.contains(entry.getKey())
+                    || explicitZeroDates.contains(entry.getKey())
+                    || noOrdersConfirmed
+                    ? SalesDailyStatus.COMPLETE
+                    : SalesDailyStatus.UNKNOWN
             ))
             .toList();
     }
@@ -501,6 +528,7 @@ public final class TossPosWorkbookParser {
         private final DataBasis dataBasis;
         private final List<SalesOrderItem> items = new ArrayList<>();
         private Map<String, Integer> columns;
+        private boolean noOrdersMessage;
 
         private DetailSheetHandler(DataBasis dataBasis) {
             this.dataBasis = dataBasis;
@@ -510,19 +538,26 @@ public final class TossPosWorkbookParser {
         protected void accept(SheetRow row) {
             if (row.rowNumber() == 0) {
                 columns = readColumns(PRODUCT_DETAIL_SHEET, row, DETAIL_COLUMNS);
-            } else if (row.rowNumber() >= 2 && !row.isBlank()) {
-                if (columns == null) {
-                    throw validation("상품 주문 상세내역 시트의 컬럼 행이 없습니다.");
+            } else if (!row.isBlank()) {
+                if (containsNoOrdersMessage(row)) {
+                    noOrdersMessage = true;
+                    return;
                 }
-                items.add(readItem(PRODUCT_DETAIL_SHEET, row, columns, dataBasis));
+                if (row.rowNumber() >= 2) {
+                    if (columns == null) {
+                        throw validation("상품 주문 상세내역 시트의 컬럼 행이 없습니다.");
+                    }
+                    items.add(readItem(PRODUCT_DETAIL_SHEET, row, columns, dataBasis));
+                }
             }
         }
 
         private List<SalesOrderItem> result() {
-            if (items.isEmpty()) {
-                throw validation("상품 주문 상세내역에 데이터 행이 없습니다.");
-            }
             return List.copyOf(items);
+        }
+
+        private boolean hasNoOrdersMessage() {
+            return noOrdersMessage;
         }
     }
 
@@ -531,6 +566,7 @@ public final class TossPosWorkbookParser {
         private final DataBasis dataBasis;
         private final List<ProductSummary> summary = new ArrayList<>();
         private Map<String, Integer> columns;
+        private boolean noOrdersMessage;
 
         private SummarySheetHandler(DataBasis dataBasis) {
             this.dataBasis = dataBasis;
@@ -541,6 +577,10 @@ public final class TossPosWorkbookParser {
             if (row.rowNumber() == 0) {
                 columns = readColumns(PRODUCT_SUMMARY_SHEET, row, SUMMARY_COLUMNS);
             } else if (!row.isBlank()) {
+                if (containsNoOrdersMessage(row)) {
+                    noOrdersMessage = true;
+                    return;
+                }
                 if (columns == null) {
                     throw validation("상품 주문 합계 시트의 컬럼 행이 없습니다.");
                 }
@@ -560,11 +600,18 @@ public final class TossPosWorkbookParser {
         }
 
         private List<ProductSummary> result() {
-            if (summary.isEmpty()) {
-                throw validation("상품 주문 합계에 데이터 행이 없습니다.");
-            }
             return List.copyOf(summary);
         }
+
+        private boolean hasNoOrdersMessage() {
+            return noOrdersMessage;
+        }
+    }
+
+    private static boolean containsNoOrdersMessage(SheetRow row) {
+        return row.values().values().stream()
+            .map(TossPosTextNormalizer::header)
+            .anyMatch(NO_ORDERS_MESSAGE::equals);
     }
 
     private DateRange parseSummaryPeriod(String value, SheetRow row) {

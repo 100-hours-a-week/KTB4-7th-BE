@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.memme.entity.sales.SalesUploadEntity;
 import com.memme.entity.sales.SalesUploadStatus;
+import com.memme.entity.sales.SalesDailyStatus;
 import com.memme.repository.sales.SalesDailySummaryRepository;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesOrderRepository;
@@ -76,6 +77,7 @@ class SalesUploadPersistenceServiceTest {
         assertThat(summary.getMenuNetAmount()).isEqualTo(1_000);
         assertThat(summary.getOrderCount()).isEqualTo(2);
         assertThat(summary.getMenuQuantity()).isEqualTo(2);
+        assertThat(summary.getDayStatus()).isEqualTo(SalesDailyStatus.COMPLETE);
     }
 
     private Long createValidatingUpload(long storeId, String suffix) {
@@ -139,7 +141,7 @@ class SalesUploadPersistenceServiceTest {
                 date,
                 orders,
                 items,
-                List.of(new DailySalesSummary(date, 1_000, 1_000, 2, 2))
+                List.of(new DailySalesSummary(date, 1_000, 1_000, 2, 2, SalesDailyStatus.COMPLETE))
         );
     }
 

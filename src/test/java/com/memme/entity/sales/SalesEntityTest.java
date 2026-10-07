@@ -87,12 +87,14 @@ class SalesEntityTest {
                 -2_000,
                 -1_000,
                 0,
-                -1
+                -1,
+                SalesDailyStatus.COMPLETE
         );
 
         assertThat(summary.getTotalNetAmount()).isEqualTo(-2_000);
         assertThat(summary.getMenuNetAmount()).isEqualTo(-1_000);
         assertThat(summary.getMenuQuantity()).isEqualTo(-1);
+        assertThat(summary.getDayStatus()).isEqualTo(SalesDailyStatus.COMPLETE);
     }
 
     @Test

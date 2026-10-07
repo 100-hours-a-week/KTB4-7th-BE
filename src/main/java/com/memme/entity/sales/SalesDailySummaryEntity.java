@@ -6,6 +6,8 @@ import java.util.Objects;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -46,6 +48,10 @@ public class SalesDailySummaryEntity {
     @Column(name = "menu_quantity", nullable = false)
     private int menuQuantity;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "day_status", nullable = false, length = 20)
+    private SalesDailyStatus dayStatus;
+
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
@@ -58,11 +64,12 @@ public class SalesDailySummaryEntity {
             long totalNetAmount,
             long menuNetAmount,
             int orderCount,
-            int menuQuantity
+            int menuQuantity,
+            SalesDailyStatus dayStatus
     ) {
         this.storeId = Objects.requireNonNull(storeId, "storeId");
         this.salesDate = Objects.requireNonNull(salesDate, "salesDate");
-        update(totalNetAmount, menuNetAmount, orderCount, menuQuantity);
+        update(totalNetAmount, menuNetAmount, orderCount, menuQuantity, dayStatus);
     }
 
     public static SalesDailySummaryEntity create(
@@ -73,13 +80,27 @@ public class SalesDailySummaryEntity {
             int orderCount,
             int menuQuantity
     ) {
+        return create(storeId, salesDate, totalNetAmount, menuNetAmount, orderCount, menuQuantity,
+                SalesDailyStatus.UNKNOWN);
+    }
+
+    public static SalesDailySummaryEntity create(
+            Long storeId,
+            LocalDate salesDate,
+            long totalNetAmount,
+            long menuNetAmount,
+            int orderCount,
+            int menuQuantity,
+            SalesDailyStatus dayStatus
+    ) {
         return new SalesDailySummaryEntity(
                 storeId,
                 salesDate,
                 totalNetAmount,
                 menuNetAmount,
                 orderCount,
-                menuQuantity
+                menuQuantity,
+                dayStatus
         );
     }
 
@@ -89,9 +110,20 @@ public class SalesDailySummaryEntity {
             int orderCount,
             int menuQuantity
     ) {
+        update(totalNetAmount, menuNetAmount, orderCount, menuQuantity, dayStatus);
+    }
+
+    public void update(
+            long totalNetAmount,
+            long menuNetAmount,
+            int orderCount,
+            int menuQuantity,
+            SalesDailyStatus dayStatus
+    ) {
         if (orderCount < 0) {
             throw new IllegalArgumentException("orderCount must not be negative");
         }
+        this.dayStatus = Objects.requireNonNull(dayStatus, "dayStatus");
         this.totalNetAmount = totalNetAmount;
         this.menuNetAmount = menuNetAmount;
         this.orderCount = orderCount;
@@ -130,6 +162,10 @@ public class SalesDailySummaryEntity {
 
     public int getMenuQuantity() {
         return menuQuantity;
+    }
+
+    public SalesDailyStatus getDayStatus() {
+        return dayStatus;
     }
 
     public LocalDateTime getUpdatedAt() {

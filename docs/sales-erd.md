@@ -9,7 +9,7 @@
 - `sales_uploads` 1 : N `analysis_runs` (`analysis_runs.based_on_upload_id`)
 - `analysis_runs` 1 : 1 `sales_analyses` (`sales_analyses.analysis_run_id`)
 - `sales_analyses` 1 : N `sales_ai_insights` (`sales_ai_insights.sales_analysis_id`)
-- `sales_daily_summaries`는 `store_id`, `sales_date`별 주문 집계 스냅샷이다.
+- `sales_daily_summaries`는 `store_id`, `sales_date`별 주문 집계와 날짜 상태 스냅샷이다.
 - `sales_forecasts`는 `store_id`, `target_date`별 최신 업로드의 정상 매출 예측 결과다.
 - `store_id`, `requested_by_user_id`, `menu_id`는 아직 구현되지 않은 도메인을 가리키는 논리 참조이며 물리 FK/JPA 연관관계는 두지 않는다.
 
@@ -94,9 +94,11 @@
 | menu_net_amount | BIGINT | Y | 메뉴 항목 순매출 합계 |
 | order_count | INT | Y | 주문 수, 음수 불가 |
 | menu_quantity | INT | Y | 메뉴 수량 합계. 취소 반영으로 감소 가능 |
+| day_status | VARCHAR(20) | Y | `COMPLETE`, `CLOSED`, `MISSING`, `UNKNOWN`; 기본값 `UNKNOWN` |
 | updated_at | DATETIME | Y | 마지막 집계 시각 |
 
 `(store_id, sales_date)`에 `uk_sales_daily_summaries_store_date` unique 제약을 둔다.
+기존 이력은 근거 없이 보정하지 않고 `UNKNOWN`으로 유지한다. 업로드에서 주문 행이 확인되거나 전체 기간 무주문이 확인되면 `COMPLETE`, 날짜에 적용 가능한 저장 주간 영업시간상 휴무면 `CLOSED`, 확인된 영업일인데 업로드 범위 내 데이터 행이 없으면 `MISSING`, 판정 근거가 없으면 `UNKNOWN`으로 저장한다. 주간 영업시간은 변경 이력을 보존하지 않으므로 최신 설정 수정일 이전 날짜에는 이를 과거 근거로 사용하지 않는다. POS가 개별 무매출일을 어떻게 표시하는지는 확인이 필요하므로, 부분 업로드의 행 공백은 0원으로 간주하지 않는다.
 
 ### analysis_runs
 
@@ -177,6 +179,7 @@
 - `analysis_runs`와 상태·기간·멱등키·실패 정보 컬럼을 추가한다.
 - `sales_analyses`와 월간 `sales_ai_insights` 저장 구조를 추가한다.
 - `sales_daily_summaries`를 `(store_id, sales_date)` 단위로 유지한다.
+- `sales_daily_summaries.day_status`를 추가하고, 기존 행 기본값은 `UNKNOWN`으로 둔다.
 - 미구현 도메인 식별자는 물리 FK 없이 BIGINT 컬럼으로 반영한다.
 
 MySQL 신규 환경에는 `docker/mysql/init/04-sales-analysis-insights.sql`을 적용한다. 기존 환경에도 같은 DDL을 1회 적용한 뒤 애플리케이션을 시작해야 하며, `ddl-auto: validate`는 설계와 실제 테이블의 일치 여부만 검사한다.
