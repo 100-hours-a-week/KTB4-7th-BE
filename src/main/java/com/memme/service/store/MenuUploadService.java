@@ -126,11 +126,6 @@ public class MenuUploadService {
                 throw fileError(HttpStatus.CONTENT_TOO_LARGE, "FILE_TOO_LARGE", index,
                         "이미지 파일은 장당 5MiB 이하여야 합니다.");
             }
-            total += image.getSize();
-            if (total > MAX_TOTAL_BYTES) {
-                throw fileError(HttpStatus.CONTENT_TOO_LARGE, "TOTAL_TOO_LARGE", index,
-                        "전체 이미지 용량은 50MiB 이하여야 합니다.");
-            }
             String name = image.getOriginalFilename();
             String extension = name == null ? "" : name.substring(name.lastIndexOf('.') + 1).toLowerCase();
             String mime = image.getContentType();
@@ -150,6 +145,11 @@ public class MenuUploadService {
             if (content.length > MAX_FILE_BYTES) {
                 throw fileError(HttpStatus.CONTENT_TOO_LARGE, "FILE_TOO_LARGE", index,
                         "이미지 파일은 장당 5MiB 이하여야 합니다.");
+            }
+            total += content.length;
+            if (total > MAX_TOTAL_BYTES) {
+                throw fileError(HttpStatus.CONTENT_TOO_LARGE, "TOTAL_TOO_LARGE", index,
+                        "전체 이미지 용량은 50MiB 이하여야 합니다.");
             }
             if (!matchesSignature(content, jpeg)) {
                 throw fileError(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_FILE", index,
