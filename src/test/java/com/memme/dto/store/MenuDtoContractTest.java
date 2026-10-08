@@ -76,4 +76,21 @@ class MenuDtoContractTest {
                     .hasSize(2);
         }
     }
+
+    @Test
+    void 가격은_JSON_정수만_허용하고_문자열과_소수는_행별_검증_대상으로_넘긴다() {
+        var textPrice = mapper.readValue("""
+                {"expectedMenuRevision":4,"items":[{"menuId":27,"price":"4000"}]}
+                """, MenuPatchRequest.class);
+        var decimalPrice = mapper.readValue("""
+                {"expectedMenuRevision":4,"items":[{"itemId":101,"price":4000.5}]}
+                """, MenuConfirmationRequest.class);
+        var integerPrice = mapper.readValue("""
+                {"expectedMenuRevision":4,"items":[{"itemId":101,"price":4000}]}
+                """, MenuConfirmationRequest.class);
+
+        assertThat(textPrice.items().getFirst().price()).isNull();
+        assertThat(decimalPrice.items().getFirst().price()).isNull();
+        assertThat(integerPrice.items().getFirst().price()).isEqualTo(4000L);
+    }
 }
