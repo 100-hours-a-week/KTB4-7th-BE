@@ -53,6 +53,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.Map;
 
 @RestControllerAdvice
 @Order(Ordered.LOWEST_PRECEDENCE)
@@ -62,6 +65,18 @@ public class GlobalExceptionHandler {
     private static final String INTERNAL_SERVER_ERROR_MESSAGE =
             "서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMaxUploadSize(
+            MaxUploadSizeExceededException exception, HttpServletRequest request) {
+        if (request.getRequestURI().startsWith("/v2/menu-images")) {
+            return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
+                    .body(new ApiResponse<>("이미지 파일은 장당 5MiB 이하여야 합니다.",
+                            Map.of("code", "FILE_TOO_LARGE")));
+        }
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
+                .body(new ApiResponse<>("업로드 파일 크기가 허용 범위를 초과했습니다.", null));
+    }
 
     @ExceptionHandler(ChatInsufficientDataException.class)
     public ResponseEntity<StatusResponse<ChatMissingDataResponse>> handleChatInsufficientData(
