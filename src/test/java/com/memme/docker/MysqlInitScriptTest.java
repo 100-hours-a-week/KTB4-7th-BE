@@ -122,6 +122,37 @@ class MysqlInitScriptTest {
     }
 
     @Test
+    void 성장_랭킹_프로필_스냅샷_엔트리_테이블을_초기화한다() throws IOException {
+        String sql = Files.readString(Path.of("docker/mysql/init/07-growth-ranking.sql"));
+
+        assertThat(sql)
+                .contains("CREATE TABLE ranking_profiles")
+                .contains("store_id BIGINT UNSIGNED NOT NULL")
+                .contains("anonymous_nickname VARCHAR(50) NOT NULL")
+                .contains("UNIQUE KEY uk_ranking_profiles_store (store_id)")
+                .contains("UNIQUE KEY uk_ranking_profiles_nickname (anonymous_nickname)")
+                .contains("CREATE TABLE ranking_snapshots")
+                .contains("revision_no INT UNSIGNED NOT NULL DEFAULT 1")
+                .contains("CHECK (status IN ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'))")
+                .contains("UNIQUE KEY uk_ranking_snapshots_period_revision")
+                .contains("CREATE TABLE ranking_entries")
+                .contains("growth_rate DECIMAL(10,4) NOT NULL")
+                .contains("UNIQUE KEY uk_ranking_entries_snapshot_profile")
+                .contains("CONSTRAINT fk_ranking_entries_snapshot")
+                .contains("CONSTRAINT fk_ranking_entries_profile");
+    }
+
+    @Test
+    void 성장_랭킹_운영_마이그레이션은_기존_stores_id_타입에_맞춘다() throws IOException {
+        String sql = Files.readString(Path.of("docker/mysql/migrations/20261007-add-growth-ranking.sql"));
+
+        assertThat(sql)
+                .contains("Existing QA/production stores.id is signed BIGINT")
+                .contains("store_id BIGINT NOT NULL")
+                .contains("CONSTRAINT fk_ranking_profiles_store FOREIGN KEY (store_id) REFERENCES stores(id)");
+    }
+
+    @Test
     void 솔루션과_사용자_저장_테이블을_초기화한다() throws IOException {
         String sql = Files.readString(Path.of("docker/mysql/init/03-solutions.sql"));
 

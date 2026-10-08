@@ -68,3 +68,11 @@ Cloud 배포 설정:
 기존 DB의 `stores.id`가 signed `BIGINT`이므로 마이그레이션의 `store_id`도
 같은 타입으로 생성합니다. 신규 DB의 `stores.id`와 `store_id`는 `BIGINT UNSIGNED`입니다.
 기존 매장의 메뉴 개정 번호는 0으로 시작하며 기존 매장·매출 데이터는 변경하지 않습니다.
+
+## 성장률 랭킹 저장 계층 (#402)
+
+기존 QA·운영 DB에는 BE 배포 전에 `20261007-add-growth-ranking.sql`을 한 번 실행합니다.
+운영 `stores.id`가 signed `BIGINT`인 스키마와 외래 키를 맞추기 위해 운영 마이그레이션의 `ranking_profiles.store_id`도 signed `BIGINT`로 선언합니다.
+신규 DB는 `docker/mysql/init/07-growth-ranking.sql`을 사용하며, fresh-init의 `stores.id` 타입에 맞춰 `ranking_profiles.store_id`를 `BIGINT UNSIGNED`로 선언합니다.
+
+배포 전 세 테이블과 외래 키·유니크 인덱스가 생성됐는지 확인한 뒤 BE를 배포합니다. 이 변경은 기존 매출 데이터를 수정하지 않습니다.
