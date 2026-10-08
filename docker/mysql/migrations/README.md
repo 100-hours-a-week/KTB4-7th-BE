@@ -59,3 +59,11 @@ Cloud 배포 설정:
 신규 DB는 `docker/mysql/init/02-sales-core.sql`에서 `day_status`를 생성합니다.
 
 권장 배포 순서는 DB 백업 확인 → SQL 적용 및 기존 행의 `UNKNOWN` 확인 → BE 배포 → 매출 업로드 후 `COMPLETE`/`CLOSED`/`MISSING`/`UNKNOWN` 상태 확인입니다.
+
+## 성장률 랭킹 저장 계층 (#402)
+
+기존 QA·운영 DB에는 BE 배포 전에 `20261007-add-growth-ranking.sql`을 한 번 실행합니다.
+운영 `stores.id`가 signed `BIGINT`인 스키마와 외래 키를 맞추기 위해 운영 마이그레이션의 `ranking_profiles.store_id`도 signed `BIGINT`로 선언합니다.
+신규 DB는 `docker/mysql/init/07-growth-ranking.sql`을 사용하며, fresh-init의 `stores.id` 타입에 맞춰 `ranking_profiles.store_id`를 `BIGINT UNSIGNED`로 선언합니다.
+
+배포 전 세 테이블과 외래 키·유니크 인덱스가 생성됐는지 확인한 뒤 BE를 배포합니다. 이 변경은 기존 매출 데이터를 수정하지 않습니다.
