@@ -20,6 +20,7 @@ import com.memme.service.sales.analysis.SalesAnalysisService;
 import com.memme.exception.sales.SalesUploadProcessingException;
 import com.memme.service.sales.analysis.SalesAnalysisSnapshotService;
 import com.memme.service.sales.insight.SalesInsightGenerationService;
+import com.memme.service.ranking.RankingSnapshotRecalculationService;
 import com.memme.service.sales.storage.SalesFileStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +49,7 @@ class SalesUploadProcessingServiceTest {
     private SalesAnalysisSnapshotService snapshotService;
     private SalesInsightGenerationService insightGenerationService;
     private SalesAiPostProcessingJob aiPostProcessingJob;
+    private RankingSnapshotRecalculationService rankingSnapshotRecalculationService;
 
     @BeforeEach
     void setUp() {
@@ -61,6 +63,7 @@ class SalesUploadProcessingServiceTest {
         snapshotService = mock(SalesAnalysisSnapshotService.class);
         insightGenerationService = mock(SalesInsightGenerationService.class);
         aiPostProcessingJob = mock(SalesAiPostProcessingJob.class);
+        rankingSnapshotRecalculationService = mock(RankingSnapshotRecalculationService.class);
         service = new SalesUploadProcessingService(
                 uploadRepository,
                 fileStorage,
@@ -71,7 +74,8 @@ class SalesUploadProcessingServiceTest {
                 snapshotService,
                 insightGenerationService,
                 insightRepository,
-                aiPostProcessingJob
+                aiPostProcessingJob,
+                rankingSnapshotRecalculationService
         );
     }
 
@@ -117,7 +121,8 @@ class SalesUploadProcessingServiceTest {
                 lifecycleService,
                 analysisService,
                 snapshotService,
-                insightGenerationService
+                insightGenerationService,
+                rankingSnapshotRecalculationService
         );
         lifecycle.verify(lifecycleService).startProcessing(12L);
         lifecycle.verify(lifecycleService).advancePhase(12L, SalesUploadProcessingPhase.NORMALIZING);
@@ -135,6 +140,7 @@ class SalesUploadProcessingServiceTest {
                 com.memme.dto.sales.SalesInsightTriggerType.UPLOAD
         );
         lifecycle.verify(lifecycleService).markCompleted(12L, 0);
+        lifecycle.verify(rankingSnapshotRecalculationService).recalculateIfAffected(periodStart, periodEnd);
     }
 
     @Test
@@ -198,11 +204,14 @@ class SalesUploadProcessingServiceTest {
                 java.time.YearMonth.of(2026, 9),
                 com.memme.dto.sales.SalesInsightTriggerType.UPLOAD
         )).thenThrow(new IllegalStateException("AI unavailable"));
+        when(rankingSnapshotRecalculationService.recalculateIfAffected(date, date))
+                .thenThrow(new IllegalStateException("ranking unavailable"));
 
         assertThat(service.process(12L)).isEqualTo(expected);
 
         verify(lifecycleService).markCompleted(12L, 0);
         verify(lifecycleService, never()).markFailed(any(), any(), any());
+        verify(rankingSnapshotRecalculationService).recalculateIfAffected(date, date);
         verify(aiPostProcessingJob).start(301L, 12L, 34L, date.plusDays(1));
     }
 

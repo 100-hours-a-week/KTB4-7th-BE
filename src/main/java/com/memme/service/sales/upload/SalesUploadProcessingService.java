@@ -21,6 +21,7 @@ import com.memme.service.sales.analysis.SalesAnalysisResult;
 import com.memme.service.sales.analysis.SalesAnalysisSnapshotService;
 import com.memme.service.sales.insight.SalesInsightGenerationService;
 import com.memme.service.sales.storage.SalesFileStorage;
+import com.memme.service.ranking.RankingSnapshotRecalculationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -40,6 +41,7 @@ public class SalesUploadProcessingService {
     private final SalesInsightGenerationService insightGenerationService;
     private final SalesAiInsightRepository insightRepository;
     private final SalesAiPostProcessingJob aiPostProcessingJob;
+    private final RankingSnapshotRecalculationService rankingSnapshotRecalculationService;
 
     public SalesUploadProcessingService(SalesUploadRepository uploadRepository,
                                         SalesFileStorage fileStorage,
@@ -50,7 +52,8 @@ public class SalesUploadProcessingService {
                                         SalesAnalysisSnapshotService snapshotService,
                                         SalesInsightGenerationService insightGenerationService,
                                         SalesAiInsightRepository insightRepository,
-                                        SalesAiPostProcessingJob aiPostProcessingJob) {
+                                        SalesAiPostProcessingJob aiPostProcessingJob,
+                                        RankingSnapshotRecalculationService rankingSnapshotRecalculationService) {
         this.uploadRepository = uploadRepository;
         this.fileStorage = fileStorage;
         this.workbookParser = workbookParser;
@@ -61,6 +64,7 @@ public class SalesUploadProcessingService {
         this.insightGenerationService = insightGenerationService;
         this.insightRepository = insightRepository;
         this.aiPostProcessingJob = aiPostProcessingJob;
+        this.rankingSnapshotRecalculationService = rankingSnapshotRecalculationService;
     }
 
     public SalesUploadResult process(Long uploadId) {
@@ -89,6 +93,7 @@ public class SalesUploadProcessingService {
                     data
             );
             lifecycleService.markCompleted(uploadId, result.appliedRecordCount());
+            recalculateRanking(data, uploadId);
             startAiPostProcessing(upload, uploadId, data);
             return result;
         } catch (TossPosWorkbookValidationException exception) {
@@ -107,6 +112,14 @@ public class SalesUploadProcessingService {
         } catch (RuntimeException exception) {
             recordFailure(uploadId, "UPLOAD_PROCESSING_ERROR", "업로드 처리 중 오류가 발생했습니다.", exception);
             throw new SalesUploadProcessingException("업로드 처리 중 오류가 발생했습니다.", exception);
+        }
+    }
+
+    private void recalculateRanking(TossPosWorkbookData data, Long uploadId) {
+        try {
+            rankingSnapshotRecalculationService.recalculateIfAffected(data.periodStart(), data.periodEnd());
+        } catch (RuntimeException exception) {
+            log.warn("Growth ranking recalculation failed after completed uploadId={}", uploadId, exception);
         }
     }
 
