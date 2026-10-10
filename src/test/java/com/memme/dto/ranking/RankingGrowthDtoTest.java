@@ -1,6 +1,7 @@
 package com.memme.dto.ranking;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -14,10 +15,8 @@ class RankingGrowthDtoTest {
     private final JsonMapper mapper = JsonMapper.builder().build();
 
     @Test
-    void 조회_기간을_생략하면_지난달을_선택한다() {
-        assertThat(new RankingGrowthRequest(null).period()).isEqualTo(RankingPeriod.LAST_MONTH);
-        assertThat(new RankingGrowthRequest(RankingPeriod.THIS_MONTH).period())
-                .isEqualTo(RankingPeriod.THIS_MONTH);
+    void 랭킹_응답_기간은_지난달만_지원한다() {
+        assertThat(RankingPeriod.values()).containsExactly(RankingPeriod.LAST_MONTH);
     }
 
     @Test
@@ -68,13 +67,13 @@ class RankingGrowthDtoTest {
                 "아직 순위 정보가 없어요. 매출 데이터를 등록하면 랭킹에 참여할 수 있어요.",
                 RankingGrowthResponse.Status.COMPLETED,
                 new RankingGrowthResponse.Data(
-                        false,
+                        true,
                         new RankingGrowthResponse.Period(
-                                RankingPeriod.THIS_MONTH,
-                                LocalDate.of(2026, 10, 1),
-                                LocalDate.of(2026, 10, 5),
+                                RankingPeriod.LAST_MONTH,
                                 LocalDate.of(2026, 9, 1),
-                                LocalDate.of(2026, 9, 5),
+                                LocalDate.of(2026, 9, 30),
+                                LocalDate.of(2026, 8, 1),
+                                LocalDate.of(2026, 8, 31),
                                 OffsetDateTime.parse("2026-10-06T00:10:00+09:00")),
                         List.of(),
                         null,
@@ -102,6 +101,9 @@ class RankingGrowthDtoTest {
         var pendingJson = mapper.readTree(mapper.writeValueAsString(pending));
 
         assertThat(insufficientJson.path("data").path("rankings").isEmpty()).isTrue();
+        assertThat(insufficientJson.path("data").path("isFinal").booleanValue()).isTrue();
+        assertThat(insufficientJson.path("data").path("period").path("type").asString())
+                .isEqualTo("LAST_MONTH");
         assertThat(insufficientJson.path("data").path("myRanking").isNull()).isTrue();
         assertThat(insufficientJson.path("data").path("myEligibility").path("reason").asString())
                 .isEqualTo("DATA_INCOMPLETE");
@@ -115,5 +117,20 @@ class RankingGrowthDtoTest {
         assertThat(pendingJson.path("data").path("period").has("calculatedAt")).isTrue();
         assertThat(pendingJson.path("data").path("period").path("calculatedAt").isNull()).isTrue();
         assertThat(pendingJson.path("data").path("myEligibility").path("reason").isNull()).isTrue();
+    }
+
+    @Test
+    void 지난달_랭킹은_진행중_기간으로_표현할_수_없다() {
+        var period = new RankingGrowthResponse.Period(
+                RankingPeriod.LAST_MONTH,
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 30),
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 31),
+                null);
+
+        assertThatThrownBy(() -> new RankingGrowthResponse.Data(false, period, List.of(), null,
+                new RankingGrowthResponse.MyEligibility(RankingGrowthResponse.EligibilityStatus.UNKNOWN, null)))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }
