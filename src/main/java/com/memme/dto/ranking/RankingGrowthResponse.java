@@ -22,6 +22,9 @@ public record RankingGrowthResponse(String message, Status status, Data data) {
             MyEligibility myEligibility
     ) {
         public Data {
+            if (!isFinal) {
+                throw new IllegalArgumentException("지난달 랭킹 기간은 종료된 상태여야 합니다.");
+            }
             rankings = List.copyOf(rankings);
         }
     }
