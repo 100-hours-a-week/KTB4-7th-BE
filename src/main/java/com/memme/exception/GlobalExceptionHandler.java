@@ -27,6 +27,7 @@ import com.memme.dto.chat.ChatMissingDataResponse;
 import com.memme.dto.common.StatusResponse;
 import com.memme.exception.noti.NotificationNotFoundException;
 import com.memme.exception.noti.InvalidNotificationCursorException;
+import com.memme.exception.ranking.UnsupportedRankingConditionException;
 import com.memme.exception.sales.SalesAnalysisRequestException;
 import com.memme.exception.sales.InvalidStoreCostMonthException;
 import com.memme.exception.sales.InternalSalesDataNotFoundException;
@@ -40,6 +41,7 @@ import com.memme.exception.store.EmptyStoreProfileUpdateException;
 import com.memme.exception.store.InvalidStoreBusinessVerificationException;
 import com.memme.exception.store.InvalidStoreProfileUpdateRequestException;
 import com.memme.exception.store.StoreProfileNotFoundException;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,6 +63,8 @@ public class GlobalExceptionHandler {
     private static final String INVALID_REQUEST_FORMAT_MESSAGE = "요청 형식이 올바르지 않습니다.";
     private static final String INTERNAL_SERVER_ERROR_MESSAGE =
             "서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
+    private static final String RANKING_LOAD_ERROR_MESSAGE =
+            "성장 랭킹을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.";
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ChatInsufficientDataException.class)
@@ -163,6 +167,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new ApiResponse<>("로그인이 필요합니다.", null));
+    }
+
+    @ExceptionHandler(UnsupportedRankingConditionException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnsupportedRankingCondition(
+            UnsupportedRankingConditionException exception
+    ) {
+        return ResponseEntity.badRequest().body(new ApiResponse<>(exception.getMessage(), null));
     }
 
     @ExceptionHandler(StoreProfileNotFoundException.class)
@@ -360,10 +371,14 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Void>> handleUnhandledException(Exception exception) {
+    public ResponseEntity<ApiResponse<Void>> handleUnhandledException(
+            Exception exception, HttpServletRequest request
+    ) {
         log.error("Unhandled server exception", exception);
+        String message = "/v2/rankings/growth".equals(request.getRequestURI())
+                ? RANKING_LOAD_ERROR_MESSAGE : INTERNAL_SERVER_ERROR_MESSAGE;
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiResponse<>(INTERNAL_SERVER_ERROR_MESSAGE, null));
+                .body(new ApiResponse<>(message, null));
     }
 
     private ResponseEntity<ApiResponse<Void>> badRequestResponse() {
