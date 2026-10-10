@@ -72,17 +72,17 @@ class RankingSalesPeriodAggregatorTest {
     }
 
     @Test
-    void excludesAnUnknownDayWhenTheBusinessScheduleConfirmsClosure() {
+    void unknownOrMissingDayRemainsIncompleteEvenWhenBusinessScheduleConfirmsClosure() {
         LocalDate date = LocalDate.of(2026, 9, 1);
-
-        OptionalLong total = aggregator.aggregate(
-                date,
-                date,
-                Map.of(date, new RankingSalesPeriodAggregator.DailySales(SalesDailyStatus.UNKNOWN, 0L)),
-                Set.of(date),
-                List.of()
-        );
-
-        assertThat(total).hasValue(0L);
+        for (SalesDailyStatus status : List.of(SalesDailyStatus.UNKNOWN, SalesDailyStatus.MISSING)) {
+            OptionalLong total = aggregator.aggregate(
+                    date,
+                    date,
+                    Map.of(date, new RankingSalesPeriodAggregator.DailySales(status, 0L)),
+                    Set.of(date),
+                    List.of()
+            );
+            assertThat(total).isEmpty();
+        }
     }
 }
