@@ -146,6 +146,26 @@ class SalesRepositoryTest {
     }
 
     @Test
+    void 업로드별_매출_발생_월을_중복없이_조회한다() {
+        SalesUploadEntity upload = uploadRepository.save(completedUpload(
+                1L, "month-options", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 10, 31), 3));
+        orderRepository.save(SalesOrderEntity.create(upload.getId(), 1L, SalesOrderChannel.POS,
+                "aug-1", LocalDateTime.of(2026, 8, 1, 10, 0), true));
+        orderRepository.save(SalesOrderEntity.create(upload.getId(), 1L, SalesOrderChannel.POS,
+                "aug-2", LocalDateTime.of(2026, 8, 2, 10, 0), true));
+        orderRepository.save(SalesOrderEntity.create(upload.getId(), 1L, SalesOrderChannel.POS,
+                "oct-1", LocalDateTime.of(2026, 10, 1, 10, 0), true));
+        orderRepository.save(SalesOrderEntity.create(upload.getId(), 2L, SalesOrderChannel.POS,
+                "other-store", LocalDateTime.of(2026, 9, 1, 10, 0), true));
+
+        assertThat(orderRepository.findDistinctUploadMonths(1L))
+                .extracting(row -> ((Number) row[2]).intValue())
+                .containsExactlyInAnyOrder(8, 10);
+        assertThat(uploadRepository.findAllByStoreIdAndStatusOrderByUploadedAtDescIdDesc(
+                1L, SalesUploadStatus.COMPLETED)).contains(upload);
+    }
+
+    @Test
     void findsItemsForOneOrMultipleOrdersInStableOrder() {
         SalesOrderItemEntity first = itemRepository.save(item(10L, "아메리카노", 2, 8_000));
         SalesOrderItemEntity second = itemRepository.save(item(11L, "카페라떼", 1, 5_000));

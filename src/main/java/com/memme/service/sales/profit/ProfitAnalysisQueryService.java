@@ -15,9 +15,12 @@ import com.memme.service.sales.analysis.SalesAnalysisQueryService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.DayOfWeek;
 import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -68,19 +71,35 @@ public class ProfitAnalysisQueryService {
         Long previousNetProfit = previous.status() == ProfitCalculationResult.Status.COMPLETED
                 ? previous.amounts().netProfit() : null;
         ProfitCalculationResult.Amounts amounts = current.amounts();
+        long totalCost = Math.addExact(amounts.ingredientCost(), amounts.fixedCost());
+        Long previousTotalCost = previousNetProfit == null ? null
+                : Math.addExact(previous.amounts().ingredientCost(), previous.amounts().fixedCost());
         BigDecimal netProfitRate = ratio(amounts.netProfit(), amounts.totalNetAmount());
-        BigDecimal changeRate = previousNetProfit == null || previousNetProfit == 0
-                ? null : BigDecimal.valueOf(amounts.netProfit())
-                        .subtract(BigDecimal.valueOf(previousNetProfit))
-                        .divide(BigDecimal.valueOf(previousNetProfit).abs(), 4, RoundingMode.HALF_UP);
+        BigDecimal previousNetProfitRate = previousNetProfit == null ? null
+                : ratio(previousNetProfit, previous.amounts().totalNetAmount());
+        BigDecimal netProfitRateDifference = netProfitRate == null || previousNetProfitRate == null
+                ? null : netProfitRate.subtract(previousNetProfitRate);
 
         List<ProfitAnalysisResponse.DailyProfit> dailyProfits = current.dailyProfits().stream()
                 .map(day -> new ProfitAnalysisResponse.DailyProfit(day.date(), day.netProfit()))
                 .toList();
+        Map<DayOfWeek, Long> weekdayTotals = new EnumMap<>(DayOfWeek.class);
+        for (ProfitAnalysisResponse.DailyProfit day : dailyProfits) {
+            weekdayTotals.merge(day.date().getDayOfWeek(), day.netProfit(), Math::addExact);
+        }
+        List<ProfitAnalysisResponse.WeekdayProfit> weekdayProfits =
+                java.util.Arrays.stream(DayOfWeek.values())
+                        .map(day -> new ProfitAnalysisResponse.WeekdayProfit(
+                                day.name(), weekdayTotals.getOrDefault(day, 0L)))
+                        .toList();
         ProfitAnalysisResponse response = new ProfitAnalysisResponse(
                 new ProfitAnalysisResponse.Summary(amounts.totalNetAmount(), amounts.ingredientCost(),
-                        amounts.fixedCost(), amounts.netProfit(), netProfitRate, previousNetProfit, changeRate),
+                        amounts.fixedCost(), totalCost, amounts.netProfit(), netProfitRate, previousNetProfit,
+                        changeRate(amounts.netProfit(), previousNetProfit), previousTotalCost,
+                        changeRate(totalCost, previousTotalCost), previousNetProfitRate,
+                        netProfitRateDifference),
                 dailyProfits,
+                weekdayProfits,
                 describeSafely(storeId, amounts.netProfit(), previousNetProfit, dailyProfits)
         );
         return new ProfitAnalysisQueryResult.Completed(response);
@@ -126,6 +145,15 @@ public class ProfitAnalysisQueryService {
         }
         return BigDecimal.valueOf(numerator)
                 .divide(BigDecimal.valueOf(denominator), 4, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal changeRate(long current, Long previous) {
+        if (previous == null || previous == 0) {
+            return null;
+        }
+        return BigDecimal.valueOf(current)
+                .subtract(BigDecimal.valueOf(previous))
+                .divide(BigDecimal.valueOf(previous).abs(), 4, RoundingMode.HALF_UP);
     }
 
     private DateRange previousRange(SalesPeriod period) {
