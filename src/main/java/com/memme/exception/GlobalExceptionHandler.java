@@ -9,6 +9,8 @@ import com.memme.dto.common.FieldErrors;
 import com.memme.dto.sales.StoreCostItemRequest;
 import com.memme.dto.sales.StoreCostItemValidationErrors;
 import com.memme.dto.sales.StoreCostItemValidationErrors.StoreCostItemFieldError;
+import com.memme.dto.sales.SalesUploadCostSaveRequest;
+import com.memme.dto.sales.SalesUploadCostValidationErrors;
 import com.memme.dto.solution.SolutionNavigationErrorResponse;
 import com.memme.exception.auth.AuthenticationRequiredException;
 import com.memme.exception.auth.DuplicateSignupException;
@@ -28,6 +30,7 @@ import com.memme.dto.common.StatusResponse;
 import com.memme.exception.noti.NotificationNotFoundException;
 import com.memme.exception.noti.InvalidNotificationCursorException;
 import com.memme.exception.sales.SalesAnalysisRequestException;
+import com.memme.exception.sales.SalesUploadCostEntryException;
 import com.memme.exception.sales.InvalidStoreCostMonthException;
 import com.memme.exception.sales.InternalSalesDataNotFoundException;
 import com.memme.exception.solution.SolutionRequestException;
@@ -41,6 +44,8 @@ import com.memme.exception.store.InvalidStoreBusinessVerificationException;
 import com.memme.exception.store.InvalidStoreProfileUpdateRequestException;
 import com.memme.exception.store.StoreProfileNotFoundException;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
@@ -62,6 +67,7 @@ public class GlobalExceptionHandler {
     private static final String INTERNAL_SERVER_ERROR_MESSAGE =
             "서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final Pattern COST_ITEM_FIELD = Pattern.compile("items\\[(\\d+)]\\.(.+)");
 
     @ExceptionHandler(ChatInsufficientDataException.class)
     public ResponseEntity<StatusResponse<ChatMissingDataResponse>> handleChatInsufficientData(
@@ -109,6 +115,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(new ApiResponse<>("입력값을 확인해 주세요.",
                 new StoreCostItemValidationErrors(List.of(
                         new StoreCostItemFieldError("costMonth", "INVALID_FORMAT", exception.getMessage())))));
+    }
+
+    @ExceptionHandler(SalesUploadCostEntryException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSalesUploadCostEntry(SalesUploadCostEntryException exception) {
+        HttpStatus status = switch (exception.getReason()) {
+            case UPLOAD_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case UPLOAD_NOT_COMPLETED -> HttpStatus.CONFLICT;
+            case INVALID_MONTHS -> HttpStatus.BAD_REQUEST;
+        };
+        return ResponseEntity.status(status).body(new ApiResponse<>(exception.getMessage(), null));
     }
 
     @ExceptionHandler(SalesAnalysisRequestException.class)
@@ -329,6 +345,31 @@ public class GlobalExceptionHandler {
     public ResponseEntity<?> handleMethodArgumentNotValid(
             MethodArgumentNotValidException exception
     ) {
+        if (exception.getBindingResult().getTarget() instanceof SalesUploadCostSaveRequest request) {
+            List<SalesUploadCostValidationErrors.FieldError> errors = exception.getBindingResult()
+                    .getFieldErrors().stream().map(error -> {
+                        Matcher matcher = COST_ITEM_FIELD.matcher(error.getField());
+                        String costMonth = null;
+                        String field = error.getField();
+                        if (matcher.matches()) {
+                            int index = Integer.parseInt(matcher.group(1));
+                            if (request.items() != null && index < request.items().size()
+                                    && request.items().get(index) != null) {
+                                costMonth = request.items().get(index).costMonth();
+                            }
+                            field = matcher.group(2);
+                        }
+                        String code = switch (error.getCode() == null ? "" : error.getCode()) {
+                            case "NotNull", "NotEmpty" -> "REQUIRED";
+                            case "DecimalMin", "DecimalMax" -> "OUT_OF_RANGE";
+                            default -> "INVALID_FORMAT";
+                        };
+                        return new SalesUploadCostValidationErrors.FieldError(
+                                costMonth, field, code, error.getDefaultMessage());
+                    }).toList();
+            return ResponseEntity.badRequest().body(new ApiResponse<>("입력값을 확인해 주세요.",
+                    new SalesUploadCostValidationErrors(errors)));
+        }
         if (exception.getBindingResult().getTarget() instanceof StoreCostItemRequest) {
             List<StoreCostItemFieldError> errors = exception.getBindingResult().getFieldErrors().stream()
                     .map(error -> new StoreCostItemFieldError(error.getField(),
