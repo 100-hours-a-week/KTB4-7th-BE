@@ -30,8 +30,10 @@ public class RankingSalesPeriodAggregator {
                 totalSales = Math.addExact(totalSales, dailySales.totalNetAmount());
                 continue;
             }
-            if ((dailySales != null && dailySales.status() == SalesDailyStatus.CLOSED)
-                    || confirmedClosedDates.contains(date)) {
+            if (dailySales != null && dailySales.status() == SalesDailyStatus.CLOSED) {
+                continue;
+            }
+            if (dailySales == null && confirmedClosedDates.contains(date)) {
                 continue;
             }
             return OptionalLong.empty();
