@@ -73,7 +73,7 @@ class StoreCostItemControllerTest {
         mvc.perform(put("/v2/stores/me/cost-items/2026-10")
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"rentAmount\":0,\"laborAmount\":0,\"ingredientCostRate\":1.1}"))
+                        .content("{\"rentAmount\":0,\"laborAmount\":0,\"ingredientCostRate\":100.1}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.data.fieldErrors[0].field").value("ingredientCostRate"))
                 .andExpect(jsonPath("$.data.fieldErrors[0].code").value("OUT_OF_RANGE"));
