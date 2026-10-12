@@ -41,6 +41,7 @@ class RankingChangeNotificationServiceTest {
     private static final Clock FIXED_CLOCK = Clock.fixed(
             Instant.parse("2026-10-11T23:00:00Z"), KOREA_ZONE
     );
+    private static final LocalDate BASE_DATE = LocalDate.of(2026, 10, 11);
     private static final LocalDateTime PREVIOUS_DAY_START = storageBoundary(LocalDate.of(2026, 10, 11));
     private static final LocalDateTime CURRENT_DAY_START = storageBoundary(LocalDate.of(2026, 10, 12));
     private static final LocalDateTime TWO_DAYS_AGO_START = storageBoundary(LocalDate.of(2026, 10, 10));
@@ -102,7 +103,7 @@ class RankingChangeNotificationServiceTest {
         givenDisabledOwner(15L, 105L);
         when(userRepository.getReferenceById(anyLong())).thenAnswer(invocation -> mock(User.class));
 
-        service.createDailyRankingChangeNotifications();
+        service.createDailyRankingChangeNotifications(BASE_DATE);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Iterable<Notification>> notificationsCaptor = ArgumentCaptor.forClass(Iterable.class);
@@ -148,7 +149,7 @@ class RankingChangeNotificationServiceTest {
     void 이전_완료_스냅샷이_없으면_알림을_저장하지_않는다() {
         givenSnapshotPair(snapshot(200L), null);
 
-        service.createDailyRankingChangeNotifications();
+        service.createDailyRankingChangeNotifications(BASE_DATE);
 
         verify(entryRepository, never()).findAllByRankingSnapshotIdIn(any());
         verify(notificationRepository, never()).saveAll(any());
@@ -158,7 +159,7 @@ class RankingChangeNotificationServiceTest {
     void 현재_완료_스냅샷이_없으면_알림을_저장하지_않는다() {
         givenSnapshotPair(null, snapshot(199L));
 
-        service.createDailyRankingChangeNotifications();
+        service.createDailyRankingChangeNotifications(BASE_DATE);
 
         verify(entryRepository, never()).findAllByRankingSnapshotIdIn(any());
         verify(notificationRepository, never()).saveAll(any());
@@ -178,21 +179,49 @@ class RankingChangeNotificationServiceTest {
                 101L, NotificationType.RANKING_CHANGED, "RANKING_CHANGED:101:2026-09:2026-10-11"
         )).thenReturn(true);
 
-        service.createDailyRankingChangeNotifications();
+        service.createDailyRankingChangeNotifications(BASE_DATE);
 
         verify(notificationRepository, never()).saveAll(any());
     }
 
+    @Test
+    void 전달받은_기준일과_그_전날의_완료_스냅샷을_조회한다() {
+        LocalDate baseDate = LocalDate.of(2026, 10, 10);
+        RankingSnapshotEntity current = snapshot(200L);
+        givenSnapshotPair(baseDate, current, null);
+
+        service.createDailyRankingChangeNotifications(baseDate);
+
+        verify(snapshotRepository).findLatestCompletedForDay(
+                LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30),
+                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31),
+                LocalDateTime.of(2026, 10, 9, 15, 0), LocalDateTime.of(2026, 10, 10, 15, 0)
+        );
+        verify(snapshotRepository).findLatestCompletedForDay(
+                LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30),
+                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31),
+                LocalDateTime.of(2026, 10, 8, 15, 0), LocalDateTime.of(2026, 10, 9, 15, 0)
+        );
+    }
+
     private void givenSnapshotPair(RankingSnapshotEntity current, RankingSnapshotEntity previous) {
+        givenSnapshotPair(BASE_DATE, current, previous);
+    }
+
+    private void givenSnapshotPair(
+            LocalDate baseDate,
+            RankingSnapshotEntity current,
+            RankingSnapshotEntity previous
+    ) {
         when(snapshotRepository.findLatestCompletedForDay(
                 eq(LocalDate.of(2026, 9, 1)), eq(LocalDate.of(2026, 9, 30)),
                 eq(LocalDate.of(2026, 8, 1)), eq(LocalDate.of(2026, 8, 31)),
-                eq(PREVIOUS_DAY_START), eq(CURRENT_DAY_START)
+                eq(storageBoundary(baseDate)), eq(storageBoundary(baseDate.plusDays(1)))
         )).thenReturn(Optional.ofNullable(current));
         when(snapshotRepository.findLatestCompletedForDay(
                 eq(LocalDate.of(2026, 9, 1)), eq(LocalDate.of(2026, 9, 30)),
                 eq(LocalDate.of(2026, 8, 1)), eq(LocalDate.of(2026, 8, 31)),
-                eq(TWO_DAYS_AGO_START), eq(PREVIOUS_DAY_END)
+                eq(storageBoundary(baseDate.minusDays(1))), eq(storageBoundary(baseDate))
         )).thenReturn(Optional.ofNullable(previous));
         if (current != null) {
             when(current.getId()).thenReturn(200L);
