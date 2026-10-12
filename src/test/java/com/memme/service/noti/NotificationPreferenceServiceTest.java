@@ -29,14 +29,15 @@ class NotificationPreferenceServiceTest {
 
         NotificationPreferenceResponse response = service.getPreferences(1L);
 
-        assertFalse(response.preferences().solutionEnabled());
-        assertFalse(response.preferences().salesUploadReminderEnabled());
+        assertTrue(response.preferences().solutionEnabled());
+        assertTrue(response.preferences().salesUploadReminderEnabled());
     }
 
     @Test
     void 전달된_알림_설정만_수정한다() {
         NotificationPreferenceRepository repository = Mockito.mock(NotificationPreferenceRepository.class);
         NotificationPreference preference = NotificationPreference.create(null, LocalDateTime.now(FIXED_CLOCK));
+        preference.updatePreferences(false, false, LocalDateTime.now(FIXED_CLOCK));
         when(repository.findByUserId(1L)).thenReturn(Optional.of(preference));
         NotificationPreferenceService service = new NotificationPreferenceService(repository, FIXED_CLOCK);
 

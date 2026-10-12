@@ -56,7 +56,8 @@ class NotificationEntityMappingTest {
 
         assertThat(notificationClass.getDeclaredField("sentAt").getType()).isEqualTo(LocalDateTime.class);
         assertThat(NotificationType.values())
-                .containsExactly(NotificationType.SOLUTION_READY, NotificationType.SALES_UPLOAD_REMINDER);
+                .containsExactly(NotificationType.SOLUTION_READY, NotificationType.SALES_UPLOAD_REMINDER,
+                        NotificationType.RANKING_CHANGED);
     }
 
     private void assertColumn(

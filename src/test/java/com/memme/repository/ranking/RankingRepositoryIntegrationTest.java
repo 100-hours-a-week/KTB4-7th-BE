@@ -8,10 +8,13 @@ import com.memme.entity.ranking.RankingSnapshotEntity;
 import com.memme.entity.ranking.RankingSnapshotStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @SpringBootTest
 @Transactional
@@ -25,6 +28,55 @@ class RankingRepositoryIntegrationTest {
 
     @Autowired
     private RankingEntryRepository entryRepository;
+
+    @Test
+    void 같은_랭킹_기간과_KST_날짜의_마지막_완료_스냅샷만_조회한다() {
+        LocalDate periodStart = LocalDate.of(2026, 9, 1);
+        LocalDate periodEnd = LocalDate.of(2026, 9, 30);
+        LocalDate comparisonStart = LocalDate.of(2026, 8, 1);
+        LocalDate comparisonEnd = LocalDate.of(2026, 8, 31);
+        RankingSnapshotEntity first = completedSnapshot(periodStart, periodEnd, comparisonStart, comparisonEnd, 1,
+                LocalDateTime.of(2026, 10, 10, 10, 0));
+        RankingSnapshotEntity last = completedSnapshot(periodStart, periodEnd, comparisonStart, comparisonEnd, 2,
+                LocalDateTime.of(2026, 10, 10, 23, 59));
+        RankingSnapshotEntity nextDay = completedSnapshot(periodStart, periodEnd, comparisonStart, comparisonEnd, 3,
+                LocalDateTime.of(2026, 10, 11, 0, 0));
+        RankingSnapshotEntity processing = RankingSnapshotEntity.create(
+                periodStart, periodEnd, comparisonStart, comparisonEnd, 4);
+        processing.start();
+        ReflectionTestUtils.setField(processing, "calculatedAt", LocalDateTime.of(2026, 10, 10, 23, 59, 30));
+        RankingSnapshotEntity failed = RankingSnapshotEntity.create(
+                periodStart, periodEnd, comparisonStart, comparisonEnd, 5);
+        failed.start();
+        failed.fail();
+        ReflectionTestUtils.setField(failed, "calculatedAt", LocalDateTime.of(2026, 10, 10, 23, 59, 40));
+        RankingSnapshotEntity otherPeriod = completedSnapshot(
+                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31),
+                LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31), 1,
+                LocalDateTime.of(2026, 10, 10, 23, 59, 50));
+        snapshotRepository.saveAllAndFlush(List.of(first, last, nextDay, processing, failed, otherPeriod));
+
+        assertThat(snapshotRepository.findLatestCompletedForDay(
+                periodStart, periodEnd, comparisonStart, comparisonEnd,
+                LocalDateTime.of(2026, 10, 10, 0, 0), LocalDateTime.of(2026, 10, 11, 0, 0)))
+                .contains(last);
+
+        assertThat(snapshotRepository.findLatestCompletedForDay(
+                periodStart, periodEnd, comparisonStart, comparisonEnd,
+                LocalDateTime.of(2026, 10, 9, 0, 0), LocalDateTime.of(2026, 10, 10, 0, 0)))
+                .isEmpty();
+    }
+
+    private RankingSnapshotEntity completedSnapshot(
+            LocalDate periodStart, LocalDate periodEnd, LocalDate comparisonStart, LocalDate comparisonEnd,
+            int revision, LocalDateTime completedAt) {
+        RankingSnapshotEntity snapshot = RankingSnapshotEntity.create(
+                periodStart, periodEnd, comparisonStart, comparisonEnd, revision);
+        snapshot.start();
+        snapshot.complete();
+        ReflectionTestUtils.setField(snapshot, "calculatedAt", completedAt);
+        return snapshot;
+    }
 
     @Test
     void 매장_프로필과_기간별_최신_및_최신_완료_스냅샷을_조회한다() {
@@ -103,5 +155,9 @@ class RankingRepositoryIntegrationTest {
                 .get()
                 .extracting(RankingEntryEntity::getGrowthRate)
                 .isEqualTo(new BigDecimal("28.4500"));
+
+        assertThat(entryRepository.findAllByRankingSnapshotIdIn(List.of(snapshot.getId())))
+                .extracting(RankingEntryEntity::getRankingProfileId)
+                .containsExactlyInAnyOrder(firstProfile.getId(), secondProfile.getId());
     }
 }

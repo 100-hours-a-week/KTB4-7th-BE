@@ -73,18 +73,17 @@ class MysqlInitScriptTest {
     }
 
     @Test
-    void 사용자별_알림_설정_테이블을_false_기본값으로_초기화한다() throws IOException {
+    void 신규_알림_설정_테이블은_세_유형을_true로_초기화한다() throws IOException {
         String sql = Files.readString(Path.of("docker/mysql/init/01-auth-signup.sql"));
 
         assertThat(sql)
                 .contains("CREATE TABLE notification_preferences")
                 .contains("user_id BIGINT UNSIGNED NOT NULL")
-                .contains("solution_enabled BOOLEAN NOT NULL DEFAULT FALSE")
-                .contains("sales_upload_reminder_enabled BOOLEAN NOT NULL DEFAULT FALSE")
+                .contains("solution_enabled BOOLEAN NOT NULL DEFAULT TRUE")
+                .contains("sales_upload_reminder_enabled BOOLEAN NOT NULL DEFAULT TRUE")
+                .contains("ranking_change_enabled BOOLEAN NOT NULL DEFAULT TRUE")
                 .contains("UNIQUE KEY uk_notification_preferences_user_id (user_id)")
                 .contains("CONSTRAINT fk_notification_preferences_user");
-
-        assertThat(sql).doesNotContain("ranking_change_enabled");
     }
 
     @Test
