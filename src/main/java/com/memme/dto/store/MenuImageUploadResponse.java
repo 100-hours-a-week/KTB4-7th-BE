@@ -6,6 +6,7 @@ public record MenuImageUploadResponse(
         long batchId,
         int imageCount,
         OffsetDateTime uploadedAt,
+        String failReason,
         String next
 ) {
 }
