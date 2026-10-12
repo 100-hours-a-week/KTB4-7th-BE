@@ -94,9 +94,7 @@ public class RankingChangeNotificationService {
     }
 
     @Transactional
-    public void createDailyRankingChangeNotifications() {
-        LocalDate runDate = LocalDate.now(clock.withZone(KOREA_ZONE));
-        LocalDate baseDate = runDate.minusDays(1);
+    public void createDailyRankingChangeNotifications(LocalDate baseDate) {
         LocalDate previousDate = baseDate.minusDays(1);
         RankingPeriodCalculator.PeriodPair period = RankingPeriodCalculator.current(clock);
 
