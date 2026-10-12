@@ -62,7 +62,7 @@ CREATE TABLE menu_images (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   batch_id BIGINT UNSIGNED NOT NULL,
   store_id BIGINT NOT NULL,
-  image_order TINYINT UNSIGNED NOT NULL,
+  image_order INT NOT NULL,
   storage_key VARCHAR(512) NOT NULL,
   file_size_bytes BIGINT UNSIGNED NOT NULL,
   mime_type VARCHAR(30) NOT NULL,
