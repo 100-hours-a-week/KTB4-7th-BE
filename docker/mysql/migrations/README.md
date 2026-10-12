@@ -69,6 +69,38 @@ Cloud 배포 설정:
 같은 타입으로 생성합니다. 신규 DB의 `stores.id`와 `store_id`는 `BIGINT UNSIGNED`입니다.
 기존 매장의 메뉴 개정 번호는 0으로 시작하며 기존 매장·매출 데이터는 변경하지 않습니다.
 
+## 메뉴 이미지 순서 타입 보정 (#431)
+
+`MenuImage.imageOrder`의 Java `int`와 Hibernate `INTEGER` 매핑에 맞춰 신규 초기화 SQL과
+메뉴판 생성 마이그레이션은 `menu_images.image_order INT NOT NULL`을 사용합니다.
+기존 DB에는 `20261012-fix-menu-image-order-type.sql`을 다음 순서로 **한 번만** 적용합니다.
+
+1. 운영 DB 백업이 완료됐는지 확인합니다.
+2. 아래 조회로 현재 타입을 확인합니다. `tinyint unsigned`일 때만 보정 SQL을 실행합니다.
+   이미 `int`이면 실행하지 않습니다. 다른 타입이면 BE 담당자와 확인합니다.
+3. 적용 전후 `menu_images` 행 수와 `image_order`별 값을 비교합니다.
+4. 아래 조회로 `int`, `NOT NULL`, 1~10 CHECK, `(batch_id, image_order)` UNIQUE를 확인합니다.
+5. BE를 재배포하고 기동 로그의 스키마 검증과 Health Check를 확인합니다.
+
+```sql
+SELECT COLUMN_TYPE, IS_NULLABLE
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'menu_images' AND COLUMN_NAME = 'image_order';
+
+SELECT COUNT(*) AS image_count, MIN(image_order) AS min_order, MAX(image_order) AS max_order
+FROM menu_images;
+
+SELECT CONSTRAINT_NAME, CHECK_CLAUSE
+FROM information_schema.CHECK_CONSTRAINTS
+WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'ck_menu_image_order';
+
+SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME
+FROM information_schema.STATISTICS
+WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'menu_images'
+  AND INDEX_NAME = 'uk_menu_image_batch_order'
+ORDER BY SEQ_IN_INDEX;
+```
+
 ## 성장률 랭킹 저장 계층 (#402)
 
 기존 QA·운영 DB에는 BE 배포 전에 `20261007-add-growth-ranking.sql`을 한 번 실행합니다.
