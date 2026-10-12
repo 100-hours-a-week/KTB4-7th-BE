@@ -2,5 +2,6 @@ package com.memme.entity.noti;
 
 public enum NotificationType {
     SOLUTION_READY,
-    SALES_UPLOAD_REMINDER
+    SALES_UPLOAD_REMINDER,
+    RANKING_CHANGED
 }
