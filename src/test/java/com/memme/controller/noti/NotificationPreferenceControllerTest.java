@@ -55,7 +55,7 @@ class NotificationPreferenceControllerTest {
         NotificationPreferenceService service = mock(NotificationPreferenceService.class);
         NotificationPreferenceController controller = new NotificationPreferenceController(service);
         MockHttpServletRequest request = authenticatedRequest();
-        NotificationPreferenceUpdateRequest updateRequest = new NotificationPreferenceUpdateRequest(true, null);
+        NotificationPreferenceUpdateRequest updateRequest = new NotificationPreferenceUpdateRequest(true, null, null);
         when(service.updatePreferences(1L, updateRequest)).thenReturn(response());
 
         ResponseEntity<ApiResponse<NotificationPreferenceResponse>> result = controller.updatePreferences(request, updateRequest);
@@ -68,7 +68,7 @@ class NotificationPreferenceControllerTest {
     @Test
     void 알림_설정_수정에_세션이_없으면_인증_예외를_던진다() {
         NotificationPreferenceController controller = new NotificationPreferenceController(mock(NotificationPreferenceService.class));
-        NotificationPreferenceUpdateRequest updateRequest = new NotificationPreferenceUpdateRequest(true, null);
+        NotificationPreferenceUpdateRequest updateRequest = new NotificationPreferenceUpdateRequest(true, null, null);
 
         assertThrows(
                 AuthenticationRequiredException.class,
@@ -105,6 +105,6 @@ class NotificationPreferenceControllerTest {
     }
 
     private NotificationPreferenceResponse response() {
-        return new NotificationPreferenceResponse(new NotificationPreferenceResponse.Preferences(true, false));
+        return new NotificationPreferenceResponse(new NotificationPreferenceResponse.Preferences(true, false, true));
     }
 }

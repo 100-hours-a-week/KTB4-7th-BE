@@ -20,21 +20,21 @@ class NotificationPreferenceDtoTest {
         assertTrue(NotificationPreferenceResponse.class.isRecord());
         assertEquals(List.of("preferences"), componentNames(NotificationPreferenceResponse.class));
         assertEquals(
-                List.of("solutionEnabled", "salesUploadReminderEnabled"),
+                List.of("solutionEnabled", "salesUploadReminderEnabled", "rankingChangeEnabled"),
                 componentNames(NotificationPreferenceResponse.Preferences.class)
         );
     }
 
     @Test
-    void 알림_설정_수정_요청은_토글_하나만_전달해도_유효하다() {
-        NotificationPreferenceUpdateRequest request = new NotificationPreferenceUpdateRequest(true, null);
+    void 랭킹_알림_설정만_전달해도_수정_요청은_유효하다() {
+        NotificationPreferenceUpdateRequest request = new NotificationPreferenceUpdateRequest(null, null, false);
 
         assertTrue(validator.validate(request).isEmpty());
     }
 
     @Test
     void 알림_설정_수정_요청은_토글을_하나도_전달하지_않으면_유효하지_않다() {
-        NotificationPreferenceUpdateRequest request = new NotificationPreferenceUpdateRequest(null, null);
+        NotificationPreferenceUpdateRequest request = new NotificationPreferenceUpdateRequest(null, null, null);
 
         assertFalse(validator.validate(request).isEmpty());
     }
