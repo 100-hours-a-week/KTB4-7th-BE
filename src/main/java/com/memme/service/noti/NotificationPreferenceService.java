@@ -48,7 +48,8 @@ public class NotificationPreferenceService {
     private NotificationPreferenceResponse toResponse(NotificationPreference preference) {
         return new NotificationPreferenceResponse(new NotificationPreferenceResponse.Preferences(
                 preference.isSolutionEnabled(),
-                preference.isSalesUploadReminderEnabled()
+                preference.isSalesUploadReminderEnabled(),
+                preference.isRankingChangeEnabled()
         ));
     }
 }
