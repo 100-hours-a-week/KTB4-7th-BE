@@ -27,9 +27,10 @@ class ProfitAnalysisControllerTest {
     void 완료_응답에는_요약과_일별_순이익을_반환한다() throws Exception {
         ProfitAnalysisQueryService service = mock(ProfitAnalysisQueryService.class);
         ProfitAnalysisResponse data = new ProfitAnalysisResponse(
-                new ProfitAnalysisResponse.Summary(100, 40, 10, 50,
-                        new BigDecimal("0.5000"), null, null),
-                List.of(new ProfitAnalysisResponse.DailyProfit(LocalDate.of(2026, 10, 7), 50)), null);
+                new ProfitAnalysisResponse.Summary(100, 40, 10, 50, 50,
+                        new BigDecimal("0.5000"), null, null, null, null, null, null),
+                List.of(new ProfitAnalysisResponse.DailyProfit(LocalDate.of(2026, 10, 7), 50)),
+                List.of(new ProfitAnalysisResponse.WeekdayProfit("WEDNESDAY", 50)), null);
         when(service.query(1L, 2L, "TODAY", null, null))
                 .thenReturn(new ProfitAnalysisQueryResult.Completed(data));
         var mvc = MockMvcBuilders.standaloneSetup(new ProfitAnalysisController(service))
@@ -39,7 +40,9 @@ class ProfitAnalysisControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.data.summary.netProfit").value(50))
-                .andExpect(jsonPath("$.data.dailyProfits[0].netProfit").value(50));
+                .andExpect(jsonPath("$.data.summary.totalCost").value(50))
+                .andExpect(jsonPath("$.data.dailyProfits[0].netProfit").value(50))
+                .andExpect(jsonPath("$.data.weekdayProfits[0].netProfit").value(50));
     }
 
     @Test

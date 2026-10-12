@@ -57,12 +57,21 @@ class ProfitAnalysisQueryServiceTest {
         assertThat(summary.totalNetAmount()).isEqualTo(1_000);
         assertThat(summary.ingredientCost()).isEqualTo(400);
         assertThat(summary.fixedCost()).isEqualTo(1);
+        assertThat(summary.totalCost()).isEqualTo(401);
         assertThat(summary.netProfit()).isEqualTo(599);
         assertThat(summary.previousNetProfit()).isEqualTo(299);
         assertThat(summary.netProfitRate()).isEqualByComparingTo("0.5990");
         assertThat(summary.netProfitChangeRate()).isEqualByComparingTo("1.0033");
+        assertThat(summary.previousTotalCost()).isEqualTo(201);
+        assertThat(summary.totalCostChangeRate()).isEqualByComparingTo("0.9950");
+        assertThat(summary.previousNetProfitRate()).isEqualByComparingTo("0.5980");
+        assertThat(summary.netProfitRateDifference()).isEqualByComparingTo("0.0010");
         assertThat(result.data().dailyProfits()).hasSize(1);
         assertThat(result.data().dailyProfits().getFirst().netProfit()).isEqualTo(summary.netProfit());
+        assertThat(result.data().weekdayProfits()).extracting(day -> day.dayOfWeek())
+                .containsExactly("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY");
+        assertThat(result.data().weekdayProfits()).extracting(day -> day.netProfit())
+                .containsExactly(0L, 0L, 0L, 0L, 0L, 599L, 0L);
         assertThat(result.data().aiInsight().status()).isEqualTo("COMPLETED");
     }
 
@@ -92,6 +101,10 @@ class ProfitAnalysisQueryServiceTest {
         assertThat(result.data().summary().netProfit()).isEqualTo(100);
         assertThat(result.data().summary().previousNetProfit()).isNull();
         assertThat(result.data().summary().netProfitChangeRate()).isNull();
+        assertThat(result.data().summary().previousTotalCost()).isNull();
+        assertThat(result.data().summary().totalCostChangeRate()).isNull();
+        assertThat(result.data().summary().previousNetProfitRate()).isNull();
+        assertThat(result.data().summary().netProfitRateDifference()).isNull();
     }
 
     @Test

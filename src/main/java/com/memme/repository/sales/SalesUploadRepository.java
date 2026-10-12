@@ -23,6 +23,9 @@ public interface SalesUploadRepository extends JpaRepository<SalesUploadEntity, 
 
     Page<SalesUploadEntity> findByStoreIdOrderByUploadedAtDesc(Long storeId, Pageable pageable);
 
+    List<SalesUploadEntity> findAllByStoreIdAndStatusOrderByUploadedAtDescIdDesc(
+            Long storeId, SalesUploadStatus status);
+
     @Query("""
             select upload
             from SalesUploadEntity upload
