@@ -53,6 +53,7 @@ class NotificationDtoTest {
                 .isEqualTo(NotificationType.class);
         assertThat(NotificationListResponse.Item.class.getRecordComponents()[6].getType())
                 .isEqualTo(OffsetDateTime.class);
+        assertThat(NotificationType.values()).contains(NotificationType.RANKING_CHANGED);
         assertThat(componentNames(NotificationReadResponse.class))
                 .containsExactly("updatedCount", "readAt");
     }

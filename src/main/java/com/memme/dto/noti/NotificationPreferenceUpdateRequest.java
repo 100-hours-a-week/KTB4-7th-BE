@@ -4,11 +4,12 @@ import jakarta.validation.constraints.AssertTrue;
 
 public record NotificationPreferenceUpdateRequest(
         Boolean solutionEnabled,
-        Boolean salesUploadReminderEnabled
+        Boolean salesUploadReminderEnabled,
+        Boolean rankingChangeEnabled
 ) {
 
     @AssertTrue(message = "수정할 알림 설정을 하나 이상 입력해 주세요.")
     public boolean hasPreferenceToUpdate() {
-        return solutionEnabled != null || salesUploadReminderEnabled != null;
+        return solutionEnabled != null || salesUploadReminderEnabled != null || rankingChangeEnabled != null;
     }
 }

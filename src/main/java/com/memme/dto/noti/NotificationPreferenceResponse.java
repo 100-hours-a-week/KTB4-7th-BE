@@ -6,7 +6,8 @@ public record NotificationPreferenceResponse(
 
     public record Preferences(
             boolean solutionEnabled,
-            boolean salesUploadReminderEnabled
+            boolean salesUploadReminderEnabled,
+            boolean rankingChangeEnabled
     ) {
     }
 }
