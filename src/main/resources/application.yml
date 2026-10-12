@@ -4,7 +4,7 @@ spring:
   servlet:
     multipart:
       max-file-size: 10MB
-      max-request-size: 11MB
+      max-request-size: 51MB
   config:
     import: optional:file:.env[.properties]
   datasource:
@@ -67,3 +67,12 @@ app:
         region: ${SALES_STORAGE_S3_REGION:ap-northeast-2}
         endpoint: ${SALES_STORAGE_S3_ENDPOINT:}
         path-style-access: ${SALES_STORAGE_S3_PATH_STYLE_ACCESS:false}
+  menu:
+    storage:
+      type: ${MENU_STORAGE_TYPE:local}
+      local-directory: ${MENU_STORAGE_LOCAL_DIRECTORY:${java.io.tmpdir}/memme-menu-images}
+      s3:
+        bucket: ${MENU_STORAGE_S3_BUCKET:}
+        region: ${MENU_STORAGE_S3_REGION:ap-northeast-2}
+        endpoint: ${MENU_STORAGE_S3_ENDPOINT:}
+        path-style-access: ${MENU_STORAGE_S3_PATH_STYLE_ACCESS:false}

@@ -50,16 +50,32 @@ class MenuDtoContractTest {
     }
 
     @Test
-    void 업로드와_배치_상태는_최상위_status를_가진다() {
-        var upload = new StatusResponse<>("메뉴판 이미지를 접수하고 AI 분석을 시작했습니다.", "PENDING",
-                new MenuImageUploadResponse(15, 3, OffsetDateTime.parse("2026-10-07T13:15:00+09:00"), "MENU_LIST"));
+    void 업로드_성공과_분석_실패는_같은_요청의_최종_상태를_반환한다() {
+        var completed = new StatusResponse<>("메뉴 인식이 완료되었습니다.", "COMPLETED",
+                new MenuImageUploadResponse(15, 3, OffsetDateTime.parse("2026-10-07T13:15:00+09:00"),
+                        null, "MENU_LIST"));
+        var failed = new StatusResponse<>("메뉴 정보를 불러오지 못했습니다. 다시 업로드해주세요.", "FAILED",
+                new MenuImageUploadResponse(16, 3, OffsetDateTime.parse("2026-10-07T13:15:00+09:00"),
+                        "AI_PROCESSING_ERROR", "MENU_LIST"));
+
+        var completedJson = mapper.readTree(mapper.writeValueAsString(completed));
+        var failedJson = mapper.readTree(mapper.writeValueAsString(failed));
+
+        assertThat(completedJson.path("status").asString()).isEqualTo("COMPLETED");
+        assertThat(completedJson.path("data").path("failReason").isNull()).isTrue();
+        assertThat(failedJson.path("status").asString()).isEqualTo("FAILED");
+        assertThat(failedJson.path("data").path("failReason").asString())
+                .isEqualTo("AI_PROCESSING_ERROR");
+        assertThat(failedJson.path("data").path("next").asString()).isEqualTo("MENU_LIST");
+    }
+
+    @Test
+    void 배치_상태는_최상위_status를_가진다() {
         var batch = new StatusResponse<>("메뉴 인식이 완료되었습니다.", "COMPLETED",
                 new MenuBatchResponse(15, 4, OffsetDateTime.parse("2026-10-07T13:15:00+09:00"),
                         null, null, List.of(new MenuBatchResponse.DetectedItem(
                         101, 1, "아메리카노", 4000L, "COFFEE", false))));
 
-        assertThat(mapper.readTree(mapper.writeValueAsString(upload)).path("status").asString())
-                .isEqualTo("PENDING");
         assertThat(mapper.readTree(mapper.writeValueAsString(batch)).path("data")
                 .path("detectedItems").get(0).path("priceReviewRequired").asBoolean()).isFalse();
     }
