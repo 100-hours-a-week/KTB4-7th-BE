@@ -52,10 +52,10 @@ public class StoreCostItemService {
         boolean created = item == null;
         if (created) {
             item = StoreCostItem.create(storeId, month.atDay(1), request.rentAmount().longValueExact(),
-                    request.laborAmount().longValueExact(), request.ingredientCostRate(), now);
+                    request.laborAmount().longValueExact(), request.ingredientCostRate().movePointLeft(2), now);
         } else {
             item.update(request.rentAmount().longValueExact(), request.laborAmount().longValueExact(),
-                    request.ingredientCostRate(), now);
+                    request.ingredientCostRate().movePointLeft(2), now);
         }
         StoreCostItem saved = costItemRepository.save(item);
         return new StoreCostItemPutResult(new StoreCostItemPutData(toResponse(saved)), created);
@@ -80,7 +80,7 @@ public class StoreCostItemService {
 
     private StoreCostItemResponse toResponse(StoreCostItem item) {
         return new StoreCostItemResponse(YearMonth.from(item.getCostMonth()).toString(),
-                item.getRentAmount(), item.getLaborAmount(), item.getIngredientCostRate(),
+                item.getRentAmount(), item.getLaborAmount(), item.getIngredientCostRate().movePointRight(2),
                 item.getUpdatedAt().atZone(KOREA_ZONE).toOffsetDateTime());
     }
 }

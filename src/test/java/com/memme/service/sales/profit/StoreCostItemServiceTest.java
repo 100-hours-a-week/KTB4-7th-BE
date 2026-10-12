@@ -62,6 +62,7 @@ class StoreCostItemServiceTest {
         assertThat(result.created()).isTrue();
         assertThat(result.data().costItem().costMonth()).isEqualTo("2026-10");
         assertThat(result.data().costItem().rentAmount()).isEqualTo(1_500_000);
+        assertThat(result.data().costItem().ingredientCostRate()).isEqualByComparingTo("32.5");
         assertThat(result.data().costItem().updatedAt().getOffset().toString()).isEqualTo("+09:00");
     }
 
@@ -99,6 +100,6 @@ class StoreCostItemServiceTest {
 
     private StoreCostItemRequest request() {
         return new StoreCostItemRequest(new BigDecimal("1500000"), new BigDecimal("3000000"),
-                new BigDecimal("0.325"));
+                new BigDecimal("32.5"));
     }
 }
