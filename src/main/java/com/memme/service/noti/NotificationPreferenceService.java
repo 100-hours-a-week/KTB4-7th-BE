@@ -31,11 +31,15 @@ public class NotificationPreferenceService {
     @Transactional
     public NotificationPreferenceResponse updatePreferences(Long userId, NotificationPreferenceUpdateRequest request) {
         NotificationPreference preference = findPreference(userId);
+        LocalDateTime updatedAt = LocalDateTime.now(clock);
         preference.updatePreferences(
                 request.solutionEnabled(),
                 request.salesUploadReminderEnabled(),
-                LocalDateTime.now(clock)
+                updatedAt
         );
+        if (request.rankingChangeEnabled() != null) {
+            preference.updateRankingChangeEnabled(request.rankingChangeEnabled(), updatedAt);
+        }
 
         return toResponse(preference);
     }
