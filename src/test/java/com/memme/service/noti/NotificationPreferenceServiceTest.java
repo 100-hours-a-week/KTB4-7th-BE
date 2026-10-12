@@ -62,4 +62,18 @@ class NotificationPreferenceServiceTest {
 
         assertFalse(response.preferences().rankingChangeEnabled());
     }
+
+    @Test
+    void 랭킹_알림_설정_변경_요청을_저장하고_응답한다() {
+        NotificationPreferenceRepository repository = Mockito.mock(NotificationPreferenceRepository.class);
+        NotificationPreference preference = NotificationPreference.create(null, LocalDateTime.now(FIXED_CLOCK));
+        when(repository.findByUserId(1L)).thenReturn(Optional.of(preference));
+        NotificationPreferenceService service = new NotificationPreferenceService(repository, FIXED_CLOCK);
+
+        NotificationPreferenceResponse response = service.updatePreferences(
+                1L, new NotificationPreferenceUpdateRequest(null, null, false)
+        );
+
+        assertFalse(response.preferences().rankingChangeEnabled());
+    }
 }
