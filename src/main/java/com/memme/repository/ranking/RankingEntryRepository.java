@@ -10,6 +10,8 @@ public interface RankingEntryRepository extends JpaRepository<RankingEntryEntity
 
     List<RankingEntryEntity> findAllByRankingSnapshotIdOrderByRankNoAsc(Long rankingSnapshotId);
 
+    List<RankingEntryEntity> findAllByRankingSnapshotIdIn(List<Long> rankingSnapshotIds);
+
     Optional<RankingEntryEntity> findByRankingSnapshotIdAndRankingProfileId(
             Long rankingSnapshotId,
             Long rankingProfileId

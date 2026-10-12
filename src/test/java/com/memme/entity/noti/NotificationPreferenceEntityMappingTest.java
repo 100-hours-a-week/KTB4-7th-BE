@@ -30,22 +30,35 @@ class NotificationPreferenceEntityMappingTest {
 
         assertBooleanColumn(preferenceClass, "solutionEnabled", "solution_enabled");
         assertBooleanColumn(preferenceClass, "salesUploadReminderEnabled", "sales_upload_reminder_enabled");
+        assertBooleanColumn(preferenceClass, "rankingChangeEnabled", "ranking_change_enabled");
         assertThat(preferenceClass.getDeclaredField("createdAt").getType()).isEqualTo(LocalDateTime.class);
         assertThat(preferenceClass.getDeclaredField("updatedAt").getType()).isEqualTo(LocalDateTime.class);
-        assertThat(preferenceClass.getDeclaredFields())
-                .extracting(Field::getName)
-                .doesNotContain("rankingChangeEnabled");
     }
 
     @Test
-    void 모든_알림_수신값은_회원가입_시_false로_초기화된다() throws Exception {
+    void 새_알림_설정은_세_유형이_모두_true로_초기화된다() throws Exception {
         Class<?> preferenceClass = NotificationPreference.class;
         Constructor<?> constructor = preferenceClass.getDeclaredConstructor();
         constructor.setAccessible(true);
         Object preference = constructor.newInstance();
 
-        assertThat(readBoolean(preferenceClass, preference, "solutionEnabled")).isFalse();
-        assertThat(readBoolean(preferenceClass, preference, "salesUploadReminderEnabled")).isFalse();
+        assertThat(readBoolean(preferenceClass, preference, "solutionEnabled")).isTrue();
+        assertThat(readBoolean(preferenceClass, preference, "salesUploadReminderEnabled")).isTrue();
+        assertThat(readBoolean(preferenceClass, preference, "rankingChangeEnabled")).isTrue();
+    }
+
+    @Test
+    void 랭킹_알림_설정을_끄더라도_기존_설정값은_유지된다() {
+        LocalDateTime createdAt = LocalDateTime.of(2026, 10, 1, 9, 0);
+        LocalDateTime updatedAt = createdAt.plusDays(1);
+        NotificationPreference preference = NotificationPreference.create(null, createdAt);
+        preference.updatePreferences(true, false, createdAt);
+
+        preference.updateRankingChangeEnabled(false, updatedAt);
+
+        assertThat(preference.isRankingChangeEnabled()).isFalse();
+        assertThat(preference.isSolutionEnabled()).isTrue();
+        assertThat(preference.isSalesUploadReminderEnabled()).isFalse();
     }
 
     private void assertBooleanColumn(Class<?> entityClass, String fieldName, String columnName) throws NoSuchFieldException {

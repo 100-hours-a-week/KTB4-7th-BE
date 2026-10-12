@@ -26,10 +26,13 @@ public class NotificationPreference {
     private User user;
 
     @Column(name = "solution_enabled", nullable = false)
-    private boolean solutionEnabled = false;
+    private boolean solutionEnabled = true;
 
     @Column(name = "sales_upload_reminder_enabled", nullable = false)
-    private boolean salesUploadReminderEnabled = false;
+    private boolean salesUploadReminderEnabled = true;
+
+    @Column(name = "ranking_change_enabled", nullable = false)
+    private boolean rankingChangeEnabled = true;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -54,6 +57,15 @@ public class NotificationPreference {
 
     public boolean isSalesUploadReminderEnabled() {
         return salesUploadReminderEnabled;
+    }
+
+    public boolean isRankingChangeEnabled() {
+        return rankingChangeEnabled;
+    }
+
+    public void updateRankingChangeEnabled(boolean rankingChangeEnabled, LocalDateTime updatedAt) {
+        this.rankingChangeEnabled = rankingChangeEnabled;
+        this.updatedAt = updatedAt;
     }
 
     public void updatePreferences(

@@ -85,7 +85,11 @@ class QaAccountSeederTest {
                     && savedHours.stream().allMatch(hour -> LocalTime.of(9, 0).equals(hour.getOpensAt()))
                     && savedHours.stream().allMatch(hour -> LocalTime.of(18, 0).equals(hour.getClosesAt()));
         }));
-        verify(notificationPreferenceRepository).save(any(NotificationPreference.class));
+        ArgumentCaptor<NotificationPreference> preferenceCaptor = ArgumentCaptor.forClass(NotificationPreference.class);
+        verify(notificationPreferenceRepository).save(preferenceCaptor.capture());
+        assertThat(preferenceCaptor.getValue().isSolutionEnabled()).isTrue();
+        assertThat(preferenceCaptor.getValue().isSalesUploadReminderEnabled()).isTrue();
+        assertThat(preferenceCaptor.getValue().isRankingChangeEnabled()).isTrue();
     }
 
     @Test
