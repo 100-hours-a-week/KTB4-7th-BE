@@ -24,6 +24,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import tools.jackson.databind.json.JsonMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class MenuQueryService {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+    private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private final StoreRepository stores;
     private final StoreOwnershipRepository ownership;
@@ -78,9 +80,11 @@ public class MenuQueryService {
                 .orElseThrow(() -> new MenuRequestException(HttpStatus.NOT_FOUND,
                         "메뉴판 분석 내역을 찾을 수 없습니다."));
         List<MenuBatchResponse.DetectedItem> detected = List.of();
+        List<MenuImage> batchImages = batch.getStatus() == MenuProcessingStatus.COMPLETED
+                || batch.getStatus() == MenuProcessingStatus.FAILED
+                ? images.findAllByBatchIdAndStoreIdOrderByImageOrderAsc(batchId, storeId)
+                : List.of();
         if (batch.getStatus() == MenuProcessingStatus.COMPLETED) {
-            List<MenuImage> batchImages = images
-                    .findAllByBatchIdAndStoreIdOrderByImageOrderAsc(batchId, storeId);
             if (!batchImages.isEmpty()) {
                 List<Long> imageIds = batchImages.stream().map(MenuImage::getId).toList();
                 List<MenuImageItem> original = candidates
@@ -88,9 +92,26 @@ public class MenuQueryService {
                 detected = distinctCandidates(batchImages, original);
             }
         }
+        List<MenuBatchResponse.FailedImage> failedImages = batchImages.stream()
+                .filter(image -> image.getOcrStatus() == MenuProcessingStatus.FAILED)
+                .map(image -> new MenuBatchResponse.FailedImage(image.getId(), image.getImageOrder(),
+                        imageFailReason(image.getOcrResult(), batch.getFailReason())))
+                .toList();
         return new BatchResult(batch.getStatus().name(), new MenuBatchResponse(
                 batch.getId(), batch.getBaseMenuRevision(), atSeoul(batch.getUploadedAt()),
-                atSeoul(batch.getSavedAt()), batch.getFailReason(), detected));
+                atSeoul(batch.getSavedAt()), batch.getFailReason(), detected, failedImages));
+    }
+
+    private String imageFailReason(String result, String batchFailReason) {
+        if (result == null) {
+            return batchFailReason == null ? "AI_PROCESSING_ERROR" : batchFailReason;
+        }
+        try {
+            String reason = JSON.readTree(result).path("failReason").asString();
+            return reason.isBlank() ? "AI_PROCESSING_ERROR" : reason;
+        } catch (RuntimeException ignored) {
+            return "AI_PROCESSING_ERROR";
+        }
     }
 
     Store requireOwnedStore(long userId, long storeId) {

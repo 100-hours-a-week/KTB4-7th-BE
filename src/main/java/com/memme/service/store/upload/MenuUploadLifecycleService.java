@@ -86,11 +86,21 @@ public class MenuUploadLifecycleService {
                 .collect(Collectors.toMap(MenuImage::getId, Function.identity()));
         var grouped = response.data().detectedItems().stream()
                 .collect(Collectors.groupingBy(MenuRecognitionResponse.DetectedItem::sourceImageId));
-        if (!byId.keySet().containsAll(grouped.keySet())) {
+        Map<Long, String> failed = response.data().failedImages().stream()
+                .collect(Collectors.toMap(MenuRecognitionResponse.FailedImage::sourceImageId,
+                        MenuRecognitionResponse.FailedImage::failReason));
+        if (!byId.keySet().containsAll(grouped.keySet()) || !byId.keySet().containsAll(failed.keySet())
+                || grouped.keySet().stream().anyMatch(failed::containsKey)
+                || failed.size() == batchImages.size()) {
             throw new IllegalArgumentException("AI 응답에 다른 배치 이미지가 포함되어 있습니다.");
         }
         LocalDateTime now = LocalDateTime.now(clock);
         for (MenuImage image : batchImages) {
+            String failReason = failed.get(image.getId());
+            if (failReason != null) {
+                image.fail(json.writeValueAsString(Map.of("failReason", failReason)));
+                continue;
+            }
             List<MenuRecognitionResponse.DetectedItem> detected = grouped.getOrDefault(image.getId(), List.of());
             image.complete(json.writeValueAsString(detected));
             for (int order = 0; order < detected.size(); order++) {
@@ -115,7 +125,7 @@ public class MenuUploadLifecycleService {
         }
         batch.fail(reason, LocalDateTime.now(clock));
         for (MenuImage image : findImages(storeId, batchId)) {
-            image.fail();
+            image.fail(json.writeValueAsString(Map.of("failReason", reason)));
         }
     }
 
