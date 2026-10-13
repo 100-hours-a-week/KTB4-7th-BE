@@ -52,6 +52,42 @@ class RestMenuRecognitionAiClientTest {
     }
 
     @Test
+    void 일부_이미지_실패는_성공_후보와_함께_받는다() {
+        server.expect(requestTo("http://ai.test/internal/v2/ai/menu-recognition"))
+                .andRespond(withSuccess("""
+                        {"data":{"detectedItems":[{"sourceImageId":52,"name":"아메리카노",
+                        "price":4000,"category":"COFFEE","priceReviewRequired":false}],"failedImages":[
+                        {"sourceImageId":53,"failReason":"LOW_IMAGE_QUALITY"}]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        var response = new RestMenuRecognitionAiClient(builder, "http://ai.test", "")
+                .recognize(new MenuRecognitionRequest(7, 15, List.of(
+                        new MenuRecognitionRequest.Image(52, "https://private.test/one", 1),
+                        new MenuRecognitionRequest.Image(53, "https://private.test/two", 2))));
+
+        assertThat(response.data().detectedItems()).hasSize(1);
+        assertThat(response.data().failedImages()).containsExactly(
+                new MenuRecognitionResponse.FailedImage(53L, "LOW_IMAGE_QUALITY"));
+        server.verify();
+    }
+
+    @Test
+    void 실패_이미지에_후보가_섞이면_응답을_거부한다() {
+        server.expect(requestTo("http://ai.test/internal/v2/ai/menu-recognition"))
+                .andRespond(withSuccess("""
+                        {"data":{"detectedItems":[{"sourceImageId":52,"name":"아메리카노"}],
+                        "failedImages":[{"sourceImageId":52,"failReason":"LOW_IMAGE_QUALITY"}]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> new RestMenuRecognitionAiClient(builder, "http://ai.test", "")
+                .recognize(request()))
+                .isInstanceOf(MenuRecognitionAiException.class)
+                .extracting("failReason")
+                .isEqualTo("AI_PROCESSING_ERROR");
+        server.verify();
+    }
+
+    @Test
     void 식별_실패_422는_구분된_실패_사유로_반환한다() {
         server.expect(requestTo("http://ai.test/internal/v2/ai/menu-recognition"))
                 .andRespond(withStatus(HttpStatus.UNPROCESSABLE_ENTITY)
@@ -63,6 +99,22 @@ class RestMenuRecognitionAiClientTest {
                 .isInstanceOf(MenuRecognitionAiException.class)
                 .extracting("failReason")
                 .isEqualTo("LOW_IMAGE_QUALITY");
+        server.verify();
+    }
+
+    @Test
+    void AI의_최상위_failReason도_그대로_전달한다() {
+        server.expect(requestTo("http://ai.test/internal/v2/ai/menu-recognition"))
+                .andRespond(withStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"message\":\"메뉴를 인식하지 못했습니다.\","
+                                + "\"failReason\":\"MENU_TEXT_NOT_FOUND\",\"data\":null}"));
+
+        assertThatThrownBy(() -> new RestMenuRecognitionAiClient(builder, "http://ai.test", "")
+                .recognize(request()))
+                .isInstanceOf(MenuRecognitionAiException.class)
+                .extracting("failReason")
+                .isEqualTo("MENU_TEXT_NOT_FOUND");
         server.verify();
     }
 

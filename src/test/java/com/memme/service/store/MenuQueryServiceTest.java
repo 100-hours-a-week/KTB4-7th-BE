@@ -136,7 +136,8 @@ class MenuQueryServiceTest {
         batch.fail("MENU_TEXT_NOT_FOUND", NOW);
         assertThat(query.getBatch(3L, 7L, 15L).data().failReason())
                 .isEqualTo("MENU_TEXT_NOT_FOUND");
-        verify(images, never()).findAllByBatchIdAndStoreIdOrderByImageOrderAsc(15L, 7L);
+        verify(images).findAllByBatchIdAndStoreIdOrderByImageOrderAsc(15L, 7L);
+        verify(candidates, never()).findAllByMenuImageIdInOrderBySortOrderAscIdAsc(anyCollection());
     }
 
     @Test
