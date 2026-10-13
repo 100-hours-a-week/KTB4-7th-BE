@@ -38,17 +38,20 @@ public class StoreProfileUpdateService {
     private final StoreRepository storeRepository;
     private final StoreBusinessHoursRepository storeBusinessHoursRepository;
     private final BusinessVerificationRepository businessVerificationRepository;
+    private final StoreLocationService storeLocationService;
     private final Clock clock;
 
     public StoreProfileUpdateService(
             StoreRepository storeRepository,
             StoreBusinessHoursRepository storeBusinessHoursRepository,
             BusinessVerificationRepository businessVerificationRepository,
+            StoreLocationService storeLocationService,
             Clock clock
     ) {
         this.storeRepository = storeRepository;
         this.storeBusinessHoursRepository = storeBusinessHoursRepository;
         this.businessVerificationRepository = businessVerificationRepository;
+        this.storeLocationService = storeLocationService;
         this.clock = clock;
     }
 
@@ -66,6 +69,12 @@ public class StoreProfileUpdateService {
             validateBusinessHours(request.businessHours());
         }
 
+        String updatedRoadAddress = request.address() == null ? null : request.address().roadAddress();
+        boolean roadAddressChanged = updatedRoadAddress != null && !updatedRoadAddress.equals(store.getAddress());
+        StoreCoordinates coordinates = roadAddressChanged
+                ? storeLocationService.resolveCoordinates(updatedRoadAddress).orElse(null)
+                : null;
+
         if (hasStoreChanges(request)) {
             StoreProfileUpdateRequest.Address address = request.address();
             store.updateProfile(
@@ -74,6 +83,12 @@ public class StoreProfileUpdateService {
                     address == null ? null : address.roadAddress(),
                     address == null ? null : address.addressDetail(),
                     now
+            );
+        }
+        if (roadAddressChanged) {
+            store.updateCoordinates(
+                    coordinates == null ? null : coordinates.latitude(),
+                    coordinates == null ? null : coordinates.longitude()
             );
         }
         if (businessVerification != null) {

@@ -19,6 +19,8 @@ import com.memme.repository.noti.NotificationPreferenceRepository;
 import com.memme.repository.store.BusinessVerificationRepository;
 import com.memme.repository.store.StoreBusinessHoursRepository;
 import com.memme.repository.store.StoreRepository;
+import com.memme.service.store.StoreCoordinates;
+import com.memme.service.store.StoreLocationService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -44,6 +46,7 @@ public class SignupBusinessService {
     private final StoreRepository storeRepository;
     private final StoreBusinessHoursRepository storeBusinessHoursRepository;
     private final NotificationPreferenceRepository notificationPreferenceRepository;
+    private final StoreLocationService storeLocationService;
     private final Clock clock;
 
     public SignupBusinessService(
@@ -53,6 +56,7 @@ public class SignupBusinessService {
             StoreRepository storeRepository,
             StoreBusinessHoursRepository storeBusinessHoursRepository,
             NotificationPreferenceRepository notificationPreferenceRepository,
+            StoreLocationService storeLocationService,
             Clock clock
     ) {
         this.signupDraftRepository = signupDraftRepository;
@@ -61,6 +65,7 @@ public class SignupBusinessService {
         this.storeRepository = storeRepository;
         this.storeBusinessHoursRepository = storeBusinessHoursRepository;
         this.notificationPreferenceRepository = notificationPreferenceRepository;
+        this.storeLocationService = storeLocationService;
         this.clock = clock;
     }
 
@@ -77,15 +82,20 @@ public class SignupBusinessService {
 
         validateBusinessHours(request.businessHours());
         String businessRegNumber = normalizeBusinessRegNumber(request.businessRegNumber());
+        StoreCoordinates coordinates = storeLocationService.resolveCoordinates(request.address()).orElse(null);
 
         User user = userRepository.save(User.create(
                 signupDraft.getEmail(), signupDraft.getPasswordHash(), signupDraft.getPhone(), now
         ));
-        Store store = storeRepository.save(Store.create(
+        Store storeToSave = Store.create(
                 user, businessRegNumber, verification == null ? null : verification.getVerifiedAt(),
                 request.storeName(), request.postalCode(),
                 request.address(), request.addressDetail(), now
-        ));
+        );
+        if (coordinates != null) {
+            storeToSave.updateCoordinates(coordinates.latitude(), coordinates.longitude());
+        }
+        Store store = storeRepository.save(storeToSave);
         List<StoreBusinessHours> businessHours = request.businessHours().stream()
                 .map(hours -> StoreBusinessHours.create(
                         store,
