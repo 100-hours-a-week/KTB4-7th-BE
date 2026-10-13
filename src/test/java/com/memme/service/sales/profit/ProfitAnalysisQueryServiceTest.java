@@ -43,7 +43,7 @@ class ProfitAnalysisQueryServiceTest {
     @BeforeEach
     void setUp() {
         lenient().when(insightClient.generate(any())).thenReturn(new ProfitAiInsightResponse(
-                "COMPLETED", new ProfitAiInsightResponse.Data(List.of("순이익이 증가했어요."))));
+                "순이익 인사이트를 생성했습니다.", "COMPLETED", new ProfitAiInsightResponse.Data(List.of("순이익이 증가했어요."))));
         service = new ProfitAnalysisQueryService(periodService, dailyRepository, costRepository,
                 ownershipRepository, new ProfitCalculationService(), new ProfitInsightService(insightClient));
     }
@@ -161,7 +161,7 @@ class ProfitAnalysisQueryServiceTest {
         stubSales(List.of(sales(date, 100)));
         stubCosts(List.of(cost(date, 0, "0")));
         when(insightClient.generate(any())).thenReturn(new ProfitAiInsightResponse(
-                "INSUFFICIENT_DATA", new ProfitAiInsightResponse.Data(List.of())));
+                "순이익 인사이트에 필요한 데이터가 부족합니다.", "INSUFFICIENT_DATA", new ProfitAiInsightResponse.Data(List.of())));
 
         var result = (ProfitAnalysisQueryResult.Completed) service.query(1L, 20L,
                 "CUSTOM", "2026-09-01", "2026-09-01");

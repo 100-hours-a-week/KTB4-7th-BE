@@ -19,7 +19,7 @@ class ProfitInsightServiceTest {
         ProfitAiInsightClient client = mock(ProfitAiInsightClient.class);
         ProfitAiInsightRequest request = request();
         when(client.generate(request)).thenReturn(new ProfitAiInsightResponse(
-                "COMPLETED", new ProfitAiInsightResponse.Data(List.of("예상 순이익은 600,000원이에요."))));
+                "순이익 인사이트를 생성했습니다.", "COMPLETED", new ProfitAiInsightResponse.Data(List.of("예상 순이익은 600,000원이에요."))));
 
         var result = new ProfitInsightService(client).describe(request);
 
@@ -33,7 +33,7 @@ class ProfitInsightServiceTest {
         ProfitAiInsightClient client = mock(ProfitAiInsightClient.class);
         ProfitAiInsightRequest request = request();
         when(client.generate(request)).thenReturn(new ProfitAiInsightResponse(
-                "INSUFFICIENT_DATA", new ProfitAiInsightResponse.Data(List.of())));
+                "순이익 인사이트에 필요한 데이터가 부족합니다.", "INSUFFICIENT_DATA", new ProfitAiInsightResponse.Data(List.of())));
 
         var result = new ProfitInsightService(client).describe(request);
 
