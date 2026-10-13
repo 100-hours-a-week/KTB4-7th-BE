@@ -122,6 +122,14 @@ public class Store {
         return addressDetail;
     }
 
+    public BigDecimal getLatitude() {
+        return latitude;
+    }
+
+    public BigDecimal getLongitude() {
+        return longitude;
+    }
+
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
     }
@@ -158,6 +166,14 @@ public class Store {
             this.addressDetail = addressDetail;
         }
         this.updatedAt = updatedAt;
+    }
+
+    public void updateCoordinates(BigDecimal latitude, BigDecimal longitude) {
+        if ((latitude == null) != (longitude == null)) {
+            throw new IllegalArgumentException("위도와 경도는 함께 설정하거나 함께 비워야 합니다.");
+        }
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 
     public void updateBusinessRegistration(

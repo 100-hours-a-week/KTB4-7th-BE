@@ -3,6 +3,8 @@ package com.memme.service.store;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -20,6 +22,7 @@ import com.memme.exception.store.DuplicateBusinessRegistrationNumberException;
 import com.memme.repository.store.StoreBusinessHoursRepository;
 import com.memme.repository.store.StoreRepository;
 import com.memme.repository.store.BusinessVerificationRepository;
+import java.math.BigDecimal;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import java.lang.reflect.Field;
@@ -45,13 +48,15 @@ class StoreProfileUpdateServiceTest {
     @Mock private StoreRepository storeRepository;
     @Mock private StoreBusinessHoursRepository storeBusinessHoursRepository;
     @Mock private BusinessVerificationRepository businessVerificationRepository;
+    @Mock private StoreLocationService storeLocationService;
 
     private StoreProfileUpdateService storeProfileUpdateService;
 
     @BeforeEach
     void setUp() {
         storeProfileUpdateService = new StoreProfileUpdateService(
-                storeRepository, storeBusinessHoursRepository, businessVerificationRepository, CLOCK
+                storeRepository, storeBusinessHoursRepository, businessVerificationRepository,
+                storeLocationService, CLOCK
         );
     }
 
@@ -62,6 +67,8 @@ class StoreProfileUpdateServiceTest {
         when(storeRepository.findByOwnerId(1L)).thenReturn(Optional.of(store));
         when(storeBusinessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L))
                 .thenReturn(currentBusinessHours);
+        when(storeLocationService.resolveCoordinates("서울특별시 강남구 테헤란로 456"))
+                .thenReturn(Optional.of(new StoreCoordinates(new BigDecimal("37.498095"), new BigDecimal("127.027610"))));
 
         StoreProfileUpdateResponse response = storeProfileUpdateService.updateProfile(1L, new StoreProfileUpdateRequest(
                 "수정된 맴매카페",
@@ -75,12 +82,54 @@ class StoreProfileUpdateServiceTest {
         assertThat(store.getPostalCode()).isEqualTo("06236");
         assertThat(store.getAddress()).isEqualTo("서울특별시 강남구 테헤란로 456");
         assertThat(store.getAddressDetail()).isEqualTo("101호");
+        assertThat(store.getLatitude()).isEqualByComparingTo("37.498095");
+        assertThat(store.getLongitude()).isEqualByComparingTo("127.027610");
         assertThat(response.store().storeName()).isEqualTo("수정된 맴매카페");
         assertThat(response.store().businessHours()).hasSize(7);
         assertThat(response.store().businessHours().get(6).isClosed()).isTrue();
         assertThat(response.store().businessHours().get(6).openTime()).isNull();
         assertThat(response.store().businessHours().get(6).closeTime()).isNull();
         verifyNoInteractions(businessVerificationRepository);
+    }
+
+    @Test
+    void 주소가_변경되고_좌표를_찾지_못하면_이전_좌표를_지운다() throws Exception {
+        Store store = storeWithCoordinates(10L);
+        when(storeRepository.findByOwnerId(1L)).thenReturn(Optional.of(store));
+        when(storeBusinessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(businessHours(store));
+        when(storeLocationService.resolveCoordinates("경기도 광명시 새주소 1"))
+                .thenReturn(Optional.empty());
+
+        storeProfileUpdateService.updateProfile(1L, new StoreProfileUpdateRequest(
+                null,
+                new StoreProfileUpdateRequest.Address(null, "경기도 광명시 새주소 1", null),
+                null,
+                null,
+                null
+        ));
+
+        assertThat(store.getAddress()).isEqualTo("경기도 광명시 새주소 1");
+        assertThat(store.getLatitude()).isNull();
+        assertThat(store.getLongitude()).isNull();
+    }
+
+    @Test
+    void 기본주소가_같으면_좌표를_다시_조회하지_않고_기존_좌표를_유지한다() throws Exception {
+        Store store = storeWithCoordinates(10L);
+        when(storeRepository.findByOwnerId(1L)).thenReturn(Optional.of(store));
+        when(storeBusinessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(businessHours(store));
+
+        storeProfileUpdateService.updateProfile(1L, new StoreProfileUpdateRequest(
+                "바뀐 매장명",
+                new StoreProfileUpdateRequest.Address(null, "서울특별시 강남구 테헤란로 123", "2층"),
+                null,
+                null,
+                null
+        ));
+
+        verify(storeLocationService, never()).resolveCoordinates("서울특별시 강남구 테헤란로 123");
+        assertThat(store.getLatitude()).isEqualByComparingTo("37.4786");
+        assertThat(store.getLongitude()).isEqualByComparingTo("126.8646");
     }
 
     @Test
@@ -393,6 +442,12 @@ class StoreProfileUpdateServiceTest {
                 LocalDateTime.of(2026, 9, 24, 9, 0)
         );
         return withId(store, id);
+    }
+
+    private Store storeWithCoordinates(Long id) {
+        Store store = store(id);
+        store.updateCoordinates(new BigDecimal("37.4786"), new BigDecimal("126.8646"));
+        return store;
     }
 
     private Store storeWithoutBusinessRegistrationNo(Long id) {
