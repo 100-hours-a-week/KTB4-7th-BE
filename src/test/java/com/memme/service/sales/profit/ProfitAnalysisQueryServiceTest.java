@@ -3,13 +3,15 @@ package com.memme.service.sales.profit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.memme.dto.sales.SalesPeriod;
+import com.memme.dto.sales.ProfitAiInsightRequest;
+import com.memme.dto.sales.ProfitAiInsightResponse;
 import com.memme.entity.sales.SalesDailySummaryEntity;
 import com.memme.entity.sales.StoreCostItem;
 import com.memme.exception.sales.SalesAnalysisRequestException;
@@ -25,6 +27,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -34,12 +37,15 @@ class ProfitAnalysisQueryServiceTest {
     @Mock private SalesDailySummaryRepository dailyRepository;
     @Mock private StoreCostItemRepository costRepository;
     @Mock private StoreOwnershipRepository ownershipRepository;
+    @Mock private ProfitAiInsightClient insightClient;
     private ProfitAnalysisQueryService service;
 
     @BeforeEach
     void setUp() {
+        lenient().when(insightClient.generate(any())).thenReturn(new ProfitAiInsightResponse(
+                "COMPLETED", new ProfitAiInsightResponse.Data(List.of("순이익이 증가했어요."))));
         service = new ProfitAnalysisQueryService(periodService, dailyRepository, costRepository,
-                ownershipRepository, new ProfitCalculationService(), new ProfitInsightService());
+                ownershipRepository, new ProfitCalculationService(), new ProfitInsightService(insightClient));
     }
 
     @Test
@@ -73,6 +79,15 @@ class ProfitAnalysisQueryServiceTest {
         assertThat(result.data().weekdayProfits()).extracting(day -> day.netProfit())
                 .containsExactly(0L, 0L, 0L, 0L, 0L, 599L, 0L);
         assertThat(result.data().aiInsight().status()).isEqualTo("COMPLETED");
+        ArgumentCaptor<ProfitAiInsightRequest> requestCaptor = ArgumentCaptor.forClass(ProfitAiInsightRequest.class);
+        verify(insightClient).generate(requestCaptor.capture());
+        ProfitAiInsightRequest request = requestCaptor.getValue();
+        assertThat(request.storeId()).isEqualTo(20L);
+        assertThat(request.period().startDate()).isEqualTo(current);
+        assertThat(request.summary().netProfit()).isEqualTo(599);
+        assertThat(request.summary().netProfitChangeRate()).isEqualByComparingTo("1.0033");
+        assertThat(request.dailyProfits()).hasSize(1);
+        assertThat(request.maxInsightCount()).isEqualTo(3);
     }
 
     @Test
@@ -86,6 +101,7 @@ class ProfitAnalysisQueryServiceTest {
                 "CUSTOM", "2026-09-30", "2026-10-01");
 
         assertThat(result.data().missingCostMonths()).containsExactly("2026-10");
+        verify(insightClient, never()).generate(any());
     }
 
     @Test
@@ -127,17 +143,31 @@ class ProfitAnalysisQueryServiceTest {
         stubPeriod(date, date);
         stubSales(List.of(sales(date, 100)));
         stubCosts(List.of(cost(date, 0, "0")));
-        ProfitInsightService failingInsight = mock(ProfitInsightService.class);
-        when(failingInsight.describe(eq(100L), eq(null), anyList()))
+        when(insightClient.generate(any()))
                 .thenThrow(new IllegalStateException("insight unavailable"));
-        service = new ProfitAnalysisQueryService(periodService, dailyRepository, costRepository,
-                ownershipRepository, new ProfitCalculationService(), failingInsight);
 
         var result = (ProfitAnalysisQueryResult.Completed) service.query(1L, 20L,
                 "CUSTOM", "2026-09-01", "2026-09-01");
 
         assertThat(result.data().summary().netProfit()).isEqualTo(100);
         assertThat(result.data().aiInsight().status()).isEqualTo("FAILED");
+        assertThat(result.data().aiInsight().insights()).isEmpty();
+    }
+
+    @Test
+    void AI가_데이터_부족을_반환해도_계산된_순이익을_유지한다() {
+        LocalDate date = LocalDate.of(2026, 9, 1);
+        stubPeriod(date, date);
+        stubSales(List.of(sales(date, 100)));
+        stubCosts(List.of(cost(date, 0, "0")));
+        when(insightClient.generate(any())).thenReturn(new ProfitAiInsightResponse(
+                "INSUFFICIENT_DATA", new ProfitAiInsightResponse.Data(List.of())));
+
+        var result = (ProfitAnalysisQueryResult.Completed) service.query(1L, 20L,
+                "CUSTOM", "2026-09-01", "2026-09-01");
+
+        assertThat(result.data().summary().netProfit()).isEqualTo(100);
+        assertThat(result.data().aiInsight().status()).isEqualTo("INSUFFICIENT_DATA");
         assertThat(result.data().aiInsight().insights()).isEmpty();
     }
 
@@ -150,6 +180,7 @@ class ProfitAnalysisQueryServiceTest {
 
         assertThat(service.query(1L, 20L, "CUSTOM", "2026-10-10", "2026-10-10"))
                 .isInstanceOf(ProfitAnalysisQueryResult.Empty.class);
+        verify(insightClient, never()).generate(any());
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.memme.service.sales.profit;
 import static com.memme.exception.sales.SalesAnalysisRequestException.Reason.STORE_OWNER_REQUIRED;
 
 import com.memme.dto.sales.ProfitAnalysisResponse;
+import com.memme.dto.sales.ProfitAiInsightRequest;
 import com.memme.dto.sales.ProfitMissingCostsResponse;
 import com.memme.dto.sales.SalesPeriod;
 import com.memme.entity.sales.SalesDailySummaryEntity;
@@ -100,7 +101,14 @@ public class ProfitAnalysisQueryService {
                         netProfitRateDifference),
                 dailyProfits,
                 weekdayProfits,
-                describeSafely(storeId, amounts.netProfit(), previousNetProfit, dailyProfits)
+                describeSafely(storeId, new ProfitAiInsightRequest(
+                        storeId,
+                        new ProfitAiInsightRequest.Period(period.startDate(), period.endDate()),
+                        new ProfitAiInsightRequest.Summary(amounts.totalNetAmount(), amounts.ingredientCost(),
+                                amounts.fixedCost(), amounts.netProfit(), netProfitRate,
+                                previousNetProfit, changeRate(amounts.netProfit(), previousNetProfit)),
+                        dailyProfits,
+                        3))
         );
         return new ProfitAnalysisQueryResult.Completed(response);
     }
@@ -120,10 +128,9 @@ public class ProfitAnalysisQueryService {
         return calculationService.calculate(start, end, sales, costs);
     }
 
-    private ProfitAnalysisResponse.AiInsight describeSafely(Long storeId, long netProfit,
-            Long previousNetProfit, List<ProfitAnalysisResponse.DailyProfit> dailyProfits) {
+    private ProfitAnalysisResponse.AiInsight describeSafely(Long storeId, ProfitAiInsightRequest request) {
         try {
-            return insightService.describe(netProfit, previousNetProfit, dailyProfits);
+            return insightService.describe(request);
         } catch (RuntimeException exception) {
             log.warn("Profit insight creation failed for storeId={}", storeId, exception);
             return new ProfitAnalysisResponse.AiInsight("FAILED", List.of());

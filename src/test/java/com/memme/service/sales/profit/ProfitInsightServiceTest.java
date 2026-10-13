@@ -1,34 +1,52 @@
 package com.memme.service.sales.profit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import com.memme.dto.sales.ProfitAnalysisResponse;
+import com.memme.dto.sales.ProfitAiInsightRequest;
+import com.memme.dto.sales.ProfitAiInsightResponse;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class ProfitInsightServiceTest {
 
-    private final ProfitInsightService service = new ProfitInsightService();
-
     @Test
-    void 계산된_금액으로만_순이익_비교와_최고_일자를_설명한다() {
-        var insight = service.describe(599, 299L, List.of(
-                new ProfitAnalysisResponse.DailyProfit(LocalDate.of(2026, 10, 7), 300),
-                new ProfitAnalysisResponse.DailyProfit(LocalDate.of(2026, 10, 8), 299)));
+    void AI가_생성한_문장을_조회_응답에_그대로_매핑한다() {
+        ProfitAiInsightClient client = mock(ProfitAiInsightClient.class);
+        ProfitAiInsightRequest request = request();
+        when(client.generate(request)).thenReturn(new ProfitAiInsightResponse(
+                "COMPLETED", new ProfitAiInsightResponse.Data(List.of("예상 순이익은 600,000원이에요."))));
 
-        assertThat(insight.status()).isEqualTo("COMPLETED");
-        assertThat(insight.insights()).containsExactly(
-                "선택 기간의 예상 순이익은 599원이에요.",
-                "이전 기간보다 순이익이 300원 늘었어요.",
-                "10월 7일의 예상 순이익이 가장 높아요.");
+        var result = new ProfitInsightService(client).describe(request);
+
+        assertThat(result.status()).isEqualTo("COMPLETED");
+        assertThat(result.insights()).containsExactly("예상 순이익은 600,000원이에요.");
+        verify(client).generate(request);
     }
 
     @Test
-    void 전기_비교가_불가능하면_추측하지_않고_순손실만_설명한다() {
-        var insight = service.describe(-100, null, List.of(
-                new ProfitAnalysisResponse.DailyProfit(LocalDate.of(2026, 10, 7), -100)));
+    void 데이터_부족은_빈_문장으로_매핑한다() {
+        ProfitAiInsightClient client = mock(ProfitAiInsightClient.class);
+        ProfitAiInsightRequest request = request();
+        when(client.generate(request)).thenReturn(new ProfitAiInsightResponse(
+                "INSUFFICIENT_DATA", new ProfitAiInsightResponse.Data(List.of())));
 
-        assertThat(insight.insights()).containsExactly("선택 기간의 예상 순손실은 100원이에요.");
+        var result = new ProfitInsightService(client).describe(request);
+
+        assertThat(result.status()).isEqualTo("INSUFFICIENT_DATA");
+        assertThat(result.insights()).isEmpty();
+    }
+
+    private ProfitAiInsightRequest request() {
+        LocalDate date = LocalDate.of(2026, 1, 1);
+        return new ProfitAiInsightRequest(20L,
+                new ProfitAiInsightRequest.Period(date, date),
+                new ProfitAiInsightRequest.Summary(1_000_000, 300_000, 100_000,
+                        600_000, new BigDecimal("0.6"), 500_000L, new BigDecimal("0.2")),
+                List.of(new com.memme.dto.sales.ProfitAnalysisResponse.DailyProfit(date, 600_000)), 3);
     }
 }
