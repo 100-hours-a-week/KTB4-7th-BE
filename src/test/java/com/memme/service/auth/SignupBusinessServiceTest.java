@@ -27,6 +27,9 @@ import com.memme.repository.noti.NotificationPreferenceRepository;
 import com.memme.repository.store.BusinessVerificationRepository;
 import com.memme.repository.store.StoreBusinessHoursRepository;
 import com.memme.repository.store.StoreRepository;
+import com.memme.service.store.StoreCoordinates;
+import com.memme.service.store.StoreLocationService;
+import java.math.BigDecimal;
 import java.lang.reflect.Field;
 import java.time.Clock;
 import java.time.Instant;
@@ -53,6 +56,7 @@ class SignupBusinessServiceTest {
     @Mock private StoreRepository storeRepository;
     @Mock private StoreBusinessHoursRepository storeBusinessHoursRepository;
     @Mock private NotificationPreferenceRepository notificationPreferenceRepository;
+    @Mock private StoreLocationService storeLocationService;
 
     private SignupBusinessService service;
 
@@ -60,7 +64,7 @@ class SignupBusinessServiceTest {
     void setUp() {
         service = new SignupBusinessService(
                 signupDraftRepository, businessVerificationRepository, userRepository, storeRepository,
-                storeBusinessHoursRepository, notificationPreferenceRepository,
+                storeBusinessHoursRepository, notificationPreferenceRepository, storeLocationService,
                 Clock.fixed(Instant.parse("2026-09-21T01:00:00Z"), ZoneId.of("Asia/Seoul"))
         );
     }
@@ -74,6 +78,8 @@ class SignupBusinessServiceTest {
         when(storeRepository.existsByBusinessRegistrationNo("1234567890")).thenReturn(false);
         when(userRepository.save(any())).thenAnswer(invocation -> withId(invocation.getArgument(0), 10L));
         when(storeRepository.save(any())).thenAnswer(invocation -> withId(invocation.getArgument(0), 20L));
+        when(storeLocationService.resolveCoordinates("서울특별시 강남구 테헤란로 123"))
+                .thenReturn(Optional.of(new StoreCoordinates(new BigDecimal("37.498095"), new BigDecimal("127.027610"))));
 
         SignupBusinessResponse response = service.completeSignup(SIGNUP_TOKEN, validRequest());
 
@@ -82,6 +88,10 @@ class SignupBusinessServiceTest {
         assertEquals(20L, response.store().id());
         assertEquals("맴매카페", response.store().storeName());
         assertEquals("LOGIN", response.next());
+        ArgumentCaptor<Store> storeCaptor = ArgumentCaptor.forClass(Store.class);
+        verify(storeRepository).save(storeCaptor.capture());
+        assertEquals(new BigDecimal("37.4980950"), storeCaptor.getValue().getLatitude());
+        assertEquals(new BigDecimal("127.0276100"), storeCaptor.getValue().getLongitude());
         verify(storeBusinessHoursRepository).saveAll(any());
         ArgumentCaptor<NotificationPreference> preferenceCaptor = ArgumentCaptor.forClass(NotificationPreference.class);
         verify(notificationPreferenceRepository).save(preferenceCaptor.capture());
@@ -125,6 +135,22 @@ class SignupBusinessServiceTest {
         assertNull(storeCaptor.getValue().getBusinessRegistrationNo());
         assertNull(fieldValue(storeCaptor.getValue(), "businessVerifiedAt"));
         verifyNoInteractions(businessVerificationRepository);
+    }
+
+    @Test
+    void 카카오_좌표_조회결과가_없어도_회원가입을_완료하고_좌표는_비워둔다() throws Exception {
+        when(signupDraftRepository.findBySignupTokenHash(any())).thenReturn(Optional.of(draft(NOW.plusHours(1))));
+        when(userRepository.save(any())).thenAnswer(invocation -> withId(invocation.getArgument(0), 10L));
+        when(storeRepository.save(any())).thenAnswer(invocation -> withId(invocation.getArgument(0), 20L));
+        when(storeLocationService.resolveCoordinates("서울특별시 강남구 테헤란로 123"))
+                .thenReturn(Optional.empty());
+
+        service.completeSignup(SIGNUP_TOKEN, requestWithoutBusinessVerification());
+
+        ArgumentCaptor<Store> storeCaptor = ArgumentCaptor.forClass(Store.class);
+        verify(storeRepository).save(storeCaptor.capture());
+        assertNull(storeCaptor.getValue().getLatitude());
+        assertNull(storeCaptor.getValue().getLongitude());
     }
 
     @Test
