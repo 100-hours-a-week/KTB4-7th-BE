@@ -112,9 +112,11 @@ public class MenuController {
         String message = switch (result.status()) {
             case "PENDING", "PROCESSING" -> "AI가 메뉴 정보를 분석하고 있어요.";
             case "FAILED" -> "메뉴 정보를 불러오지 못했습니다. 다시 업로드해주세요.";
-            default -> result.data().detectedItems().isEmpty()
-                    ? "추출된 메뉴 정보가 없습니다. 메뉴판 이미지를 다시 업로드해주세요."
-                    : "메뉴 인식이 완료되었습니다.";
+            default -> !result.data().failedImages().isEmpty()
+                    ? "일부 메뉴판 이미지를 인식하지 못했습니다. 추출된 메뉴 정보를 확인해주세요."
+                    : result.data().detectedItems().isEmpty()
+                            ? "추출된 메뉴 정보가 없습니다. 메뉴판 이미지를 다시 업로드해주세요."
+                            : "메뉴 인식이 완료되었습니다.";
         };
         return new StatusResponse<>(message, result.status(), result.data());
     }

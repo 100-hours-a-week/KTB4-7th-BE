@@ -99,6 +99,11 @@ public class MenuImage {
         ocrStatus = MenuProcessingStatus.FAILED;
     }
 
+    public void fail(String ocrResult) {
+        fail();
+        this.ocrResult = Objects.requireNonNull(ocrResult, "ocrResult");
+    }
+
     public Long getId() { return id; }
     public Long getBatchId() { return batchId; }
     public Long getStoreId() { return storeId; }
