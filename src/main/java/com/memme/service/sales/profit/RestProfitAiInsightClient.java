@@ -61,7 +61,8 @@ public class RestProfitAiInsightClient implements ProfitAiInsightClient {
     }
 
     private void validate(ProfitAiInsightResponse response, int maxInsightCount) {
-        if (response == null || response.data() == null || response.data().insights() == null) {
+        if (response == null || response.message() == null || response.message().isBlank()
+                || response.data() == null || response.data().insights() == null) {
             throw new ProfitAiInsightClientException("순이익 AI 인사이트 응답 형식이 올바르지 않습니다.");
         }
         List<String> insights = response.data().insights();
