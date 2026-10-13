@@ -3,6 +3,7 @@ package com.memme.service.store.recognition;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.Set;
+import java.util.HashSet;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -70,9 +71,22 @@ public class RestMenuRecognitionAiClient implements MenuRecognitionAiClient {
         Set<Long> imageIds = request.images().stream()
                 .map(MenuRecognitionRequest.Image::imageId)
                 .collect(Collectors.toSet());
+        Set<Long> failedImageIds = new HashSet<>();
+        for (MenuRecognitionResponse.FailedImage failed : response.data().failedImages()) {
+            if (failed == null || failed.sourceImageId() == null
+                    || !imageIds.contains(failed.sourceImageId())
+                    || !failedImageIds.add(failed.sourceImageId())
+                    || !isImageFailReason(failed.failReason())) {
+                throw invalidResponse();
+            }
+        }
+        if (failedImageIds.size() == imageIds.size()) {
+            throw invalidResponse();
+        }
         for (MenuRecognitionResponse.DetectedItem item : response.data().detectedItems()) {
             if (item == null || item.sourceImageId() == null
                     || !imageIds.contains(item.sourceImageId())
+                    || failedImageIds.contains(item.sourceImageId())
                     || item.name() == null || item.name().isBlank() || item.name().length() > 100
                     || (item.category() != null && item.category().length() > 50)
                     || (item.confidence() != null && (item.confidence().signum() < 0
@@ -80,6 +94,11 @@ public class RestMenuRecognitionAiClient implements MenuRecognitionAiClient {
                 throw invalidResponse();
             }
         }
+    }
+
+    private boolean isImageFailReason(String reason) {
+        return "LOW_IMAGE_QUALITY".equals(reason) || "MENU_TEXT_NOT_FOUND".equals(reason)
+                || PROCESSING_ERROR.equals(reason);
     }
 
     private MenuRecognitionAiException invalidResponse() {
@@ -92,7 +111,10 @@ public class RestMenuRecognitionAiClient implements MenuRecognitionAiClient {
         }
         try {
             var body = jsonMapper.readTree(exception.getResponseBodyAsString());
-            String code = body.path("code").asString();
+            String code = body.path("failReason").asString();
+            if (code.isBlank()) {
+                code = body.path("code").asString();
+            }
             if (code.isBlank()) {
                 code = body.path("data").path("code").asString();
             }
