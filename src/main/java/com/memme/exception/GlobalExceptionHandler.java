@@ -12,6 +12,7 @@ import com.memme.dto.sales.StoreCostItemValidationErrors.StoreCostItemFieldError
 import com.memme.dto.sales.SalesUploadCostSaveRequest;
 import com.memme.dto.sales.SalesUploadCostValidationErrors;
 import com.memme.dto.solution.SolutionNavigationErrorResponse;
+import com.memme.dto.solution.SolutionManualRetryResponse;
 import com.memme.exception.auth.AuthenticationRequiredException;
 import com.memme.exception.auth.DuplicateSignupException;
 import com.memme.exception.auth.InvalidCurrentPasswordException;
@@ -35,6 +36,7 @@ import com.memme.exception.sales.SalesUploadCostEntryException;
 import com.memme.exception.sales.InvalidStoreCostMonthException;
 import com.memme.exception.sales.InternalSalesDataNotFoundException;
 import com.memme.exception.solution.SolutionRequestException;
+import com.memme.exception.solution.SolutionManualRetryException;
 import com.memme.exception.store.AddressSearchFailedException;
 import com.memme.exception.store.BusinessVerificationExpiredException;
 import com.memme.exception.store.DuplicateBusinessRegistrationNumberException;
@@ -176,6 +178,21 @@ public class GlobalExceptionHandler {
         }
         return ResponseEntity.status(status)
                 .body(new ApiResponse<>(exception.getMessage(), null));
+    }
+
+    @ExceptionHandler(SolutionManualRetryException.class)
+    public ResponseEntity<SolutionManualRetryResponse> handleSolutionManualRetry(
+            SolutionManualRetryException exception
+    ) {
+        HttpStatus status = switch (exception.getReason()) {
+            case STORE_OWNER_REQUIRED -> HttpStatus.FORBIDDEN;
+            case NOT_ALLOWED -> HttpStatus.CONFLICT;
+            case DATA_NOT_READY -> HttpStatus.UNPROCESSABLE_CONTENT;
+        };
+        String retryStatus = exception.getReason() == SolutionManualRetryException.Reason.STORE_OWNER_REQUIRED
+                ? null : exception.getReason().name();
+        return ResponseEntity.status(status).body(new SolutionManualRetryResponse(
+                exception.getMessage(), retryStatus, null));
     }
 
     @ExceptionHandler(AuthenticationRequiredException.class)
