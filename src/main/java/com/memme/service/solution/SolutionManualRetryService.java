@@ -4,12 +4,14 @@ import java.time.Clock;
 import java.time.LocalDate;
 
 import com.memme.entity.solution.SolutionBundleStatus;
-import com.memme.exception.solution.SolutionRequestException;
+import com.memme.exception.solution.SolutionManualRetryException;
 import com.memme.repository.solution.SolutionBundleRepository;
 import com.memme.repository.store.StoreOwnershipRepository;
 import org.springframework.stereotype.Service;
 
-import static com.memme.exception.solution.SolutionRequestException.Reason.STORE_OWNER_REQUIRED;
+import static com.memme.exception.solution.SolutionManualRetryException.Reason.DATA_NOT_READY;
+import static com.memme.exception.solution.SolutionManualRetryException.Reason.NOT_ALLOWED;
+import static com.memme.exception.solution.SolutionManualRetryException.Reason.STORE_OWNER_REQUIRED;
 
 @Service
 public class SolutionManualRetryService {
@@ -43,7 +45,7 @@ public class SolutionManualRetryService {
     public Result retry(Long userId, Long storeId) {
         if (userId == null || storeId == null
                 || !ownershipRepository.existsActiveStoreOwnedBy(storeId, userId)) {
-            throw new SolutionRequestException(STORE_OWNER_REQUIRED);
+            throw new SolutionManualRetryException(STORE_OWNER_REQUIRED);
         }
         synchronized (storeLocks[Math.floorMod(storeId.hashCode(), storeLocks.length)]) {
             LocalDate today = LocalDate.now(clock);
@@ -51,11 +53,11 @@ public class SolutionManualRetryService {
                     .filter(bundle -> bundle.getStatus() == SolutionBundleStatus.FAILED)
                     .isPresent();
             if (!failedToday) {
-                return new Result(Status.NOT_ALLOWED, null);
+                throw new SolutionManualRetryException(NOT_ALLOWED);
             }
             if (contextResolver.resolve(storeId, today).availability()
                     != SalesSolutionGenerationContextResolver.Availability.READY) {
-                return new Result(Status.DATA_NOT_READY, null);
+                throw new SolutionManualRetryException(DATA_NOT_READY);
             }
 
             SalesSolutionGenerationResult generated = generationService.generateScheduled(storeId, today);
@@ -63,7 +65,8 @@ public class SolutionManualRetryService {
                 case COMPLETED -> Status.COMPLETED;
                 case GENERATING -> Status.IN_PROGRESS;
                 case FAILED -> Status.FAILED;
-                case EMPTY, INSUFFICIENT_HISTORY, FORECAST_PENDING -> Status.DATA_NOT_READY;
+                case EMPTY, INSUFFICIENT_HISTORY, FORECAST_PENDING ->
+                        throw new SolutionManualRetryException(DATA_NOT_READY);
             };
             return new Result(status, generated.solutionBundleId());
         }
@@ -72,9 +75,7 @@ public class SolutionManualRetryService {
     public enum Status {
         COMPLETED,
         FAILED,
-        IN_PROGRESS,
-        NOT_ALLOWED,
-        DATA_NOT_READY
+        IN_PROGRESS
     }
 
     public record Result(Status status, Long solutionBundleId) {}
