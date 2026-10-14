@@ -45,11 +45,12 @@ class RestProfitAiInsightClientTest {
                 .andExpect(jsonPath("$.dailyProfits[0].netProfit").value(600000))
                 .andExpect(jsonPath("$.monthlyCostItems").doesNotExist())
                 .andRespond(withSuccess("""
-                        {"status":"COMPLETED","data":{"insights":["예상 순이익은 600,000원이에요."]}}
+                        {"message":"순이익 인사이트를 생성했습니다.","status":"COMPLETED","data":{"insights":["예상 순이익은 600,000원이에요."]}}
                         """, MediaType.APPLICATION_JSON));
 
         var response = client().generate(request());
 
+        assertThat(response.message()).isEqualTo("순이익 인사이트를 생성했습니다.");
         assertThat(response.data().insights()).containsExactly("예상 순이익은 600,000원이에요.");
         server.verify();
     }
@@ -58,7 +59,7 @@ class RestProfitAiInsightClientTest {
     void 데이터_부족_응답을_허용한다() {
         server.expect(requestTo(BASE_URL + RestProfitAiInsightClient.PATH))
                 .andRespond(withSuccess("""
-                        {"status":"INSUFFICIENT_DATA","data":{"insights":[]}}
+                        {"message":"순이익 인사이트에 필요한 데이터가 부족합니다.","status":"INSUFFICIENT_DATA","data":{"insights":[]}}
                         """, MediaType.APPLICATION_JSON));
 
         assertThat(client().generate(request()).status()).isEqualTo("INSUFFICIENT_DATA");
@@ -69,7 +70,31 @@ class RestProfitAiInsightClientTest {
     void 비어_있거나_계약을_벗어난_응답을_거부한다() {
         server.expect(requestTo(BASE_URL + RestProfitAiInsightClient.PATH))
                 .andRespond(withSuccess("""
-                        {"status":"COMPLETED","data":{"insights":[]}}
+                        {"message":"순이익 인사이트를 생성했습니다.","status":"COMPLETED","data":{"insights":[]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client().generate(request()))
+                .isInstanceOf(ProfitAiInsightClientException.class);
+        server.verify();
+    }
+
+    @Test
+    void message가_없는_응답을_거부한다() {
+        server.expect(requestTo(BASE_URL + RestProfitAiInsightClient.PATH))
+                .andRespond(withSuccess("""
+                        {"status":"COMPLETED","data":{"insights":["예상 순이익이 증가했어요."]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client().generate(request()))
+                .isInstanceOf(ProfitAiInsightClientException.class);
+        server.verify();
+    }
+
+    @Test
+    void 데이터_부족_상태에서_문장이_있으면_거부한다() {
+        server.expect(requestTo(BASE_URL + RestProfitAiInsightClient.PATH))
+                .andRespond(withSuccess("""
+                        {"message":"순이익 인사이트에 필요한 데이터가 부족합니다.","status":"INSUFFICIENT_DATA","data":{"insights":["근거 없는 문장"]}}
                         """, MediaType.APPLICATION_JSON));
 
         assertThatThrownBy(() -> client().generate(request()))
