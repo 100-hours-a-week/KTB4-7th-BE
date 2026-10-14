@@ -7,6 +7,7 @@ import java.time.ZoneId;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -15,7 +16,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.memme.entity.solution.SolutionBundleEntity;
 import com.memme.entity.solution.SolutionBundleStatus;
-import com.memme.exception.solution.SolutionRequestException;
+import com.memme.exception.solution.SolutionManualRetryException;
 import com.memme.repository.solution.SolutionBundleRepository;
 import com.memme.repository.store.StoreOwnershipRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,9 +50,9 @@ class SolutionManualRetryServiceTest {
     @Test
     void rejectsAnotherStoreOwnerBeforeLookingUpBundle() {
         assertThatThrownBy(() -> service.retry(99L, 7L))
-                .isInstanceOf(SolutionRequestException.class)
-                .satisfies(error -> assertThat(((SolutionRequestException) error).getReason())
-                        .isEqualTo(SolutionRequestException.Reason.STORE_OWNER_REQUIRED));
+                .isInstanceOf(SolutionManualRetryException.class)
+                .satisfies(error -> assertThat(((SolutionManualRetryException) error).getReason())
+                        .isEqualTo(SolutionManualRetryException.Reason.STORE_OWNER_REQUIRED));
         verify(bundleRepository, never()).findByStoreIdAndTargetDate(any(), any());
     }
 
@@ -61,8 +62,10 @@ class SolutionManualRetryServiceTest {
         when(bundleRepository.findByStoreIdAndTargetDate(7L, TODAY))
                 .thenReturn(Optional.of(bundle));
 
-        assertThat(service.retry(3L, 7L).status())
-                .isEqualTo(SolutionManualRetryService.Status.NOT_ALLOWED);
+        assertThatThrownBy(() -> service.retry(3L, 7L))
+                .isInstanceOf(SolutionManualRetryException.class)
+                .satisfies(error -> assertThat(((SolutionManualRetryException) error).getReason())
+                        .isEqualTo(SolutionManualRetryException.Reason.NOT_ALLOWED));
         verify(contextResolver, never()).resolve(any(), any());
         verify(generationService, never()).generateScheduled(any(), any());
     }
@@ -75,8 +78,10 @@ class SolutionManualRetryServiceTest {
         when(contextResolver.resolve(7L, TODAY)).thenReturn(new SalesSolutionGenerationContextResolver.Resolution(
                 SalesSolutionGenerationContextResolver.Availability.FORECAST_PENDING, null));
 
-        assertThat(service.retry(3L, 7L).status())
-                .isEqualTo(SolutionManualRetryService.Status.DATA_NOT_READY);
+        assertThatThrownBy(() -> service.retry(3L, 7L))
+                .isInstanceOf(SolutionManualRetryException.class)
+                .satisfies(error -> assertThat(((SolutionManualRetryException) error).getReason())
+                        .isEqualTo(SolutionManualRetryException.Reason.DATA_NOT_READY));
         verify(generationService, never()).generateScheduled(any(), any());
     }
 
@@ -111,6 +116,24 @@ class SolutionManualRetryServiceTest {
 
         assertThat(result.status()).isEqualTo(SolutionManualRetryService.Status.FAILED);
         assertThat(result.solutionBundleId()).isEqualTo(31L);
+    }
+
+    @Test
+    void reportsDataNotReadyWhenContextBecomesUnavailableDuringGeneration() {
+        SolutionBundleEntity bundle = bundle(SolutionBundleStatus.FAILED);
+        when(bundleRepository.findByStoreIdAndTargetDate(7L, TODAY))
+                .thenReturn(Optional.of(bundle));
+        when(contextResolver.resolve(7L, TODAY)).thenReturn(new SalesSolutionGenerationContextResolver.Resolution(
+                SalesSolutionGenerationContextResolver.Availability.READY,
+                mock(SalesSolutionGenerationContext.class)));
+        when(generationService.generateScheduled(7L, TODAY))
+                .thenReturn(SalesSolutionGenerationResult.of(
+                        SalesSolutionGenerationResult.Status.FORECAST_PENDING, null));
+
+        assertThatThrownBy(() -> service.retry(3L, 7L))
+                .isInstanceOf(SolutionManualRetryException.class)
+                .satisfies(error -> assertThat(((SolutionManualRetryException) error).getReason())
+                        .isEqualTo(SolutionManualRetryException.Reason.DATA_NOT_READY));
     }
 
     @Test
@@ -163,8 +186,11 @@ class SolutionManualRetryServiceTest {
             allowGenerationToFinish.countDown();
             assertThat(first.get(2, TimeUnit.SECONDS).status())
                     .isEqualTo(SolutionManualRetryService.Status.COMPLETED);
-            assertThat(second.get(2, TimeUnit.SECONDS).status())
-                    .isEqualTo(SolutionManualRetryService.Status.NOT_ALLOWED);
+            assertThatThrownBy(() -> second.get(2, TimeUnit.SECONDS))
+                    .isInstanceOf(ExecutionException.class)
+                    .hasCauseInstanceOf(SolutionManualRetryException.class)
+                    .satisfies(error -> assertThat(((SolutionManualRetryException) error.getCause()).getReason())
+                            .isEqualTo(SolutionManualRetryException.Reason.NOT_ALLOWED));
             assertThat(generationCalls).hasValue(1);
         } finally {
             allowGenerationToFinish.countDown();
