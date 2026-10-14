@@ -2,10 +2,12 @@ package com.memme.controller.solution;
 
 import com.memme.controller.auth.AuthenticatedUserSession;
 import com.memme.dto.solution.SolutionBundleDetailResponse;
+import com.memme.dto.solution.SolutionManualRetryResponse;
 import com.memme.dto.solution.SolutionSaveResponse;
 import com.memme.dto.solution.SolutionTodayResponse;
 import com.memme.exception.auth.AuthenticationRequiredException;
 import com.memme.service.solution.SavedSolutionService;
+import com.memme.service.solution.SolutionManualRetryService;
 import com.memme.service.solution.SolutionQueryService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,13 +22,16 @@ public class SolutionController {
 
     private final SolutionQueryService queryService;
     private final SavedSolutionService savedSolutionService;
+    private final SolutionManualRetryService manualRetryService;
 
     public SolutionController(
             SolutionQueryService queryService,
-            SavedSolutionService savedSolutionService
+            SavedSolutionService savedSolutionService,
+            SolutionManualRetryService manualRetryService
     ) {
         this.queryService = queryService;
         this.savedSolutionService = savedSolutionService;
+        this.manualRetryService = manualRetryService;
     }
 
     @GetMapping("/v1/solutions/today")
@@ -36,6 +41,30 @@ public class SolutionController {
     ) {
         requireAuthentication(user);
         return queryService.today(user.userId(), user.storeId());
+    }
+
+    @PostMapping("/v1/solutions/today/retries")
+    public ResponseEntity<SolutionManualRetryResponse> retryToday(
+            @SessionAttribute(value = AuthenticatedUserSession.SESSION_ATTRIBUTE, required = false)
+            AuthenticatedUserSession user
+    ) {
+        requireAuthentication(user);
+        SolutionManualRetryService.Result result = manualRetryService.retry(user.userId(), user.storeId());
+
+        return switch (result.status()) {
+            case COMPLETED -> ResponseEntity.ok(new SolutionManualRetryResponse(
+                    "솔루션 재시도가 완료되었습니다.",
+                    "COMPLETED",
+                    new SolutionManualRetryResponse.Data(result.solutionBundleId())));
+            case IN_PROGRESS -> ResponseEntity.status(HttpStatus.CONFLICT).body(new SolutionManualRetryResponse(
+                    "오늘의 솔루션을 이미 생성하고 있습니다.",
+                    "IN_PROGRESS",
+                    new SolutionManualRetryResponse.Data(result.solutionBundleId())));
+            case FAILED -> ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new SolutionManualRetryResponse(
+                    "솔루션 재시도에 실패했습니다. 잠시 후 다시 시도해주세요.",
+                    "FAILED",
+                    null));
+        };
     }
 
     @GetMapping("/v1/solution-bundles/{bundleId}")
