@@ -42,8 +42,25 @@ public class WeatherContextSummaryService {
         this.clock = clock;
     }
 
+    public boolean needsDailyTemperatureSupplement(KmaVillageForecastResponse forecast, LocalDate targetDate) {
+        if (forecast == null || targetDate == null || forecast.response() == null
+                || forecast.response().body() == null || forecast.response().body().items() == null
+                || forecast.response().body().items().item() == null) {
+            return false;
+        }
+        return dailyTemperatures(forecast.response().body().items().item(), targetDate).isEmpty();
+    }
+
     public Optional<WeatherContext> summarize(
             KmaVillageForecastResponse forecast,
+            List<StoreBusinessHours> businessHours
+    ) {
+        return summarize(forecast, null, businessHours);
+    }
+
+    public Optional<WeatherContext> summarize(
+            KmaVillageForecastResponse forecast,
+            KmaVillageForecastResponse earlierForecast,
             List<StoreBusinessHours> businessHours
     ) {
         if (forecast == null || businessHours == null || forecast.response() == null
@@ -86,6 +103,12 @@ public class WeatherContextSummaryService {
         }
 
         Optional<DailyTemperatures> dailyTemperatures = dailyTemperatures(items, today);
+        if (dailyTemperatures.isEmpty() && earlierForecast != null
+                && earlierForecast.response() != null && earlierForecast.response().body() != null
+                && earlierForecast.response().body().items() != null
+                && earlierForecast.response().body().items().item() != null) {
+            dailyTemperatures = dailyTemperatures(earlierForecast.response().body().items().item(), today);
+        }
         Optional<String> basisDateTime = basisDateTime(items);
         if (dailyTemperatures.isEmpty() || basisDateTime.isEmpty()) {
             return Optional.empty();

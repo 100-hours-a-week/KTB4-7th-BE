@@ -62,8 +62,32 @@ public class KmaVillageForecastService {
         if (coordinates == null) {
             return Optional.empty();
         }
-        KmaGrid grid = KmaGrid.from(coordinates);
         LocalDateTime issue = latestAvailableIssue(LocalDateTime.now(clock.withZone(KOREA)));
+        return fetchForIssue(coordinates, issue);
+    }
+
+    public Optional<KmaVillageForecastResponse> fetchEarlyIssue(
+            StoreCoordinates coordinates,
+            LocalDate targetDate
+    ) {
+        if (serviceKey.isBlank()) {
+            throw new ExternalDataLookupException("KMA_KEY_MISSING");
+        }
+        if (coordinates == null || targetDate == null) {
+            return Optional.empty();
+        }
+        LocalDateTime issue = targetDate.atTime(2, 0);
+        if (LocalDateTime.now(clock.withZone(KOREA)).isBefore(issue.plusMinutes(10))) {
+            return Optional.empty();
+        }
+        return fetchForIssue(coordinates, issue);
+    }
+
+    private Optional<KmaVillageForecastResponse> fetchForIssue(
+            StoreCoordinates coordinates,
+            LocalDateTime issue
+    ) {
+        KmaGrid grid = KmaGrid.from(coordinates);
         KmaVillageForecastResponse payload = fetchPage(issue, grid, 1);
         KmaVillageForecastResponse.Body body = payload.response().body();
         if (body == null || body.items() == null || body.items().item() == null

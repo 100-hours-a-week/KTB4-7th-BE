@@ -67,6 +67,13 @@ public class SolutionWeatherContextService {
                 return Optional.empty();
             }
             Optional<WeatherContext> summary = summaryService.summarize(forecast.get(), businessHours);
+            if (summary.isEmpty() && summaryService.needsDailyTemperatureSupplement(forecast.get(), targetDate)) {
+                // Keep the latest issue for operating-hour weather; earlier issue supplies only today's TMN/TMX.
+                var earlierForecast = forecastService.fetchEarlyIssue(coordinates, targetDate);
+                if (earlierForecast.isPresent()) {
+                    summary = summaryService.summarize(forecast.get(), earlierForecast.get(), businessHours);
+                }
+            }
             if (summary.isEmpty()) {
                 return Optional.empty();
             }
