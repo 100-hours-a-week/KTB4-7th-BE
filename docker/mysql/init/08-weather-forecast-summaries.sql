@@ -1,0 +1,21 @@
+CREATE TABLE weather_forecast_summaries (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  store_id BIGINT UNSIGNED NOT NULL,
+  target_date DATE NOT NULL,
+  basis_datetime DATETIME NOT NULL,
+  sky_text VARCHAR(30) NOT NULL,
+  min_temp_c SMALLINT NOT NULL,
+  max_temp_c SMALLINT NOT NULL,
+  max_pop DECIMAL(4,3) NOT NULL,
+  rain_hours JSON NOT NULL,
+  precipitation_mm DECIMAL(8,2) NULL,
+  is_notable BOOLEAN NOT NULL,
+  fetched_at DATETIME NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_weather_forecast_store_date (store_id, target_date),
+  CONSTRAINT fk_weather_forecast_store FOREIGN KEY (store_id) REFERENCES stores(id),
+  CONSTRAINT ck_weather_forecast_max_pop CHECK (max_pop BETWEEN 0 AND 1),
+  CONSTRAINT ck_weather_forecast_precipitation CHECK (precipitation_mm IS NULL OR precipitation_mm >= 0)
+) ENGINE=InnoDB;

@@ -108,3 +108,11 @@ ORDER BY SEQ_IN_INDEX;
 신규 DB는 `docker/mysql/init/07-growth-ranking.sql`을 사용하며, fresh-init의 `stores.id` 타입에 맞춰 `ranking_profiles.store_id`를 `BIGINT UNSIGNED`로 선언합니다.
 
 배포 전 세 테이블과 외래 키·유니크 인덱스가 생성됐는지 확인한 뒤 BE를 배포합니다. 이 변경은 기존 매출 데이터를 수정하지 않습니다.
+
+## V2 기상청 단기예보 요약 저장 (#463)
+
+기존 QA·운영 DB에는 BE 배포 전에 `20261015-add-weather-forecast-summaries.sql`을 한 번 실행합니다.
+기존 `stores.id`가 signed `BIGINT`인 스키마와 FK 타입을 맞추기 위해 운영 마이그레이션의 `store_id`도 signed `BIGINT`입니다.
+신규 DB는 `docker/mysql/init/08-weather-forecast-summaries.sql`을 사용하며, fresh-init의 `stores.id`와 `store_id`는 `BIGINT UNSIGNED`입니다.
+매장·KST 대상일에 한 행만 저장하며, 원본 예보 응답이나 과거 관측값은 이 테이블에 넣지 않습니다.
+이 마이그레이션은 새 테이블만 만들고 기존 데이터를 변경하지 않습니다.
