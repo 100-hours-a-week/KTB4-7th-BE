@@ -4,6 +4,7 @@ import java.time.LocalDate;
 
 import com.memme.dto.sales.SalesSolutionGenerationRequest;
 import com.memme.dto.sales.SalesSolutionGenerationResponse;
+import com.memme.dto.sales.SalesSolutionMetrics;
 import com.memme.entity.solution.SolutionBundleEntity;
 import com.memme.exception.solution.SalesSolutionAiException;
 import org.springframework.stereotype.Service;
@@ -16,15 +17,18 @@ public class SalesSolutionGenerationService {
     private final SalesSolutionGenerationContextResolver contextResolver;
     private final SalesSolutionPersistenceService persistenceService;
     private final SalesSolutionAiClient aiClient;
+    private final SolutionWeatherContextService weatherContextService;
 
     public SalesSolutionGenerationService(
             SalesSolutionGenerationContextResolver contextResolver,
             SalesSolutionPersistenceService persistenceService,
-            SalesSolutionAiClient aiClient
+            SalesSolutionAiClient aiClient,
+            SolutionWeatherContextService weatherContextService
     ) {
         this.contextResolver = contextResolver;
         this.persistenceService = persistenceService;
         this.aiClient = aiClient;
+        this.weatherContextService = weatherContextService;
     }
 
     public SalesSolutionGenerationResult generateAfterUpload(Long storeId, LocalDate targetDate) {
@@ -71,7 +75,10 @@ public class SalesSolutionGenerationService {
                 return existingResult(bundle);
             }
 
+            SalesSolutionMetrics.WeatherContext weatherContext =
+                    weatherContextService.resolve(storeId, targetDate).orElse(null);
             for (int attempt = 0; attempt <= MAX_STALE_RETRIES; attempt++) {
+                SalesSolutionMetrics base = context.metrics();
                 SalesSolutionGenerationResponse response = generateWithRetry(
                         new SalesSolutionGenerationRequest(
                                 storeId,
@@ -80,7 +87,9 @@ public class SalesSolutionGenerationService {
                                         : null,
                                 targetDate,
                                 triggerType,
-                                context.metrics()
+                                new SalesSolutionMetrics(base.salesSummary(), base.hourlyProfile(),
+                                        base.categoryBreakdown(), base.predictedSalesToday(),
+                                        base.reviewSummary(), weatherContext)
                         )
                 );
                 if (!targetDate.equals(response.data().targetDate())) {
