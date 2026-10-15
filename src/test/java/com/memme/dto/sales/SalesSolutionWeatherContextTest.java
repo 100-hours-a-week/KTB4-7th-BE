@@ -36,6 +36,39 @@ class SalesSolutionWeatherContextTest {
     }
 
     @Test
+    void omitsOnlyPrecipitationWhenAmountIsUnknown() {
+        var metrics = metrics(new SalesSolutionMetrics.WeatherContext(
+                "2026-10-07 11:00", "비", 14, 24, 0.7,
+                List.of(15, 16, 17), null, true
+        ));
+
+        var json = mapper.readTree(mapper.writeValueAsString(metrics));
+
+        assertThat(json.path("weatherContext").has("precipitationMm")).isFalse();
+        assertThat(json.path("weatherContext").path("maxPop").asDouble()).isEqualTo(0.7);
+        assertThat(json.path("weatherContext").path("rainHours").size()).isEqualTo(3);
+        assertThat(json.path("weatherContext").path("isNotable").asBoolean()).isTrue();
+
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            assertThat(factory.getValidator().validate(metrics)).isEmpty();
+        }
+    }
+
+    @Test
+    void rejectsNegativePrecipitationAmount() {
+        var metrics = metrics(new SalesSolutionMetrics.WeatherContext(
+                "2026-10-07 11:00", "비", 14, 24, 0.7,
+                List.of(15), -0.1, true
+        ));
+
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            assertThat(factory.getValidator().validate(metrics))
+                    .anySatisfy(violation -> assertThat(violation.getPropertyPath().toString())
+                            .isEqualTo("weatherContext.precipitationMm"));
+        }
+    }
+
+    @Test
     void rejectsProbabilityOutsideFractionalRange() {
         try (var factory = Validation.buildDefaultValidatorFactory()) {
             var validator = factory.getValidator();
