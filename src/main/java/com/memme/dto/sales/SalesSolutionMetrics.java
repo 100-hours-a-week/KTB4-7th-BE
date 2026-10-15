@@ -52,7 +52,7 @@ public record SalesSolutionMetrics(
             int maxTempC,
             @NotNull @DecimalMin("0.0") @DecimalMax("1.0") Double maxPop,
             @NotNull List<@NotNull @Min(0) @Max(23) Integer> rainHours,
-            @NotNull @DecimalMin("0.0") Double precipitationMm,
+            @JsonInclude(JsonInclude.Include.NON_NULL) @DecimalMin("0.0") Double precipitationMm,
             @NotNull Boolean isNotable
     ) {}
 }
