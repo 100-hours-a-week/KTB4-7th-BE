@@ -94,6 +94,53 @@ class WeatherContextSummaryServiceTest {
     }
 
     @Test
+    void 최신_예보에_오늘_최저_최고가_없으면_이른_발표의_오늘_기온만_보충한다() {
+        List<Item> latestItems = new ArrayList<>();
+        for (int hour = 15; hour <= 18; hour++) {
+            for (String category : List.of("SKY", "POP", "TMP", "PTY", "PCP")) {
+                String value = switch (category) {
+                    case "SKY" -> "1";
+                    case "POP" -> "20";
+                    case "TMP" -> "20";
+                    case "PTY" -> "0";
+                    default -> "강수없음";
+                };
+                latestItems.add(new Item("20261007", "1400", category, TODAY,
+                        "%02d00".formatted(hour), value, 58, 125));
+            }
+        }
+        latestItems.add(new Item("20261007", "1400", "TMN", "20261008", "0600", "14", 58, 125));
+        latestItems.add(new Item("20261007", "1400", "TMX", "20261008", "1500", "25", 58, 125));
+        List<Item> earlyItems = List.of(
+                new Item("20261007", "0200", "TMN", TODAY, "0600", "11", 58, 125),
+                new Item("20261007", "0200", "TMX", TODAY, "1500", "22", 58, 125));
+        WeatherContextSummaryService afternoonService = new WeatherContextSummaryService(
+                Clock.fixed(Instant.parse("2026-10-07T06:30:00Z"), KOREA));
+
+        WeatherContext result = afternoonService.summarize(
+                forecast(latestItems), forecast(earlyItems), businessHours(0, 0)).orElseThrow();
+
+        assertThat(result.minTempC()).isEqualTo(11);
+        assertThat(result.maxTempC()).isEqualTo(22);
+        assertThat(result.basisDateTime()).isEqualTo("2026-10-07 14:00");
+        assertThat(result.maxPop()).isEqualTo(0.2);
+    }
+
+    @Test
+    void 보충_예보에도_오늘_최저_최고가_없으면_요약하지_않는다() {
+        List<Item> latestItems = forecastHours(15, 16, 17, 18);
+        latestItems.removeIf(item -> item.category().equals("TMN") || item.category().equals("TMX"));
+        List<Item> earlyItems = List.of(
+                new Item("20261007", "0200", "TMN", "20261008", "0600", "11", 58, 125),
+                new Item("20261007", "0200", "TMX", "20261008", "1500", "22", 58, 125));
+        WeatherContextSummaryService afternoonService = new WeatherContextSummaryService(
+                Clock.fixed(Instant.parse("2026-10-07T06:30:00Z"), KOREA));
+
+        assertThat(afternoonService.summarize(
+                forecast(latestItems), forecast(earlyItems), businessHours(0, 0))).isEmpty();
+    }
+
+    @Test
     void 강수확률이_낮아도_남은_영업시간의_극단_기온이면_주목_날씨로_판정한다() {
         List<Item> items = forecastHours(10, 11, 12, 13, 14, 15, 16, 17);
         addCompleteRequiredValues(items);

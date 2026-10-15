@@ -92,6 +92,39 @@ class SolutionWeatherContextServiceTest {
     }
 
     @Test
+    void fetchesEarlierIssueOnlyWhenLatestForecastLacksTodaysDailyTemperatures() {
+        givenCoordinates();
+        KmaVillageForecastResponse latest = mock(KmaVillageForecastResponse.class);
+        KmaVillageForecastResponse earlier = mock(KmaVillageForecastResponse.class);
+        when(forecastService.fetch(any(StoreCoordinates.class))).thenReturn(Optional.of(latest));
+        when(summaryService.summarize(latest, List.of())).thenReturn(Optional.empty());
+        when(summaryService.needsDailyTemperatureSupplement(latest, TODAY)).thenReturn(true);
+        when(forecastService.fetchEarlyIssue(any(StoreCoordinates.class), org.mockito.Mockito.eq(TODAY)))
+                .thenReturn(Optional.of(earlier));
+        WeatherContext weather = new WeatherContext("2026-10-15 14:00", "구름많음", 11, 22,
+                0.2, List.of(), null, false);
+        when(summaryService.summarize(latest, earlier, List.of())).thenReturn(Optional.of(weather));
+        when(persistenceService.saveIfNewer(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(service.resolve(1L, TODAY)).contains(weather);
+        verify(persistenceService).saveIfNewer(any(WeatherForecastSummaryEntity.class));
+    }
+
+    @Test
+    void omitsWeatherWhenEarlierIssueCannotSupplyTodaysDailyTemperatures() {
+        givenCoordinates();
+        KmaVillageForecastResponse latest = mock(KmaVillageForecastResponse.class);
+        when(forecastService.fetch(any(StoreCoordinates.class))).thenReturn(Optional.of(latest));
+        when(summaryService.summarize(latest, List.of())).thenReturn(Optional.empty());
+        when(summaryService.needsDailyTemperatureSupplement(latest, TODAY)).thenReturn(true);
+        when(forecastService.fetchEarlyIssue(any(StoreCoordinates.class), org.mockito.Mockito.eq(TODAY)))
+                .thenReturn(Optional.empty());
+
+        assertThat(service.resolve(1L, TODAY)).isEmpty();
+        verify(persistenceService, never()).saveIfNewer(any());
+    }
+
+    @Test
     void omitsWeatherWhenPersistenceFails() {
         givenCoordinates();
         KmaVillageForecastResponse response = mock(KmaVillageForecastResponse.class);

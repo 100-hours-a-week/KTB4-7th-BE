@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,6 +69,40 @@ class KmaVillageForecastServiceTest {
 
         assertThat(service.fetch(new StoreCoordinates(new BigDecimal("37.4786"), new BigDecimal("126.8646"))))
                 .isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void 오늘의_최저_최고_보충용으로_오늘_02시_발표를_조회한다() {
+        KmaVillageForecastService service = serviceAt("2026-10-15T07:03:00Z");
+        server.expect(request -> assertThat(request.getURI().getRawQuery())
+                        .contains("base_date=20261015", "base_time=0200", "nx=58", "ny=125"))
+                .andRespond(withSuccess("""
+                        {"response":{"header":{"resultCode":"00","resultMsg":"NORMAL_SERVICE"},
+                        "body":{"dataType":"JSON","numOfRows":1000,"pageNo":1,"totalCount":2,
+                        "items":{"item":[
+                        {"baseDate":"20261015","baseTime":"0200","category":"TMN",
+                         "fcstDate":"20261015","fcstTime":"0600","fcstValue":"11","nx":58,"ny":125},
+                        {"baseDate":"20261015","baseTime":"0200","category":"TMX",
+                         "fcstDate":"20261015","fcstTime":"1500","fcstValue":"22","nx":58,"ny":125}]}}}}
+                        """, APPLICATION_JSON));
+
+        var result = service.fetchEarlyIssue(
+                new StoreCoordinates(new BigDecimal("37.4786"), new BigDecimal("126.8646")),
+                LocalDate.of(2026, 10, 15));
+
+        assertThat(result.orElseThrow().response().body().items().item())
+                .extracting(item -> item.category()).containsExactly("TMN", "TMX");
+        server.verify();
+    }
+
+    @Test
+    void 오늘_02시_발표_전에는_미래_발표를_조회하지_않는다() {
+        KmaVillageForecastService service = serviceAt("2026-10-14T17:05:00Z");
+
+        assertThat(service.fetchEarlyIssue(
+                new StoreCoordinates(new BigDecimal("37.4786"), new BigDecimal("126.8646")),
+                LocalDate.of(2026, 10, 15))).isEmpty();
         server.verify();
     }
 
