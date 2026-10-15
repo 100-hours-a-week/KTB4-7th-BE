@@ -28,6 +28,7 @@ class SalesSolutionGenerationServiceTest {
     private SalesSolutionGenerationContextResolver contextResolver;
     private SalesSolutionPersistenceService persistenceService;
     private SalesSolutionAiClient aiClient;
+    private SolutionWeatherContextService weatherContextService;
     private SalesSolutionGenerationService service;
 
     @BeforeEach
@@ -35,10 +36,12 @@ class SalesSolutionGenerationServiceTest {
         contextResolver = mock(SalesSolutionGenerationContextResolver.class);
         persistenceService = mock(SalesSolutionPersistenceService.class);
         aiClient = mock(SalesSolutionAiClient.class);
+        weatherContextService = mock(SolutionWeatherContextService.class);
         service = new SalesSolutionGenerationService(
                 contextResolver,
                 persistenceService,
-                aiClient
+                aiClient,
+                weatherContextService
         );
     }
 
@@ -63,6 +66,40 @@ class SalesSolutionGenerationServiceTest {
         assertThat(result.status()).isEqualTo(SalesSolutionGenerationResult.Status.COMPLETED);
         assertThat(result.solutionBundleId()).isEqualTo(77L);
         verify(persistenceService).complete(77L, 56L, response.data());
+    }
+
+    @Test
+    void includesWeatherWhenAvailable() {
+        LocalDate targetDate = LocalDate.of(2026, 9, 24);
+        givenGenerationContext(targetDate);
+        when(contextResolver.latestSalesAnalysisId(1L)).thenReturn(Optional.of(56L));
+        when(weatherContextService.resolve(1L, targetDate)).thenReturn(Optional.of(
+                new SalesSolutionMetrics.WeatherContext("2026-09-24 11:00", "비", 14, 24,
+                        0.7, List.of(15), null, true)));
+        when(aiClient.generate(any())).thenReturn(response(targetDate));
+
+        assertThat(service.generateScheduled(1L, targetDate).status())
+                .isEqualTo(SalesSolutionGenerationResult.Status.COMPLETED);
+        org.mockito.ArgumentCaptor<SalesSolutionGenerationRequest> request =
+                org.mockito.ArgumentCaptor.forClass(SalesSolutionGenerationRequest.class);
+        verify(aiClient).generate(request.capture());
+        assertThat(request.getValue().metrics().weatherContext().maxPop()).isEqualTo(0.7);
+    }
+
+    @Test
+    void continuesWithoutWeatherWhenUnavailable() {
+        LocalDate targetDate = LocalDate.of(2026, 9, 24);
+        givenGenerationContext(targetDate);
+        when(contextResolver.latestSalesAnalysisId(1L)).thenReturn(Optional.of(56L));
+        when(weatherContextService.resolve(1L, targetDate)).thenReturn(Optional.empty());
+        when(aiClient.generate(any())).thenReturn(response(targetDate));
+
+        assertThat(service.generateScheduled(1L, targetDate).status())
+                .isEqualTo(SalesSolutionGenerationResult.Status.COMPLETED);
+        org.mockito.ArgumentCaptor<SalesSolutionGenerationRequest> request =
+                org.mockito.ArgumentCaptor.forClass(SalesSolutionGenerationRequest.class);
+        verify(aiClient).generate(request.capture());
+        assertThat(request.getValue().metrics().weatherContext()).isNull();
     }
 
     @Test
