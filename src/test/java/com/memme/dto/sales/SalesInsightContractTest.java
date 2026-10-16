@@ -30,6 +30,31 @@ class SalesInsightContractTest {
                 .isEqualTo("WEEKDAY");
         assertThat(json.path("metrics").path("menuRankings").get(0).path("menuName").asString())
                 .isEqualTo("아메리카노");
+        assertThat(json.path("metrics").has("districtBenchmark")).isFalse();
+    }
+
+    @Test
+    void serializesOptionalDistrictBenchmarkWithAiContractFieldNames() throws Exception {
+        SalesInsightMetrics existingMetrics = validRequest().metrics();
+        SalesInsightMetrics metrics = new SalesInsightMetrics(
+                existingMetrics.salesSummary(),
+                existingMetrics.salesTrend(),
+                existingMetrics.weekdaySales(),
+                existingMetrics.hourlySales(),
+                existingMetrics.categorySales(),
+                existingMetrics.menuRankings(),
+                new DistrictBenchmarkMetric("2026Q2", 5_230_000, 28, "14-17", "11-14"));
+        SalesInsightRequest request = new SalesInsightRequest(
+                1L, 56L, 34L, YearMonth.of(2026, 9), SalesInsightTriggerType.UPLOAD, metrics, 3);
+
+        var json = mapper.readTree(mapper.writeValueAsString(request));
+        var benchmark = json.path("metrics").path("districtBenchmark");
+
+        assertThat(benchmark.path("basisQuarter").asString()).isEqualTo("2026Q2");
+        assertThat(benchmark.path("districtAvgMonthlySalesPerCafe").intValue()).isEqualTo(5_230_000);
+        assertThat(benchmark.path("cafeStoreCount").intValue()).isEqualTo(28);
+        assertThat(benchmark.path("peakSalesHourBand").asString()).isEqualTo("14-17");
+        assertThat(benchmark.path("peakFootTrafficHourBand").asString()).isEqualTo("11-14");
     }
 
     @Test
@@ -92,6 +117,28 @@ class SalesInsightContractTest {
             assertThat(validator.validate(invalidResponse))
                     .extracting(violation -> violation.getPropertyPath().toString())
                     .contains("data.insights");
+
+            SalesInsightMetrics existingMetrics = validRequest().metrics();
+            SalesInsightMetrics invalidMetrics = new SalesInsightMetrics(
+                    existingMetrics.salesSummary(),
+                    existingMetrics.salesTrend(),
+                    existingMetrics.weekdaySales(),
+                    existingMetrics.hourlySales(),
+                    existingMetrics.categorySales(),
+                    existingMetrics.menuRankings(),
+                    new DistrictBenchmarkMetric("2026-2Q", -1, 2, "15-18", "12-14"));
+            SalesInsightRequest invalidBenchmarkRequest = new SalesInsightRequest(
+                    1L, 56L, 34L, YearMonth.of(2026, 9), SalesInsightTriggerType.UPLOAD,
+                    invalidMetrics, 3);
+
+            assertThat(validator.validate(invalidBenchmarkRequest))
+                    .extracting(violation -> violation.getPropertyPath().toString())
+                    .contains(
+                            "metrics.districtBenchmark.basisQuarter",
+                            "metrics.districtBenchmark.districtAvgMonthlySalesPerCafe",
+                            "metrics.districtBenchmark.cafeStoreCount",
+                            "metrics.districtBenchmark.peakSalesHourBand",
+                            "metrics.districtBenchmark.peakFootTrafficHourBand");
         }
     }
 
