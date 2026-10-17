@@ -15,7 +15,7 @@ CREATE TABLE seoul_district_quarter_imports (
 CREATE TABLE seoul_district_quarter_benchmarks (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   import_id BIGINT UNSIGNED NOT NULL,
-  administrative_dong_code CHAR(8) NOT NULL,
+  administrative_dong_code CHAR(10) NOT NULL,
   cafe_store_count INT UNSIGNED NOT NULL,
   district_avg_monthly_sales_per_cafe BIGINT UNSIGNED NOT NULL,
   peak_sales_hour_band CHAR(5) NOT NULL,

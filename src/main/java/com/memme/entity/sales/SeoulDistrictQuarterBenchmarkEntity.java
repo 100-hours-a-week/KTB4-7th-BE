@@ -28,7 +28,7 @@ public class SeoulDistrictQuarterBenchmarkEntity {
     @JoinColumn(name = "import_id", nullable = false)
     private SeoulDistrictQuarterImportEntity imported;
 
-    @Column(name = "administrative_dong_code", nullable = false, length = 8, columnDefinition = "CHAR(8)")
+    @Column(name = "administrative_dong_code", nullable = false, length = 10, columnDefinition = "CHAR(10)")
     private String administrativeDongCode;
 
     @Column(name = "cafe_store_count", nullable = false)
@@ -50,8 +50,8 @@ public class SeoulDistrictQuarterBenchmarkEntity {
             int cafeStoreCount, long districtAvgMonthlySalesPerCafe,
             String peakSalesHourBand, String peakFootTrafficHourBand) {
         Objects.requireNonNull(imported, "imported");
-        if (administrativeDongCode == null || !administrativeDongCode.matches("[0-9]{8}")) {
-            throw new IllegalArgumentException("administrativeDongCode must be eight digits");
+        if (administrativeDongCode == null || !administrativeDongCode.matches("[0-9]{10}")) {
+            throw new IllegalArgumentException("administrativeDongCode must be ten digits");
         }
         if (cafeStoreCount < 3 || districtAvgMonthlySalesPerCafe < 0) {
             throw new IllegalArgumentException("invalid benchmark amounts");
