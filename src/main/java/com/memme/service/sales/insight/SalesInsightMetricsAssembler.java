@@ -2,9 +2,11 @@ package com.memme.service.sales.insight;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -24,6 +26,7 @@ import com.memme.dto.sales.SalesSummaryMetric;
 import com.memme.dto.sales.SalesTrendMetric;
 import com.memme.dto.sales.WeekdaySalesMetric;
 import com.memme.entity.sales.SalesDailySummaryEntity;
+import com.memme.entity.sales.SalesDailyStatus;
 import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
 import com.memme.entity.sales.SalesOrderItemType;
@@ -31,6 +34,7 @@ import com.memme.entity.sales.SalesStandardMenuCategory;
 import com.memme.repository.sales.SalesDailySummaryRepository;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesOrderRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,19 +45,32 @@ public class SalesInsightMetricsAssembler {
     static final int MINIMUM_SALES_DAYS = 14;
     private static final int MAX_MENU_RANKINGS = 10;
     private static final int RATE_SCALE = 4;
+    private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
     private final SalesDailySummaryRepository dailySummaryRepository;
     private final SalesOrderRepository orderRepository;
     private final SalesOrderItemRepository itemRepository;
+    private final Clock clock;
 
+    @Autowired
     public SalesInsightMetricsAssembler(
             SalesDailySummaryRepository dailySummaryRepository,
             SalesOrderRepository orderRepository,
-            SalesOrderItemRepository itemRepository
+            SalesOrderItemRepository itemRepository,
+            Clock clock
     ) {
         this.dailySummaryRepository = dailySummaryRepository;
         this.orderRepository = orderRepository;
         this.itemRepository = itemRepository;
+        this.clock = clock;
+    }
+
+    SalesInsightMetricsAssembler(
+            SalesDailySummaryRepository dailySummaryRepository,
+            SalesOrderRepository orderRepository,
+            SalesOrderItemRepository itemRepository
+    ) {
+        this(dailySummaryRepository, orderRepository, itemRepository, Clock.system(KOREA_ZONE));
     }
 
     public Result assemble(Long storeId, YearMonth targetMonth) {
@@ -76,7 +93,29 @@ public class SalesInsightMetricsAssembler {
                 categorySales(current, previous, currentTotals.menuSales()),
                 menuRankings(current, previous, currentTotals.menuSales())
         );
-        return new Result(metrics, hasMinimumContinuousSalesDays(storeId, targetMonth));
+        return new Result(
+                metrics,
+                hasMinimumContinuousSalesDays(storeId, targetMonth),
+                isCompletedMonth(targetMonth, current.summaries())
+        );
+    }
+
+    private boolean isCompletedMonth(YearMonth targetMonth, List<SalesDailySummaryEntity> summaries) {
+        if (!targetMonth.isBefore(YearMonth.now(clock.withZone(KOREA_ZONE)))
+                || summaries.size() != targetMonth.lengthOfMonth()) {
+            return false;
+        }
+        Map<LocalDate, SalesDailyStatus> statusesByDate = new HashMap<>();
+        for (SalesDailySummaryEntity summary : summaries) {
+            statusesByDate.put(summary.getSalesDate(), summary.getDayStatus());
+        }
+        for (int day = 1; day <= targetMonth.lengthOfMonth(); day++) {
+            SalesDailyStatus status = statusesByDate.get(targetMonth.atDay(day));
+            if (status != SalesDailyStatus.COMPLETE && status != SalesDailyStatus.CLOSED) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean hasMinimumContinuousSalesDays(Long storeId, YearMonth targetMonth) {
@@ -333,7 +372,15 @@ public class SalesInsightMetricsAssembler {
         };
     }
 
-    public record Result(SalesInsightMetrics metrics, boolean sufficientData) {}
+    public record Result(
+            SalesInsightMetrics metrics,
+            boolean sufficientData,
+            boolean districtBenchmarkEligible
+    ) {
+        public Result(SalesInsightMetrics metrics, boolean sufficientData) {
+            this(metrics, sufficientData, false);
+        }
+    }
 
     private record Totals(long totalSales, long menuSales, long orderCount) {}
 

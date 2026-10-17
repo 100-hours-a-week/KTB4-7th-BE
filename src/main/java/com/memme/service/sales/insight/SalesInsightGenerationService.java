@@ -4,6 +4,8 @@ import java.time.YearMonth;
 import java.util.HashSet;
 import java.util.List;
 
+import com.memme.dto.sales.DistrictBenchmarkMetric;
+import com.memme.dto.sales.SalesInsightMetrics;
 import com.memme.dto.sales.SalesInsightRequest;
 import com.memme.dto.sales.SalesInsightResponse;
 import com.memme.dto.sales.SalesInsightResponseData;
@@ -21,15 +23,18 @@ public class SalesInsightGenerationService {
     private final SalesInsightMetricsAssembler metricsAssembler;
     private final SalesInsightClient insightClient;
     private final SalesAiInsightPersistenceService persistenceService;
+    private final DistrictBenchmarkService districtBenchmarkService;
 
     public SalesInsightGenerationService(
             SalesInsightMetricsAssembler metricsAssembler,
             SalesInsightClient insightClient,
-            SalesAiInsightPersistenceService persistenceService
+            SalesAiInsightPersistenceService persistenceService,
+            DistrictBenchmarkService districtBenchmarkService
     ) {
         this.metricsAssembler = metricsAssembler;
         this.insightClient = insightClient;
         this.persistenceService = persistenceService;
+        this.districtBenchmarkService = districtBenchmarkService;
     }
 
     public SalesAiInsightStatus generate(
@@ -46,13 +51,14 @@ public class SalesInsightGenerationService {
             return SalesAiInsightStatus.INSUFFICIENT_DATA;
         }
 
+        SalesInsightMetrics metrics = withDistrictBenchmark(storeId, targetMonth, assembled);
         SalesInsightRequest request = new SalesInsightRequest(
                 storeId,
                 salesAnalysisId,
                 analysisRunId,
                 targetMonth,
                 triggerType,
-                assembled.metrics(),
+                metrics,
                 MAX_INSIGHT_COUNT
         );
         try {
@@ -62,6 +68,32 @@ public class SalesInsightGenerationService {
             persistenceService.fail(insightId);
             return SalesAiInsightStatus.FAILED;
         }
+    }
+
+    private SalesInsightMetrics withDistrictBenchmark(
+            Long storeId,
+            YearMonth targetMonth,
+            SalesInsightMetricsAssembler.Result assembled
+    ) {
+        if (!assembled.districtBenchmarkEligible()) {
+            return assembled.metrics();
+        }
+        DistrictBenchmarkMetric benchmark = districtBenchmarkService
+                .findForInsight(storeId, targetMonth)
+                .orElse(null);
+        if (benchmark == null) {
+            return assembled.metrics();
+        }
+        SalesInsightMetrics metrics = assembled.metrics();
+        return new SalesInsightMetrics(
+                metrics.salesSummary(),
+                metrics.salesTrend(),
+                metrics.weekdaySales(),
+                metrics.hourlySales(),
+                metrics.categorySales(),
+                metrics.menuRankings(),
+                benchmark
+        );
     }
 
     private SalesAiInsightStatus persistResponse(
