@@ -1,5 +1,13 @@
 # 기존 DB 마이그레이션 안내
 
+## V2 서울 상권 분기 요약 저장 (#471)
+
+기존 QA·운영 DB에는 BE 배포 전에 `20261016-add-seoul-district-quarter-benchmarks.sql`을 한 번 실행합니다.
+신규 DB는 `docker/mysql/init/09-seoul-district-quarter-benchmarks.sql`에서 같은 두 테이블을 생성합니다.
+두 테이블은 기존 테이블을 참조하지 않으므로 기존 데이터는 변경하지 않습니다. 실행 전에 DB 백업을 확인하고,
+실행 후 두 테이블의 UNIQUE·CHECK·FK 제약과 빈 행 수를 확인한 다음 BE 스키마 검증 및 Health Check를 진행합니다.
+실제 분기 데이터 수집은 이 마이그레이션에서 수행하지 않습니다.
+
 `20260929-add-analysis-schema.sql`은 분석 실행 이력 스키마가 추가되기 전에
 생성된 QA·운영 DB에 적용하는 마이그레이션 SQL입니다. 이 스크립트는 Hibernate
 엔티티와 맞지 않던 `store_business_hours.day_of_week` 타입도 함께 보정합니다.
