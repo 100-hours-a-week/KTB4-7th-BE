@@ -49,4 +49,14 @@ class StoreRepositoryTest {
 
         assertThat(findOwnerUserIdByStoreId.getReturnType()).isEqualTo(Optional.class);
     }
+
+    @Test
+    void 행정동_코드로_매장_목록을_조회한다() throws Exception {
+        Method findAllByAdministrativeDongCode = StoreRepository.class.getMethod(
+                "findAllByAdministrativeDongCode",
+                String.class
+        );
+
+        assertThat(findAllByAdministrativeDongCode.getReturnType()).isEqualTo(List.class);
+    }
 }

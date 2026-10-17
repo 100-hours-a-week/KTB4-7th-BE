@@ -44,6 +44,17 @@ class StoreEntityMappingTest {
         assertThat(storeClass.getDeclaredField("updatedAt").getType()).isEqualTo(LocalDateTime.class);
     }
 
+    @Test
+    void 매장_행정동_코드를_nullable_10자리_char로_매핑한다() throws Exception {
+        Column column = Store.class.getDeclaredField("administrativeDongCode").getAnnotation(Column.class);
+
+        assertThat(column).isNotNull();
+        assertThat(column.name()).isEqualTo("administrative_dong_code");
+        assertThat(column.length()).isEqualTo(10);
+        assertThat(column.nullable()).isTrue();
+        assertThat(column.columnDefinition()).isEqualTo("CHAR(10)");
+    }
+
     private void assertOwnerUser(Class<?> storeClass) throws NoSuchFieldException {
         Field field = storeClass.getDeclaredField("owner");
         JoinColumn joinColumn = field.getAnnotation(JoinColumn.class);

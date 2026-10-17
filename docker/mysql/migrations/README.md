@@ -1,5 +1,15 @@
 # 기존 DB 마이그레이션 안내
 
+## 매장 행정동 코드 (#477)
+
+기존 QA·운영 DB에는 BE 배포 전에 `20261017-add-store-administrative-dong-code.sql`을 한 번 실행합니다.
+신규 DB는 `docker/mysql/init/01-auth-signup.sql`에서 `stores.administrative_dong_code CHAR(10) NULL`을 생성합니다.
+기존 매장에는 행정동 코드를 임의로 채우지 않으며 기존 행은 `NULL`로 유지합니다. 주소·좌표에서 행정동 코드를
+산출하거나 가입/매장 수정 요청으로 입력받는 기능은 이 변경에 포함되지 않습니다.
+
+배포 전 DB 백업 여부를 확인하고, 마이그레이션 적용 후 컬럼 타입과 기존 행의 `NULL` 상태를 확인한 뒤 BE를 배포합니다.
+이 변경은 컬럼 하나를 추가하며 기존 매장 데이터는 삭제하거나 수정하지 않습니다.
+
 ## V2 서울 상권 분기 요약 저장 (#471)
 
 기존 QA·운영 DB에는 BE 배포 전에 `20261016-add-seoul-district-quarter-benchmarks.sql`을 한 번 실행합니다.

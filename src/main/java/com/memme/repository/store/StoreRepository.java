@@ -14,6 +14,8 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 
     Optional<Store> findByOwnerId(Long ownerId);
 
+    List<Store> findAllByAdministrativeDongCode(String administrativeDongCode);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select store from Store store where store.id = :storeId")
     Optional<Store> findForMenuUpdate(@Param("storeId") Long storeId);
