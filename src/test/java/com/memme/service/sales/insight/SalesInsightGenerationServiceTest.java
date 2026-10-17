@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.List;
 
+import com.memme.dto.sales.DistrictBenchmarkMetric;
 import com.memme.dto.sales.SalesInsightMetrics;
 import com.memme.dto.sales.SalesInsightResponse;
 import com.memme.dto.sales.SalesInsightResponseData;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -26,6 +28,7 @@ class SalesInsightGenerationServiceTest {
     private SalesInsightMetricsAssembler assembler;
     private SalesInsightClient client;
     private SalesAiInsightPersistenceService persistence;
+    private DistrictBenchmarkService districtBenchmarkService;
     private SalesInsightGenerationService service;
 
     @BeforeEach
@@ -33,7 +36,8 @@ class SalesInsightGenerationServiceTest {
         assembler = mock(SalesInsightMetricsAssembler.class);
         client = mock(SalesInsightClient.class);
         persistence = mock(SalesAiInsightPersistenceService.class);
-        service = new SalesInsightGenerationService(assembler, client, persistence);
+        districtBenchmarkService = mock(DistrictBenchmarkService.class);
+        service = new SalesInsightGenerationService(assembler, client, persistence, districtBenchmarkService);
         when(persistence.start(1L, 56L, YearMonth.of(2026, 9))).thenReturn(77L);
     }
 
@@ -47,6 +51,7 @@ class SalesInsightGenerationServiceTest {
         assertThat(status).isEqualTo(SalesAiInsightStatus.INSUFFICIENT_DATA);
         verify(persistence).markInsufficientData(77L);
         verify(client, never()).generate(any());
+        verify(districtBenchmarkService, never()).findForInsight(anyLong(), any());
     }
 
     @Test
@@ -68,6 +73,57 @@ class SalesInsightGenerationServiceTest {
 
         assertThat(status).isEqualTo(SalesAiInsightStatus.COMPLETED);
         verify(persistence).complete(77L, List.of("9월 총 매출은 7,920,000원입니다."));
+    }
+
+    @Test
+    void includesDistrictBenchmarkOnlyWhenCompletedMonthGatePasses() {
+        DistrictBenchmarkMetric benchmark = new DistrictBenchmarkMetric(
+                "2026Q2", 3_000_000, 12, "14-17", "17-21");
+        when(assembler.assemble(1L, YearMonth.of(2026, 9)))
+                .thenReturn(new SalesInsightMetricsAssembler.Result(metrics(), true, true));
+        when(districtBenchmarkService.findForInsight(1L, YearMonth.of(2026, 9)))
+                .thenReturn(java.util.Optional.of(benchmark));
+        when(client.generate(any())).thenReturn(new SalesInsightResponse(
+                "매출 AI 인사이트를 생성했습니다.",
+                SalesInsightStatus.COMPLETED,
+                new SalesInsightResponseData(
+                        YearMonth.of(2026, 9),
+                        List.of("9월 총 매출은 7,920,000원입니다."),
+                        null
+                ),
+                null
+        ));
+
+        generate();
+
+        org.mockito.ArgumentCaptor<com.memme.dto.sales.SalesInsightRequest> requestCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.memme.dto.sales.SalesInsightRequest.class);
+        verify(client).generate(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().metrics().districtBenchmark()).isEqualTo(benchmark);
+    }
+
+    @Test
+    void omitsDistrictBenchmarkWhenCompletedMonthGateFails() {
+        when(assembler.assemble(1L, YearMonth.of(2026, 9)))
+                .thenReturn(new SalesInsightMetricsAssembler.Result(metrics(), true, false));
+        when(client.generate(any())).thenReturn(new SalesInsightResponse(
+                "매출 AI 인사이트를 생성했습니다.",
+                SalesInsightStatus.COMPLETED,
+                new SalesInsightResponseData(
+                        YearMonth.of(2026, 9),
+                        List.of("9월 총 매출은 7,920,000원입니다."),
+                        null
+                ),
+                null
+        ));
+
+        generate();
+
+        org.mockito.ArgumentCaptor<com.memme.dto.sales.SalesInsightRequest> requestCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.memme.dto.sales.SalesInsightRequest.class);
+        verify(client).generate(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().metrics().districtBenchmark()).isNull();
+        verify(districtBenchmarkService, never()).findForInsight(anyLong(), any());
     }
 
     @Test
