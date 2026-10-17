@@ -34,7 +34,7 @@ class SeoulDistrictQuarterModelTest {
         SeoulDistrictQuarterImportEntity imported = SeoulDistrictQuarterImportEntity.start("2026Q2", "CS100010", NOW);
 
         assertThatIllegalArgumentException().isThrownBy(() -> SeoulDistrictQuarterBenchmarkEntity.create(
-                imported, "11680580", 2, 1_000_000L, "14-17", "17-21"));
+                imported, "1168051000", 2, 1_000_000L, "14-17", "17-21"));
     }
 
     @Test
@@ -42,6 +42,24 @@ class SeoulDistrictQuarterModelTest {
         SeoulDistrictQuarterImportEntity imported = SeoulDistrictQuarterImportEntity.start("2026Q2", "CS100010", NOW);
 
         assertThatIllegalArgumentException().isThrownBy(() -> SeoulDistrictQuarterBenchmarkEntity.create(
-                imported, "11680580", 3, 1_000_000L, "15-18", "17-21"));
+                imported, "1168051000", 3, 1_000_000L, "15-18", "17-21"));
+    }
+
+    @Test
+    void 서울시_행정동_원본_10자리_코드를_그대로_저장한다() {
+        SeoulDistrictQuarterImportEntity imported = SeoulDistrictQuarterImportEntity.start("2026Q2", "CS100010", NOW);
+
+        SeoulDistrictQuarterBenchmarkEntity benchmark = SeoulDistrictQuarterBenchmarkEntity.create(
+                imported, "1168051000", 3, 1_000_000L, "14-17", "17-21");
+
+        assertThat(benchmark.getAdministrativeDongCode()).isEqualTo("1168051000");
+    }
+
+    @Test
+    void 잘린_8자리_행정동_코드는_거절한다() {
+        SeoulDistrictQuarterImportEntity imported = SeoulDistrictQuarterImportEntity.start("2026Q2", "CS100010", NOW);
+
+        assertThatIllegalArgumentException().isThrownBy(() -> SeoulDistrictQuarterBenchmarkEntity.create(
+                imported, "11680510", 3, 1_000_000L, "14-17", "17-21"));
     }
 }

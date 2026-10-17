@@ -35,21 +35,21 @@ class SeoulDistrictQuarterRepositoryTest {
         failed.fail(now.plusMinutes(1));
         imports.flush();
         benchmarks.saveAndFlush(SeoulDistrictQuarterBenchmarkEntity.create(
-                latest, "11680580", 7, 2_100_000L, "14-17", "17-21"));
+                latest, "1168051000", 7, 2_100_000L, "14-17", "17-21"));
         entityManager.clear();
 
         assertThat(imports.findByIndustryCodeAndStatusAndBasisQuarterLessThanEqualOrderByBasisQuarterDesc(
                 "CS100010", SeoulDistrictQuarterImportStatus.COMPLETED, "2026Q3"))
                 .extracting(SeoulDistrictQuarterImportEntity::getBasisQuarter)
                 .containsExactly("2026Q2", "2026Q1");
-        assertThat(benchmarks.findByImportedIdAndAdministrativeDongCode(latest.getId(), "11680580"))
+        assertThat(benchmarks.findByImportedIdAndAdministrativeDongCode(latest.getId(), "1168051000"))
                 .get()
                 .satisfies(saved -> {
                     assertThat(saved.getCafeStoreCount()).isEqualTo(7);
                     assertThat(saved.getDistrictAvgMonthlySalesPerCafe()).isEqualTo(2_100_000L);
                     assertThat(saved.getPeakSalesHourBand()).isEqualTo("14-17");
                 });
-        assertThat(benchmarks.findByImportedIdAndAdministrativeDongCode(older.getId(), "11680580"))
+        assertThat(benchmarks.findByImportedIdAndAdministrativeDongCode(older.getId(), "1168051000"))
                 .isEmpty();
     }
 
@@ -70,11 +70,11 @@ class SeoulDistrictQuarterRepositoryTest {
         SeoulDistrictQuarterImportEntity imported = imports.saveAndFlush(
                 SeoulDistrictQuarterImportEntity.start("2026Q2", "CS100010", now));
         benchmarks.saveAndFlush(SeoulDistrictQuarterBenchmarkEntity.create(
-                imported, "11680580", 7, 2_100_000L, "14-17", "17-21"));
+                imported, "1168051000", 7, 2_100_000L, "14-17", "17-21"));
         entityManager.clear();
 
         assertThatThrownBy(() -> benchmarks.saveAndFlush(SeoulDistrictQuarterBenchmarkEntity.create(
-                imported, "11680580", 8, 2_200_000L, "17-21", "14-17")))
+                imported, "1168051000", 8, 2_200_000L, "17-21", "14-17")))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     }
 }
