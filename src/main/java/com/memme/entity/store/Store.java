@@ -54,6 +54,9 @@ public class Store {
     @Column(name = "longitude", precision = 10, scale = 7)
     private BigDecimal longitude;
 
+    @Column(name = "administrative_dong_code", nullable = true, length = 10, columnDefinition = "CHAR(10)")
+    private String administrativeDongCode;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private StoreStatus status = StoreStatus.ACTIVE;
@@ -130,6 +133,10 @@ public class Store {
         return longitude;
     }
 
+    public String getAdministrativeDongCode() {
+        return administrativeDongCode;
+    }
+
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
     }
@@ -174,6 +181,13 @@ public class Store {
         }
         this.latitude = latitude;
         this.longitude = longitude;
+    }
+
+    public void updateAdministrativeDongCode(String administrativeDongCode) {
+        if (administrativeDongCode != null && !administrativeDongCode.matches("[0-9]{10}")) {
+            throw new IllegalArgumentException("행정동 코드는 숫자 10자리여야 합니다.");
+        }
+        this.administrativeDongCode = administrativeDongCode;
     }
 
     public void updateBusinessRegistration(

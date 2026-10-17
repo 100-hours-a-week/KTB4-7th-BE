@@ -87,6 +87,7 @@ CREATE TABLE stores (
   address_detail VARCHAR(255) NULL,
   latitude DECIMAL(10,7) NULL,
   longitude DECIMAL(10,7) NULL,
+  administrative_dong_code CHAR(10) NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
   menu_revision BIGINT UNSIGNED NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
