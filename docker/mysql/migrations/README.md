@@ -4,6 +4,11 @@
 
 기존 QA·운영 DB에는 BE 배포 전에 `20261016-add-seoul-district-quarter-benchmarks.sql`을 한 번 실행합니다.
 신규 DB는 `docker/mysql/init/09-seoul-district-quarter-benchmarks.sql`에서 같은 두 테이블을 생성합니다.
+`administrative_dong_code`는 서울시 `ADSTRD_CD` 원본 10자리에 맞춰 `CHAR(10)`입니다 (#474).
+Cloud에 먼저 전달된 `CHAR(8)` 버전의 SQL은 실행하지 말고, 이 수정이 포함된 파일을 다시 전달해 적용합니다.
+로컬에서도 기존 DB 볼륨에는 `docker/mysql/init`이 다시 실행되지 않으므로, 테이블이 없으면 수정된
+마이그레이션 SQL을 해당 로컬 DB에 한 번 적용합니다. 이미 테이블이 있다면 이 `CREATE TABLE` 파일을
+다시 실행하지 말고 현재 컬럼 정의와 데이터 상태를 먼저 확인합니다.
 두 테이블은 기존 테이블을 참조하지 않으므로 기존 데이터는 변경하지 않습니다. 실행 전에 DB 백업을 확인하고,
 실행 후 두 테이블의 UNIQUE·CHECK·FK 제약과 빈 행 수를 확인한 다음 BE 스키마 검증 및 Health Check를 진행합니다.
 실제 분기 데이터 수집은 이 마이그레이션에서 수행하지 않습니다.
