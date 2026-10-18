@@ -1,6 +1,6 @@
 package com.memme.dto.sales;
 
-import java.time.DayOfWeek;
+import java.math.BigDecimal;
 import java.util.List;
 
 import jakarta.validation.Validation;
@@ -10,48 +10,38 @@ import tools.jackson.databind.json.JsonMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SalesSolutionAdditionalMetricsTest {
-
     private final JsonMapper mapper = JsonMapper.builder().build();
 
     @Test
-    void serializesOptionalMenuRankingsBusinessHoursAndConditionPatterns() {
+    void serializesAiContractForOptionalMetrics() {
         var metrics = metrics(
-                List.of(new SalesSolutionMetrics.MenuRanking(1, "아메리카노", 800_000L, 250L)),
-                List.of(new SalesSolutionMetrics.BusinessHours(
-                        DayOfWeek.MONDAY, false, "09:00", "21:00")),
-                List.of(new SalesSolutionMetrics.ConditionPattern(
-                        "RAIN", 7, 23,
+                List.of(new MenuRankingMetric(1, "아이스 아메리카노", new BigDecimal("3104200"),
+                        912L, new BigDecimal("0.261"), new BigDecimal("0.031"))),
+                new SalesSolutionMetrics.BusinessHours(
+                        new SalesSolutionMetrics.BusinessHourBand("08:00", "22:00"),
+                        new SalesSolutionMetrics.BusinessHourBand("09:00", "21:00"), List.of("MON")),
+                List.of(new SalesSolutionMetrics.ConditionPattern("RAIN", 12, 1.0, 9, 38, 0.67, 0.71,
                         List.of(new SalesSolutionMetrics.ConditionMenu(
-                                "아이스 아메리카노", 84, 112, -0.25
-                        ))))
-        );
-
+                                "아이스 아메리카노", 84, 112, -0.25, 294_000L, 392_000L)))));
         var json = mapper.readTree(mapper.writeValueAsString(metrics));
 
-        assertThat(json.path("menuRankings").get(0).path("netSales").asLong()).isEqualTo(800_000L);
-        assertThat(json.path("menuRankings").get(0).path("quantity").asLong()).isEqualTo(250L);
-        assertThat(json.path("businessHours").get(0).path("dayOfWeek").asString()).isEqualTo("MONDAY");
-        assertThat(json.path("businessHours").get(0).path("openTime").asString()).isEqualTo("09:00");
-        assertThat(json.has("businessHoursComplete")).isFalse();
-        assertThat(json.path("businessHours").get(0).has("timeConfigurationValid")).isFalse();
-        assertThat(json.path("conditionPatterns").get(0).path("sampleDays").asInt()).isEqualTo(7);
-        assertThat(json.path("conditionPatterns").get(0).path("menus").get(0).path("vsBaseline").asDouble())
-                .isEqualTo(-0.25);
+        assertThat(json.path("menuRankings").get(0).path("menuSales").asLong()).isEqualTo(3_104_200L);
+        assertThat(json.path("menuRankings").get(0).path("ratio").asDouble()).isEqualTo(0.261);
+        assertThat(json.path("businessHours").path("WEEKDAY").path("opensAt").asString()).isEqualTo("08:00");
+        assertThat(json.path("businessHours").path("WEEKEND").path("closesAt").asString()).isEqualTo("21:00");
+        assertThat(json.path("businessHours").path("closedDaysOfWeek").get(0).asString()).isEqualTo("MON");
+        assertThat(json.path("conditionPatterns").get(0).path("sampleWeekdayRatio").asDouble()).isEqualTo(0.67);
+        assertThat(json.path("conditionPatterns").get(0).path("menus").get(0).path("avgSales").asLong())
+                .isEqualTo(294_000L);
     }
 
     @Test
-    void omitsOptionalMetricsWhenUnavailableAndKeepsLegacyConstructor() {
-        var metrics = new SalesSolutionMetrics(
-                new SalesSolutionMetrics.SalesSummary(1_000_000, null),
+    void omitsUnavailableMetricsAndKeepsWeatherConstructor() {
+        var metrics = new SalesSolutionMetrics(new SalesSolutionMetrics.SalesSummary(1_000_000, null),
                 List.of(), List.of(), null, null,
-                new SalesSolutionMetrics.WeatherContext(
-                        "2026-10-07 11:00", "비", 14, 24, 0.6,
-                        List.of(15), null, true
-                )
-        );
-
+                new SalesSolutionMetrics.WeatherContext("2026-10-07 11:00", "비", 14, 24,
+                        0.6, List.of(15), null, true));
         var json = mapper.readTree(mapper.writeValueAsString(metrics));
-
         assertThat(json.has("menuRankings")).isFalse();
         assertThat(json.has("businessHours")).isFalse();
         assertThat(json.has("conditionPatterns")).isFalse();
@@ -59,132 +49,61 @@ class SalesSolutionAdditionalMetricsTest {
     }
 
     @Test
-    void validatesConditionPatternSampleThresholdAndMenuLimit() {
+    void validatesConditionPatternSampleRatiosAndMenuLimit() {
+        var menu = new SalesSolutionMetrics.ConditionMenu("메뉴", 1, 3, -0.5, 100L, 200L);
+        var metrics = metrics(null, null,
+                List.of(new SalesSolutionMetrics.ConditionPattern("RAIN", 12, 1.0, 4, 5, 1.2, 0.7,
+                        List.of(menu, menu, menu, menu))));
         try (var factory = Validation.buildDefaultValidatorFactory()) {
-            var validator = factory.getValidator();
-            var insufficientDays = metrics(
-                    null,
-                    null,
-                    List.of(new SalesSolutionMetrics.ConditionPattern(
-                            "RAIN", 4, 5,
-                            List.of(new SalesSolutionMetrics.ConditionMenu("아이스 아메리카노", 84, 112, -0.25))
-                    ))
-            );
-            var tooManyMenus = metrics(
-                    null,
-                    null,
-                    List.of(new SalesSolutionMetrics.ConditionPattern(
-                            "RAIN", 5, 5,
-                            List.of(
-                                    new SalesSolutionMetrics.ConditionMenu("메뉴1", 1, 2, -0.5),
-                                    new SalesSolutionMetrics.ConditionMenu("메뉴2", 1, 2, -0.5),
-                                    new SalesSolutionMetrics.ConditionMenu("메뉴3", 1, 2, -0.5),
-                                    new SalesSolutionMetrics.ConditionMenu("메뉴4", 1, 2, -0.5)
-                            )
-                    ))
-            );
-
-            assertThat(validator.validate(insufficientDays))
-                    .anySatisfy(violation -> assertThat(violation.getPropertyPath().toString())
-                            .contains("sampleDays"));
-            assertThat(validator.validate(tooManyMenus))
-                    .anySatisfy(violation -> assertThat(violation.getPropertyPath().toString())
-                            .contains("menus"));
+            var violations = factory.getValidator().validate(metrics);
+            assertThat(violations).anySatisfy(v -> assertThat(v.getPropertyPath().toString()).contains("sampleDays"));
+            assertThat(violations).anySatisfy(v -> assertThat(v.getPropertyPath().toString()).contains("sampleWeekdayRatio"));
+            assertThat(violations).anySatisfy(v -> assertThat(v.getPropertyPath().toString()).contains("menus"));
         }
     }
 
     @Test
-    void rejectsInvalidBusinessHourTimeFormat() {
-        var metrics = metrics(
-                null,
-                List.of(new SalesSolutionMetrics.BusinessHours(DayOfWeek.MONDAY, false, "9:00", "21:00")),
-                null
-        );
-
+    void rejectsSixMenuRankings() {
+        var rankings = List.of(ranking(1), ranking(2), ranking(3), ranking(4), ranking(5), ranking(6));
         try (var factory = Validation.buildDefaultValidatorFactory()) {
-            assertThat(factory.getValidator().validate(metrics))
-                    .anySatisfy(violation -> assertThat(violation.getPropertyPath().toString())
-                            .contains("openTime"));
+            assertThat(factory.getValidator().validate(metrics(rankings, null, null)))
+                    .anySatisfy(v -> assertThat(v.getPropertyPath().toString()).contains("menuRankings"));
         }
     }
 
     @Test
-    void rejectsBusinessHoursWithDuplicateWeekdays() {
-        var businessHours = List.of(
-                new SalesSolutionMetrics.BusinessHours(DayOfWeek.MONDAY, false, "09:00", "21:00"),
-                new SalesSolutionMetrics.BusinessHours(DayOfWeek.TUESDAY, false, "09:00", "21:00"),
-                new SalesSolutionMetrics.BusinessHours(DayOfWeek.WEDNESDAY, false, "09:00", "21:00"),
-                new SalesSolutionMetrics.BusinessHours(DayOfWeek.THURSDAY, false, "09:00", "21:00"),
-                new SalesSolutionMetrics.BusinessHours(DayOfWeek.FRIDAY, false, "09:00", "21:00"),
-                new SalesSolutionMetrics.BusinessHours(DayOfWeek.SATURDAY, false, "09:00", "21:00"),
-                new SalesSolutionMetrics.BusinessHours(DayOfWeek.MONDAY, false, "09:00", "21:00")
-        );
-        var metrics = metrics(null, businessHours, null);
-
-        try (var factory = Validation.buildDefaultValidatorFactory()) {
-            assertThat(factory.getValidator().validate(metrics))
-                    .anySatisfy(violation -> assertThat(violation.getPropertyPath().toString())
-                            .contains("businessHoursComplete"));
-        }
-    }
-
-    @Test
-    void rejectsOpenBusinessDayWithoutTimes() {
-        var metrics = metrics(
-                null,
-                List.of(new SalesSolutionMetrics.BusinessHours(DayOfWeek.MONDAY, false, null, "21:00")),
-                null
-        );
-
-        try (var factory = Validation.buildDefaultValidatorFactory()) {
-            assertThat(factory.getValidator().validate(metrics))
-                    .anySatisfy(violation -> assertThat(violation.getPropertyPath().toString())
-                            .contains("timeConfigurationValid"));
-        }
-    }
-
-    @Test
-    void rejectsClosedBusinessDayWithTimes() {
-        var metrics = metrics(
-                null,
-                List.of(new SalesSolutionMetrics.BusinessHours(DayOfWeek.MONDAY, true, "09:00", "21:00")),
-                null
-        );
-
-        try (var factory = Validation.buildDefaultValidatorFactory()) {
-            assertThat(factory.getValidator().validate(metrics))
-                    .anySatisfy(violation -> assertThat(violation.getPropertyPath().toString())
-                            .contains("timeConfigurationValid"));
-        }
-    }
-
-    @Test
-    void acceptsCompleteWeeklyBusinessHoursWithClosedDay() {
-        var businessHours = List.of(
-                new SalesSolutionMetrics.BusinessHours(DayOfWeek.MONDAY, false, "09:00", "21:00"),
-                new SalesSolutionMetrics.BusinessHours(DayOfWeek.TUESDAY, false, "09:00", "21:00"),
-                new SalesSolutionMetrics.BusinessHours(DayOfWeek.WEDNESDAY, false, "09:00", "21:00"),
-                new SalesSolutionMetrics.BusinessHours(DayOfWeek.THURSDAY, false, "09:00", "21:00"),
-                new SalesSolutionMetrics.BusinessHours(DayOfWeek.FRIDAY, false, "09:00", "21:00"),
-                new SalesSolutionMetrics.BusinessHours(DayOfWeek.SATURDAY, false, "09:00", "21:00"),
-                new SalesSolutionMetrics.BusinessHours(DayOfWeek.SUNDAY, true, null, null)
-        );
-        var metrics = metrics(null, businessHours, null);
-
+    void acceptsTwentyFourHourBusinessHoursWithoutClosedDays() {
+        var metrics = metrics(null, new SalesSolutionMetrics.BusinessHours(
+                new SalesSolutionMetrics.BusinessHourBand("00:00", "24:00"),
+                new SalesSolutionMetrics.BusinessHourBand("00:00", "24:00"), null), null);
         try (var factory = Validation.buildDefaultValidatorFactory()) {
             assertThat(factory.getValidator().validate(metrics)).isEmpty();
         }
+        assertThat(mapper.readTree(mapper.writeValueAsString(metrics))
+                .path("businessHours").has("closedDaysOfWeek")).isFalse();
     }
 
-    private SalesSolutionMetrics metrics(
-            List<SalesSolutionMetrics.MenuRanking> menuRankings,
-            List<SalesSolutionMetrics.BusinessHours> businessHours,
-            List<SalesSolutionMetrics.ConditionPattern> conditionPatterns
-    ) {
-        return new SalesSolutionMetrics(
-                new SalesSolutionMetrics.SalesSummary(1_000_000, null),
-                List.of(), List.of(), null, null, null,
-                menuRankings, businessHours, conditionPatterns
-        );
+    @Test
+    void rejectsMalformedBusinessHoursAndClosedDayAbbreviation() {
+        var metrics = metrics(null, new SalesSolutionMetrics.BusinessHours(
+                new SalesSolutionMetrics.BusinessHourBand("9:00", "22:00"),
+                new SalesSolutionMetrics.BusinessHourBand("09:00", "21:00"), List.of("MONDAY")), null);
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            var violations = factory.getValidator().validate(metrics);
+            assertThat(violations).anySatisfy(v -> assertThat(v.getPropertyPath().toString()).contains("opensAt"));
+            assertThat(violations).anySatisfy(v -> assertThat(v.getPropertyPath().toString()).contains("closedDaysOfWeek"));
+        }
+    }
+
+    private MenuRankingMetric ranking(int rank) {
+        return new MenuRankingMetric(rank, "메뉴" + rank, BigDecimal.ONE, 1L,
+                new BigDecimal("0.1"), null);
+    }
+
+    private SalesSolutionMetrics metrics(List<MenuRankingMetric> menuRankings,
+                                         SalesSolutionMetrics.BusinessHours businessHours,
+                                         List<SalesSolutionMetrics.ConditionPattern> conditionPatterns) {
+        return new SalesSolutionMetrics(new SalesSolutionMetrics.SalesSummary(1_000_000, null),
+                List.of(), List.of(), null, null, null, menuRankings, businessHours, conditionPatterns);
     }
 }

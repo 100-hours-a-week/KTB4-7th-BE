@@ -1,20 +1,16 @@
 package com.memme.dto.sales;
 
-import java.time.DayOfWeek;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
@@ -28,8 +24,8 @@ public record SalesSolutionMetrics(
         @JsonInclude(JsonInclude.Include.NON_NULL) Long predictedSalesToday,
         @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, Object> reviewSummary,
         @JsonInclude(JsonInclude.Include.NON_NULL) @Valid WeatherContext weatherContext,
-        @JsonInclude(JsonInclude.Include.NON_NULL) @Valid List<MenuRanking> menuRankings,
-        @JsonInclude(JsonInclude.Include.NON_NULL) @Size(min = 7, max = 7) @Valid List<BusinessHours> businessHours,
+        @JsonInclude(JsonInclude.Include.NON_NULL) @Size(max = 5) @Valid List<MenuRankingMetric> menuRankings,
+        @JsonInclude(JsonInclude.Include.NON_NULL) @Valid BusinessHours businessHours,
         @JsonInclude(JsonInclude.Include.NON_NULL) @Valid List<ConditionPattern> conditionPatterns
 ) {
 
@@ -57,22 +53,11 @@ public record SalesSolutionMetrics(
 
     public SalesSolutionMetrics {
         menuRankings = copyOfNullable(menuRankings);
-        businessHours = copyOfNullable(businessHours);
         conditionPatterns = copyOfNullable(conditionPatterns);
     }
 
     private static <T> List<T> copyOfNullable(List<T> values) {
         return values == null ? null : List.copyOf(values);
-    }
-
-    @JsonIgnore
-    @AssertTrue
-    public boolean isBusinessHoursComplete() {
-        return businessHours == null || businessHours.stream()
-                .map(BusinessHours::dayOfWeek)
-                .filter(Objects::nonNull)
-                .distinct()
-                .count() == 7;
     }
 
     public record SalesSummary(long netSales, Double vsPrevPeriod) {}
@@ -100,43 +85,39 @@ public record SalesSolutionMetrics(
             @NotNull Boolean isNotable
     ) {}
 
-    public record MenuRanking(
-            @Positive int rank,
-            @NotBlank String menuName,
-            @NotNull @PositiveOrZero Long netSales,
-            @NotNull @PositiveOrZero Long quantity
-    ) {}
-
     public record BusinessHours(
-            @NotNull DayOfWeek dayOfWeek,
-            @NotNull Boolean isClosed,
-            @Pattern(regexp = "^(?:[01]\\d|2[0-3]):[0-5]\\d$") String openTime,
-            @Pattern(regexp = "^(?:[01]\\d|2[0-3]):[0-5]\\d$") String closeTime
+            @JsonProperty("WEEKDAY") @NotNull @Valid BusinessHourBand weekday,
+            @JsonProperty("WEEKEND") @NotNull @Valid BusinessHourBand weekend,
+            @JsonInclude(JsonInclude.Include.NON_NULL)
+            List<@Pattern(regexp = "MON|TUE|WED|THU|FRI|SAT|SUN") String> closedDaysOfWeek
     ) {
-        @JsonIgnore
-        @AssertTrue
-        public boolean isTimeConfigurationValid() {
-            if (isClosed == null) {
-                return true;
-            }
-            if (isClosed) {
-                return openTime == null && closeTime == null;
-            }
-            return openTime != null && closeTime != null;
+        public BusinessHours {
+            closedDaysOfWeek = copyOfNullable(closedDaysOfWeek);
         }
     }
 
+    public record BusinessHourBand(
+            @NotBlank @Pattern(regexp = "^(?:[01]\\d|2[0-3]):[0-5]\\d$") String opensAt,
+            @NotBlank @Pattern(regexp = "^(?:(?:[01]\\d|2[0-3]):[0-5]\\d|24:00)$") String closesAt
+    ) {}
+
     public record ConditionPattern(
             @NotBlank String condition,
+            @Positive int basisWeeks,
+            @DecimalMin("0.0") double thresholdMm,
             @Min(5) int sampleDays,
             @Min(5) int baselineDays,
-            @NotEmpty @Size(max = 3) @Valid List<ConditionMenu> menus
+            @DecimalMin("0.0") @DecimalMax("1.0") double sampleWeekdayRatio,
+            @DecimalMin("0.0") @DecimalMax("1.0") double baselineWeekdayRatio,
+            @NotNull @Size(max = 3) @Valid List<ConditionMenu> menus
     ) {}
 
     public record ConditionMenu(
             @NotBlank String menuName,
             @Min(0) int avgQuantity,
             @Positive int baselineAvgQuantity,
-            @NotNull @DecimalMin("-1.0") Double vsBaseline
+            @NotNull @DecimalMin("-1.0") Double vsBaseline,
+            @PositiveOrZero long avgSales,
+            @PositiveOrZero long baselineAvgSales
     ) {}
 }
