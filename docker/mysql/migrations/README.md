@@ -1,5 +1,21 @@
 # 기존 DB 마이그레이션 안내
 
+## V2 과거 강수 관측 지점·관측값 저장 (#482)
+
+기존 QA·운영 DB에는 BE 배포 전 `20261018-add-weather-observation-stations.sql`을 한 번 적용합니다.
+신규 DB는 `docker/mysql/init/10-weather-observations.sql`을 사용합니다. 두 SQL은
+`weather_stations`, `weather_observations`를 생성하고 `stores.weather_station_id`를
+NULL 허용 FK로 추가합니다. 기존 매장은 모두 미매핑 상태(NULL)로 유지하며 관측값을
+자동 적재하거나 매장 좌표로 관측 지점을 추정하지 않습니다.
+
+적용 전 백업과 함께 `weather_stations`, `weather_observations` 테이블 및
+`stores.weather_station_id` 컬럼 존재 여부를 확인해야 합니다. 위 마이그레이션은
+관측값 테이블이 **없는 기존 DB**를 대상으로 합니다. 구형 `weather_observations`가
+이미 존재하면 이 파일을 실행하지 말고 기존 행의 제공처·지점 코드 확보와 이행 방식을
+별도로 확정해야 합니다. 좌표만으로 지점 코드를 임의 생성하거나 기존 UNIQUE를
+삭제하지 않습니다. 적용 후 `(source, station_code)`와 `(station_id, observation_date)`
+UNIQUE, 두 FK 및 기존 매장의 NULL 상태를 확인하고 BE 스키마 검증을 진행합니다.
+
 ## 매장 행정동 코드 (#477)
 
 기존 QA·운영 DB에는 BE 배포 전에 `20261017-add-store-administrative-dong-code.sql`을 한 번 실행합니다.

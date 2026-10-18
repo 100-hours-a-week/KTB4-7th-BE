@@ -57,6 +57,9 @@ public class Store {
     @Column(name = "administrative_dong_code", nullable = true, length = 10, columnDefinition = "CHAR(10)")
     private String administrativeDongCode;
 
+    @Column(name = "weather_station_id")
+    private Long weatherStationId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private StoreStatus status = StoreStatus.ACTIVE;
@@ -135,6 +138,14 @@ public class Store {
 
     public String getAdministrativeDongCode() {
         return administrativeDongCode;
+    }
+
+    public Long getWeatherStationId() {
+        return weatherStationId;
+    }
+
+    public void updateWeatherStationId(Long weatherStationId) {
+        this.weatherStationId = weatherStationId;
     }
 
     public LocalDateTime getUpdatedAt() {
