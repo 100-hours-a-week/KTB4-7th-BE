@@ -32,6 +32,37 @@ import static org.mockito.Mockito.when;
 class SalesSolutionMetricsAssemblerTest {
 
     @Test
+    void includesConditionPatternsResolvedForTheForecastTargetDate() {
+        SalesOrderRepository orderRepository = mock(SalesOrderRepository.class);
+        SalesOrderItemRepository itemRepository = mock(SalesOrderItemRepository.class);
+        StoreBusinessHoursRepository businessHoursRepository = mock(StoreBusinessHoursRepository.class);
+        ConditionPatternsService conditionPatternsService = mock(ConditionPatternsService.class);
+        AnalysisRunEntity analysisRun = mock(AnalysisRunEntity.class);
+        SalesForecastEntity forecast = mock(SalesForecastEntity.class);
+        LocalDate targetDate = LocalDate.of(2026, 10, 19);
+        SalesSolutionMetrics.ConditionPattern conditionPattern = new SalesSolutionMetrics.ConditionPattern(
+                "RAIN", 12, 1.0, 5, 5, 0.6, 0.8,
+                List.of(new SalesSolutionMetrics.ConditionMenu("아이스 아메리카노", 4, 8,
+                        -0.5, 1_000, 2_000)));
+        when(analysisRun.getPeriodStart()).thenReturn(LocalDate.of(2026, 10, 1));
+        when(analysisRun.getPeriodEnd()).thenReturn(LocalDate.of(2026, 10, 1));
+        when(forecast.getTargetDate()).thenReturn(targetDate);
+        when(forecast.getPredictedSalesAmount()).thenReturn(100_000L);
+        when(orderRepository.findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
+                eq(10L), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+        when(businessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(List.of());
+        when(conditionPatternsService.resolve(10L, targetDate)).thenReturn(List.of(conditionPattern));
+
+        SalesSolutionMetrics metrics = new SalesSolutionMetricsAssembler(
+                orderRepository, itemRepository, businessHoursRepository, conditionPatternsService)
+                .assemble(10L, analysisRun, forecast);
+
+        assertThat(metrics.conditionPatterns()).containsExactly(conditionPattern);
+        verify(conditionPatternsService).resolve(10L, targetDate);
+    }
+
+    @Test
     void assemblesTopFiveMenuRankingsAndWeekdayWeekendBusinessHours() {
         SalesOrderRepository orderRepository = mock(SalesOrderRepository.class);
         SalesOrderItemRepository itemRepository = mock(SalesOrderItemRepository.class);
@@ -76,7 +107,7 @@ class SalesSolutionMetricsAssemblerTest {
                 hours(7, false, LocalTime.of(11, 0), LocalTime.of(20, 0)));
         when(businessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(businessHours);
 
-        SalesSolutionMetrics metrics = new SalesSolutionMetricsAssembler(
+        SalesSolutionMetrics metrics = assembler(
                 orderRepository, itemRepository, businessHoursRepository)
                 .assemble(10L, analysisRun, forecast);
 
@@ -125,7 +156,7 @@ class SalesSolutionMetricsAssemblerTest {
                 .thenReturn(List.of());
         when(businessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(List.of());
 
-        SalesSolutionMetrics metrics = new SalesSolutionMetricsAssembler(
+        SalesSolutionMetrics metrics = assembler(
                 orderRepository, itemRepository, businessHoursRepository)
                 .assemble(10L, analysisRun, forecast);
 
@@ -156,7 +187,7 @@ class SalesSolutionMetricsAssemblerTest {
                 hours(7, false, LocalTime.of(9, 0), LocalTime.MIDNIGHT));
         when(businessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(schedules);
 
-        SalesSolutionMetrics metrics = new SalesSolutionMetricsAssembler(
+        SalesSolutionMetrics metrics = assembler(
                 orderRepository, itemRepository, businessHoursRepository)
                 .assemble(10L, analysisRun, forecast);
 
@@ -190,7 +221,7 @@ class SalesSolutionMetricsAssemblerTest {
                 hours(7, false, LocalTime.of(9, 0), LocalTime.of(21, 0)));
         when(businessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(schedules);
 
-        SalesSolutionMetrics metrics = new SalesSolutionMetricsAssembler(
+        SalesSolutionMetrics metrics = assembler(
                 orderRepository, itemRepository, businessHoursRepository)
                 .assemble(10L, analysisRun, forecast);
 
@@ -213,7 +244,7 @@ class SalesSolutionMetricsAssemblerTest {
         StoreBusinessHoursRepository businessHoursRepository = mock(StoreBusinessHoursRepository.class);
         when(businessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(List.of());
 
-        SalesSolutionMetrics metrics = new SalesSolutionMetricsAssembler(
+        SalesSolutionMetrics metrics = assembler(
                 orderRepository, itemRepository, businessHoursRepository)
                 .assemble(10L, analysisRun, forecast);
 
@@ -233,6 +264,19 @@ class SalesSolutionMetricsAssemblerTest {
         when(order.isValid()).thenReturn(true);
         when(order.getOrderedAt()).thenReturn(orderedAt);
         return order;
+    }
+
+    private SalesSolutionMetricsAssembler assembler(
+            SalesOrderRepository orderRepository,
+            SalesOrderItemRepository itemRepository,
+            StoreBusinessHoursRepository businessHoursRepository
+    ) {
+        return new SalesSolutionMetricsAssembler(
+                orderRepository,
+                itemRepository,
+                businessHoursRepository,
+                mock(ConditionPatternsService.class)
+        );
     }
 
     private SalesOrderItemEntity item(Long orderId, String key, String name, long netAmount, int quantity) {

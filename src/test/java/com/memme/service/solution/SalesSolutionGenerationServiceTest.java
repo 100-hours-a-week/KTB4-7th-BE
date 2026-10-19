@@ -115,6 +115,27 @@ class SalesSolutionGenerationServiceTest {
     }
 
     @Test
+    void forwardsConditionPatternsToAiSolutionRequest() {
+        LocalDate targetDate = LocalDate.of(2026, 9, 24);
+        SalesSolutionMetrics.ConditionPattern conditionPattern = new SalesSolutionMetrics.ConditionPattern(
+                "RAIN", 12, 1.0, 9, 38, 0.67, 0.71,
+                List.of(new SalesSolutionMetrics.ConditionMenu(
+                        "아이스 아메리카노", 84, 112, -0.25, 294_000, 392_000)));
+        givenGenerationContext(targetDate, new SalesSolutionMetrics(
+                new SalesSolutionMetrics.SalesSummary(1_000_000, null),
+                List.of(), List.of(), 1_100_000L, null, null, null, null, List.of(conditionPattern)));
+        when(contextResolver.latestSalesAnalysisId(1L)).thenReturn(Optional.of(56L));
+        when(aiClient.generate(any())).thenReturn(response(targetDate));
+
+        assertThat(service.generateScheduled(1L, targetDate).status())
+                .isEqualTo(SalesSolutionGenerationResult.Status.COMPLETED);
+        org.mockito.ArgumentCaptor<SalesSolutionGenerationRequest> request =
+                org.mockito.ArgumentCaptor.forClass(SalesSolutionGenerationRequest.class);
+        verify(aiClient).generate(request.capture());
+        assertThat(request.getValue().metrics().conditionPatterns()).containsExactly(conditionPattern);
+    }
+
+    @Test
     void continuesWithoutWeatherWhenUnavailable() {
         LocalDate targetDate = LocalDate.of(2026, 9, 24);
         givenGenerationContext(targetDate);
