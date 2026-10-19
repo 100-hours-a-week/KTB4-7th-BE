@@ -42,15 +42,18 @@ public class SalesSolutionMetricsAssembler {
     private final SalesOrderRepository orderRepository;
     private final SalesOrderItemRepository itemRepository;
     private final StoreBusinessHoursRepository businessHoursRepository;
+    private final ConditionPatternsService conditionPatternsService;
 
     public SalesSolutionMetricsAssembler(
             SalesOrderRepository orderRepository,
             SalesOrderItemRepository itemRepository,
-            StoreBusinessHoursRepository businessHoursRepository
+            StoreBusinessHoursRepository businessHoursRepository,
+            ConditionPatternsService conditionPatternsService
     ) {
         this.orderRepository = orderRepository;
         this.itemRepository = itemRepository;
         this.businessHoursRepository = businessHoursRepository;
+        this.conditionPatternsService = conditionPatternsService;
     }
 
     public SalesSolutionMetrics assemble(
@@ -87,7 +90,7 @@ public class SalesSolutionMetricsAssembler {
                 null,
                 menuRankings(current, previous, currentNetSales),
                 businessHours(storeId),
-                null
+                conditionPatternsService.resolve(storeId, forecast.getTargetDate())
         );
     }
 
