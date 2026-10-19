@@ -24,7 +24,7 @@ public record SalesSolutionMetrics(
         @JsonInclude(JsonInclude.Include.NON_NULL) Long predictedSalesToday,
         @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, Object> reviewSummary,
         @JsonInclude(JsonInclude.Include.NON_NULL) @Valid WeatherContext weatherContext,
-        @JsonInclude(JsonInclude.Include.NON_NULL) @Size(max = 5) @Valid List<MenuRankingMetric> menuRankings,
+        @JsonInclude(JsonInclude.Include.NON_NULL) @Size(max = 10) @Valid List<MenuRankingMetric> menuRankings,
         @JsonInclude(JsonInclude.Include.NON_NULL) @Valid BusinessHours businessHours,
         @JsonInclude(JsonInclude.Include.NON_NULL) @Valid List<ConditionPattern> conditionPatterns
 ) {
