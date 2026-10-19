@@ -1,9 +1,11 @@
 package com.memme.service.solution;
 
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
+import com.memme.dto.sales.MenuRankingMetric;
 import com.memme.dto.sales.SalesSolutionGenerationRequest;
 import com.memme.dto.sales.SalesSolutionGenerationResponse;
 import com.memme.dto.sales.SalesSolutionMetrics;
@@ -84,6 +86,32 @@ class SalesSolutionGenerationServiceTest {
                 org.mockito.ArgumentCaptor.forClass(SalesSolutionGenerationRequest.class);
         verify(aiClient).generate(request.capture());
         assertThat(request.getValue().metrics().weatherContext().maxPop()).isEqualTo(0.7);
+    }
+
+    @Test
+    void preservesMenuRankingsAndBusinessHoursInAiRequest() {
+        LocalDate targetDate = LocalDate.of(2026, 9, 24);
+        MenuRankingMetric ranking = new MenuRankingMetric(
+                1, "아이스 아메리카노", BigDecimal.valueOf(310_420), 91L,
+                BigDecimal.valueOf(0.261), BigDecimal.valueOf(0.031));
+        SalesSolutionMetrics.BusinessHours businessHours = new SalesSolutionMetrics.BusinessHours(
+                new SalesSolutionMetrics.BusinessHourBand("08:00", "22:00"),
+                new SalesSolutionMetrics.BusinessHourBand("09:00", "21:00"),
+                List.of("MON"));
+        givenGenerationContext(targetDate, new SalesSolutionMetrics(
+                new SalesSolutionMetrics.SalesSummary(1_000_000, null),
+                List.of(), List.of(), 1_100_000L, null, null,
+                List.of(ranking), businessHours, null));
+        when(contextResolver.latestSalesAnalysisId(1L)).thenReturn(Optional.of(56L));
+        when(aiClient.generate(any())).thenReturn(response(targetDate));
+
+        assertThat(service.generateScheduled(1L, targetDate).status())
+                .isEqualTo(SalesSolutionGenerationResult.Status.COMPLETED);
+        org.mockito.ArgumentCaptor<SalesSolutionGenerationRequest> request =
+                org.mockito.ArgumentCaptor.forClass(SalesSolutionGenerationRequest.class);
+        verify(aiClient).generate(request.capture());
+        assertThat(request.getValue().metrics().menuRankings()).containsExactly(ranking);
+        assertThat(request.getValue().metrics().businessHours()).isEqualTo(businessHours);
     }
 
     @Test
@@ -195,10 +223,14 @@ class SalesSolutionGenerationServiceTest {
     }
 
     private void givenGenerationContext(LocalDate targetDate) {
+        givenGenerationContext(targetDate, metrics());
+    }
+
+    private void givenGenerationContext(LocalDate targetDate, SalesSolutionMetrics metrics) {
         SalesAnalysisEntity analysis = mock(SalesAnalysisEntity.class);
         when(analysis.getId()).thenReturn(56L);
         AnalysisRunEntity run = mock(AnalysisRunEntity.class);
-        when(contextResolver.resolve(1L, targetDate)).thenReturn(ready(run, analysis, metrics()));
+        when(contextResolver.resolve(1L, targetDate)).thenReturn(ready(run, analysis, metrics));
         SolutionBundleEntity bundle = mock(SolutionBundleEntity.class);
         when(bundle.getId()).thenReturn(77L);
         when(persistenceService.start(1L, 56L, targetDate))
