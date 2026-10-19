@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import com.memme.dto.sales.MenuRankingMetric;
 import com.memme.dto.sales.SalesSolutionMetrics;
@@ -127,6 +128,114 @@ class SalesSolutionMetricsAssemblerTest {
                 new SalesSolutionMetrics.BusinessHourBand("08:00", "22:00"),
                 new SalesSolutionMetrics.BusinessHourBand("09:00", "21:00"),
                 List.of("MON")));
+    }
+
+    @Test
+    void combinesTopFiveSalesAndTopFiveAbsoluteChangesUpToTenWithoutRenumberingRanks() {
+        List<Long> currentAmounts = List.of(1_000L, 900L, 800L, 700L, 600L,
+                500L, 400L, 300L, 200L, 100L);
+        List<SalesOrderItemEntity> currentItems = IntStream.range(0, currentAmounts.size())
+                .mapToObj(index -> item(1L, "menu-" + index, "메뉴 " + index,
+                        currentAmounts.get(index), 10))
+                .toList();
+        List<SalesOrderItemEntity> previousItems = IntStream.range(0, currentAmounts.size())
+                .mapToObj(index -> item(2L, "menu-" + index, "메뉴 " + index,
+                        index < 5 ? currentAmounts.get(index) : 1_000L, 9))
+                .toList();
+
+        SalesSolutionMetrics metrics = assembleMenuRankings(currentItems, previousItems);
+
+        assertThat(metrics.menuRankings()).hasSize(10);
+        assertThat(metrics.menuRankings()).extracting(MenuRankingMetric::menuName)
+                .containsExactly("메뉴 0", "메뉴 1", "메뉴 2", "메뉴 3", "메뉴 4",
+                        "메뉴 5", "메뉴 6", "메뉴 7", "메뉴 8", "메뉴 9");
+        assertThat(metrics.menuRankings()).extracting(MenuRankingMetric::rank)
+                .containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        assertThat(metrics.menuRankings().getFirst().ratio()).isEqualByComparingTo("0.1818");
+    }
+
+    @Test
+    void deduplicatesMenusThatAreInBothTopSalesAndTopChangeGroups() {
+        List<Long> currentAmounts = List.of(1_000L, 900L, 800L, 700L, 600L,
+                50L, 40L, 30L, 20L);
+        List<SalesOrderItemEntity> currentItems = IntStream.range(0, currentAmounts.size())
+                .mapToObj(index -> item(1L, "menu-" + index, "메뉴 " + index,
+                        currentAmounts.get(index), 10))
+                .toList();
+        List<SalesOrderItemEntity> previousItems = IntStream.range(0, currentAmounts.size())
+                .mapToObj(index -> item(2L, "menu-" + index, "메뉴 " + index,
+                        index == 0 ? 100L : index < 5 ? currentAmounts.get(index) : 1_000L, 9))
+                .toList();
+
+        SalesSolutionMetrics metrics = assembleMenuRankings(currentItems, previousItems);
+
+        assertThat(metrics.menuRankings()).hasSize(9);
+        assertThat(metrics.menuRankings()).extracting(MenuRankingMetric::menuName)
+                .containsExactly("메뉴 0", "메뉴 1", "메뉴 2", "메뉴 3", "메뉴 4",
+                        "메뉴 5", "메뉴 6", "메뉴 7", "메뉴 8");
+        assertThat(metrics.menuRankings()).extracting(MenuRankingMetric::rank)
+                .containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9);
+        assertThat(metrics.menuRankings()).extracting(MenuRankingMetric::menuName)
+                .doesNotHaveDuplicates();
+    }
+
+    @Test
+    void filtersGrowthCandidatesByThreeAverageDailyBaselineItemsAndKeepsNullPreviousRateInSalesTopFive() {
+        List<Long> currentAmounts = List.of(1_000L, 900L, 800L, 700L, 600L,
+                500L, 400L, 300L);
+        List<SalesOrderItemEntity> currentItems = IntStream.range(0, currentAmounts.size())
+                .mapToObj(index -> item(1L, "menu-" + index, "메뉴 " + index,
+                        currentAmounts.get(index), 10))
+                .toList();
+        List<SalesOrderItemEntity> previousItems = List.of(
+                item(2L, "menu-0", "메뉴 0", 1_000, 9),
+                item(2L, "menu-1", "메뉴 1", 0, 9), // zero previous revenue: null rate, sales-top-five only
+                item(2L, "menu-2", "메뉴 2", 800, 9),
+                item(2L, "menu-3", "메뉴 3", 700, 9),
+                item(2L, "menu-4", "메뉴 4", 600, 9),
+                item(2L, "menu-5", "메뉴 5", 1_000, 9), // exactly 3 per day: eligible
+                item(2L, "menu-6", "메뉴 6", 1_000, 8), // below 3 per day: ineligible
+                item(2L, "menu-7", "메뉴 7", 300, 9));
+
+        SalesSolutionMetrics metrics = assembleMenuRankings(currentItems, previousItems);
+
+        assertThat(metrics.menuRankings()).extracting(MenuRankingMetric::menuName)
+                .contains("메뉴 5")
+                .doesNotContain("메뉴 6");
+        assertThat(metrics.menuRankings().stream()
+                .filter(menu -> menu.menuName().equals("메뉴 1"))
+                .findFirst())
+                .hasValueSatisfying(menu -> assertThat(menu.vsPrevPeriod()).isNull());
+        assertThat(metrics.menuRankings().stream()
+                .filter(menu -> menu.menuName().equals("메뉴 5"))
+                .findFirst())
+                .hasValueSatisfying(menu -> assertThat(menu.vsPrevPeriod())
+                        .isEqualByComparingTo("-0.5000"));
+    }
+
+    @Test
+    void keepsGlobalRankGapsAndRanksForPreviousOnlyMenus() {
+        List<SalesOrderItemEntity> currentItems = IntStream.range(0, 12)
+                .mapToObj(index -> item(1L, "menu-" + index, "메뉴 " + index,
+                        1_200L - index * 100L, 10))
+                .toList();
+        List<SalesOrderItemEntity> previousItems = IntStream.range(0, 12)
+                .mapToObj(index -> item(2L, "menu-" + index, "메뉴 " + index,
+                        index >= 8 ? 1_000L : 1_200L - index * 100L, 9))
+                .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+        previousItems.add(item(2L, "discontinued", "종료 메뉴", 900, 9));
+
+        SalesSolutionMetrics metrics = assembleMenuRankings(currentItems, previousItems);
+
+        assertThat(metrics.menuRankings()).extracting(MenuRankingMetric::rank)
+                .containsExactly(1, 2, 3, 4, 5, 9, 10, 11, 12, 13);
+        assertThat(metrics.menuRankings()).filteredOn(menu -> menu.menuName().equals("종료 메뉴"))
+                .singleElement()
+                .satisfies(menu -> {
+                    assertThat(menu.rank()).isEqualTo(13);
+                    assertThat(menu.ratio()).isEqualByComparingTo("0.0000");
+                    assertThat(menu.vsPrevPeriod()).isEqualByComparingTo("-1.0000");
+                });
     }
 
     @Test
@@ -277,6 +386,34 @@ class SalesSolutionMetricsAssemblerTest {
                 businessHoursRepository,
                 mock(ConditionPatternsService.class)
         );
+    }
+
+    private SalesSolutionMetrics assembleMenuRankings(
+            List<SalesOrderItemEntity> currentItems,
+            List<SalesOrderItemEntity> previousItems
+    ) {
+        SalesOrderRepository orderRepository = mock(SalesOrderRepository.class);
+        SalesOrderItemRepository itemRepository = mock(SalesOrderItemRepository.class);
+        StoreBusinessHoursRepository businessHoursRepository = mock(StoreBusinessHoursRepository.class);
+        AnalysisRunEntity analysisRun = mock(AnalysisRunEntity.class);
+        SalesForecastEntity forecast = mock(SalesForecastEntity.class);
+        when(analysisRun.getPeriodStart()).thenReturn(LocalDate.of(2026, 10, 1));
+        when(analysisRun.getPeriodEnd()).thenReturn(LocalDate.of(2026, 10, 3));
+        when(forecast.getTargetDate()).thenReturn(LocalDate.of(2026, 10, 4));
+        when(forecast.getPredictedSalesAmount()).thenReturn(1_000L);
+        SalesOrderEntity currentOrder = order(1L, LocalDateTime.of(2026, 10, 1, 10, 0));
+        SalesOrderEntity previousOrder = order(2L, LocalDateTime.of(2026, 9, 28, 10, 0));
+        when(orderRepository.findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
+                eq(10L), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(currentOrder))
+                .thenReturn(List.of(previousOrder));
+        when(itemRepository.findAllBySalesOrderIdInOrderBySalesOrderIdAscIdAsc(anyCollection()))
+                .thenReturn(currentItems)
+                .thenReturn(previousItems);
+        when(businessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(List.of());
+
+        return assembler(orderRepository, itemRepository, businessHoursRepository)
+                .assemble(10L, analysisRun, forecast);
     }
 
     private SalesOrderItemEntity item(Long orderId, String key, String name, long netAmount, int quantity) {
