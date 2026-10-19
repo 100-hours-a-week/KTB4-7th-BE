@@ -2,6 +2,7 @@ package com.memme.dto.sales;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import jakarta.validation.Validation;
 import org.junit.jupiter.api.Test;
@@ -63,10 +64,19 @@ class SalesSolutionAdditionalMetricsTest {
     }
 
     @Test
-    void rejectsSixMenuRankings() {
-        var rankings = List.of(ranking(1), ranking(2), ranking(3), ranking(4), ranking(5), ranking(6));
+    void acceptsAndSerializesTenMenuRankings() {
+        var metrics = metrics(menuRankings(10), null, null);
         try (var factory = Validation.buildDefaultValidatorFactory()) {
-            assertThat(factory.getValidator().validate(metrics(rankings, null, null)))
+            assertThat(factory.getValidator().validate(metrics)).isEmpty();
+        }
+
+        assertThat(mapper.readTree(mapper.writeValueAsString(metrics)).path("menuRankings").size()).isEqualTo(10);
+    }
+
+    @Test
+    void rejectsElevenMenuRankings() {
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            assertThat(factory.getValidator().validate(metrics(menuRankings(11), null, null)))
                     .anySatisfy(v -> assertThat(v.getPropertyPath().toString()).contains("menuRankings"));
         }
     }
@@ -98,6 +108,10 @@ class SalesSolutionAdditionalMetricsTest {
     private MenuRankingMetric ranking(int rank) {
         return new MenuRankingMetric(rank, "메뉴" + rank, BigDecimal.ONE, 1L,
                 new BigDecimal("0.1"), null);
+    }
+
+    private List<MenuRankingMetric> menuRankings(int count) {
+        return IntStream.rangeClosed(1, count).mapToObj(this::ranking).toList();
     }
 
     private SalesSolutionMetrics metrics(List<MenuRankingMetric> menuRankings,
