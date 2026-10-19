@@ -21,6 +21,7 @@ import com.memme.repository.sales.SalesOrderRepository;
 import com.memme.repository.store.StoreBusinessHoursRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -113,6 +114,11 @@ class SalesSolutionMetricsAssemblerTest {
                 .assemble(10L, analysisRun, forecast);
 
         assertThat(metrics.salesSummary().netSales()).isEqualTo(2_100);
+        assertThat(metrics.salesSummary().period()).isEqualTo("2026-10-01~2026-10-03");
+        var mapper = JsonMapper.builder().build();
+        var json = mapper.readTree(mapper.writeValueAsString(metrics));
+        assertThat(json.path("salesSummary").path("period").asString())
+                .isEqualTo("2026-10-01~2026-10-03");
         assertThat(metrics.menuRankings()).containsExactly(
                 new MenuRankingMetric(1, "아메리카노", BigDecimal.valueOf(600), 6L,
                         new BigDecimal("0.2857"), new BigDecimal("1.0000")),
@@ -363,6 +369,7 @@ class SalesSolutionMetricsAssemblerTest {
                         eq(10L), any(LocalDateTime.class), endExclusive.capture());
         assertThat(endExclusive.getAllValues().getFirst())
                 .isEqualTo(LocalDate.of(2026, 10, 2).atStartOfDay());
+        assertThat(metrics.salesSummary().period()).isEqualTo("2026-07-01~2026-10-01");
         assertThat(metrics.menuRankings()).isNull();
         assertThat(metrics.businessHours()).isNull();
     }
