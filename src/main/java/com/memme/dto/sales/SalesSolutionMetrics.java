@@ -60,7 +60,15 @@ public record SalesSolutionMetrics(
         return values == null ? null : List.copyOf(values);
     }
 
-    public record SalesSummary(long netSales, Double vsPrevPeriod) {}
+    public record SalesSummary(
+            long netSales,
+            Double vsPrevPeriod,
+            @JsonInclude(JsonInclude.Include.NON_NULL) String period
+    ) {
+        public SalesSummary(long netSales, Double vsPrevPeriod) {
+            this(netSales, vsPrevPeriod, null);
+        }
+    }
 
     public record HourlyPoint(
             @NotBlank String dayType,
