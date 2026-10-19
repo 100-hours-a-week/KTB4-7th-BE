@@ -51,10 +51,19 @@ public class SolutionWeatherContextService {
     }
 
     public Optional<WeatherContext> resolve(Long storeId, LocalDate targetDate) {
+        try {
+            return resolveForLookup(storeId, targetDate);
+        } catch (RuntimeException exception) {
+            log.warn("Weather context unavailable for store {} and date {}: {}",
+                    storeId, targetDate, exception.getClass().getSimpleName());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<WeatherContext> resolveForLookup(Long storeId, LocalDate targetDate) {
         if (!LocalDate.now(clock.withZone(KOREA)).equals(targetDate)) {
             return Optional.empty();
         }
-        try {
             Optional<Store> store = storeRepository.findById(storeId);
             if (store.isEmpty() || store.get().getLatitude() == null || store.get().getLongitude() == null) {
                 return Optional.empty();
@@ -92,11 +101,6 @@ public class SolutionWeatherContextService {
                 persisted = persistenceService.saveIfNewer(incoming);
             }
             return Optional.of(toContext(persisted));
-        } catch (RuntimeException exception) {
-            log.warn("Weather context unavailable for store {} and date {}: {}",
-                    storeId, targetDate, exception.getClass().getSimpleName());
-            return Optional.empty();
-        }
     }
 
     private WeatherContext toContext(WeatherForecastSummaryEntity summary) {
