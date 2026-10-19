@@ -4,15 +4,19 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import com.memme.dto.sales.MenuRankingMetric;
 import com.memme.dto.sales.SalesSolutionMetrics;
 import com.memme.entity.sales.AnalysisRunEntity;
 import com.memme.entity.sales.SalesForecastEntity;
@@ -20,8 +24,10 @@ import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
 import com.memme.entity.sales.SalesOrderItemType;
 import com.memme.entity.sales.SalesStandardMenuCategory;
+import com.memme.entity.store.StoreBusinessHours;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesOrderRepository;
+import com.memme.repository.store.StoreBusinessHoursRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,15 +35,22 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class SalesSolutionMetricsAssembler {
 
+    private static final int MAX_MENU_RANKINGS = 5;
+    private static final int RATE_SCALE = 4;
+    private static final DateTimeFormatter BUSINESS_TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
+
     private final SalesOrderRepository orderRepository;
     private final SalesOrderItemRepository itemRepository;
+    private final StoreBusinessHoursRepository businessHoursRepository;
 
     public SalesSolutionMetricsAssembler(
             SalesOrderRepository orderRepository,
-            SalesOrderItemRepository itemRepository
+            SalesOrderItemRepository itemRepository,
+            StoreBusinessHoursRepository businessHoursRepository
     ) {
         this.orderRepository = orderRepository;
         this.itemRepository = itemRepository;
+        this.businessHoursRepository = businessHoursRepository;
     }
 
     public SalesSolutionMetrics assemble(
@@ -70,8 +83,129 @@ public class SalesSolutionMetricsAssembler {
                 hourlyProfile(current),
                 categoryBreakdown(current, previous, currentNetSales),
                 forecast.getPredictedSalesAmount(),
+                null,
+                null,
+                menuRankings(current, previous, currentNetSales),
+                businessHours(storeId),
                 null
         );
+    }
+
+    private List<MenuRankingMetric> menuRankings(
+            PeriodItems current,
+            PeriodItems previous,
+            long currentNetSales
+    ) {
+        if (currentNetSales <= 0 || current.menuItems().isEmpty()) {
+            return null;
+        }
+
+        Map<String, MutableMenuSales> currentTotals = menuTotals(current.menuItems());
+        Map<String, MutableMenuSales> previousTotals = menuTotals(previous.menuItems());
+        if (currentTotals.values().stream().anyMatch(menu -> menu.amount < 0 || menu.quantity < 0)) {
+            return null;
+        }
+        List<MutableMenuSales> ranked = currentTotals.values().stream()
+                .sorted(Comparator.comparingLong((MutableMenuSales menu) -> menu.amount).reversed()
+                        .thenComparing(menu -> menu.name))
+                .limit(MAX_MENU_RANKINGS)
+                .toList();
+
+        List<MenuRankingMetric> result = new ArrayList<>(ranked.size());
+        for (int index = 0; index < ranked.size(); index++) {
+            MutableMenuSales menu = ranked.get(index);
+            MutableMenuSales previousMenu = previousTotals.get(menu.key);
+            result.add(new MenuRankingMetric(
+                    index + 1,
+                    menu.name,
+                    BigDecimal.valueOf(menu.amount),
+                    menu.quantity,
+                    ratio(menu.amount, currentNetSales),
+                    decimalChangeRate(menu.amount, previousMenu == null ? 0 : previousMenu.amount)
+            ));
+        }
+        return List.copyOf(result);
+    }
+
+    private Map<String, MutableMenuSales> menuTotals(List<SalesOrderItemEntity> items) {
+        Map<String, MutableMenuSales> totals = new HashMap<>();
+        for (SalesOrderItemEntity item : items) {
+            MutableMenuSales menu = totals.computeIfAbsent(
+                    item.getMenuKey(),
+                    key -> new MutableMenuSales(key, item.getMenuName())
+            );
+            menu.amount = Math.addExact(menu.amount, item.getNetAmount());
+            menu.quantity = Math.addExact(menu.quantity, item.getQuantity());
+        }
+        return totals;
+    }
+
+    private SalesSolutionMetrics.BusinessHours businessHours(Long storeId) {
+        List<StoreBusinessHours> schedules = businessHoursRepository
+                .findAllByStoreIdOrderByDayOfWeekAsc(storeId);
+        if (schedules.isEmpty()) {
+            return null;
+        }
+
+        List<String> closedDays = new ArrayList<>();
+        for (StoreBusinessHours schedule : schedules) {
+            Integer dayOfWeek = schedule.getDayOfWeek();
+            if (dayOfWeek == null || dayOfWeek < 1 || dayOfWeek > 7) {
+                return null;
+            }
+            if (Boolean.TRUE.equals(schedule.isClosed())) {
+                closedDays.add(DayOfWeek.of(dayOfWeek).name().substring(0, 3));
+            } else {
+                if (schedule.getOpensAt() == null || schedule.getClosesAt() == null) {
+                    return null;
+                }
+                if (schedule.getOpensAt().equals(schedule.getClosesAt())
+                        && !schedule.getOpensAt().equals(LocalTime.MIDNIGHT)) {
+                    return null;
+                }
+            }
+        }
+
+        BusinessBand weekday = mostCommonBand(schedules, true);
+        BusinessBand weekend = mostCommonBand(schedules, false);
+        if (weekday == null || weekend == null) {
+            return null;
+        }
+        return new SalesSolutionMetrics.BusinessHours(
+                weekday.toDto(),
+                weekend.toDto(),
+                closedDays.isEmpty() ? null : List.copyOf(closedDays)
+        );
+    }
+
+    private BusinessBand mostCommonBand(
+            List<StoreBusinessHours> schedules,
+            boolean weekdays
+    ) {
+        Map<BusinessBand, BandFrequency> frequencies = new LinkedHashMap<>();
+        for (StoreBusinessHours schedule : schedules) {
+            if (Boolean.TRUE.equals(schedule.isClosed())) {
+                continue;
+            }
+            DayOfWeek day = DayOfWeek.of(schedule.getDayOfWeek());
+            boolean isWeekday = day != DayOfWeek.SATURDAY && day != DayOfWeek.SUNDAY;
+            if (isWeekday != weekdays) {
+                continue;
+            }
+            BusinessBand band = new BusinessBand(schedule.getOpensAt(), schedule.getClosesAt());
+            BandFrequency frequency = frequencies.computeIfAbsent(band, ignored -> new BandFrequency(day));
+            frequency.count++;
+            if (day.getValue() < frequency.firstDay.getValue()) {
+                frequency.firstDay = day;
+            }
+        }
+        return frequencies.entrySet().stream()
+                .min(Comparator.<Map.Entry<BusinessBand, BandFrequency>>comparingInt(
+                                entry -> entry.getValue().count
+                        ).reversed()
+                        .thenComparingInt(entry -> entry.getValue().firstDay.getValue()))
+                .map(Map.Entry::getKey)
+                .orElse(null);
     }
 
     private PeriodItems load(Long storeId, LocalDate start, LocalDate end) {
@@ -158,6 +292,57 @@ public class SalesSolutionMetricsAssembler {
         return BigDecimal.valueOf(amount)
                 .divide(BigDecimal.valueOf(total), 4, RoundingMode.HALF_UP)
                 .doubleValue();
+    }
+
+    private BigDecimal ratio(long amount, long total) {
+        return BigDecimal.valueOf(amount)
+                .divide(BigDecimal.valueOf(total), RATE_SCALE, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal decimalChangeRate(long current, long previous) {
+        if (previous == 0) {
+            return current == 0 ? BigDecimal.ZERO.setScale(RATE_SCALE) : null;
+        }
+        return BigDecimal.valueOf(current).subtract(BigDecimal.valueOf(previous))
+                .divide(BigDecimal.valueOf(previous).abs(), RATE_SCALE, RoundingMode.HALF_UP);
+    }
+
+    private record BusinessBand(LocalTime opensAt, LocalTime closesAt) {
+
+        private SalesSolutionMetrics.BusinessHourBand toDto() {
+            if (opensAt.equals(closesAt)) {
+                return new SalesSolutionMetrics.BusinessHourBand("00:00", "24:00");
+            }
+            return new SalesSolutionMetrics.BusinessHourBand(
+                    BUSINESS_TIME_FORMAT.format(opensAt),
+                    closesAt.equals(LocalTime.MIDNIGHT)
+                            ? "24:00"
+                            : BUSINESS_TIME_FORMAT.format(closesAt)
+            );
+        }
+    }
+
+    private static final class BandFrequency {
+
+        private int count;
+        private DayOfWeek firstDay;
+
+        private BandFrequency(DayOfWeek firstDay) {
+            this.firstDay = firstDay;
+        }
+    }
+
+    private static final class MutableMenuSales {
+
+        private final String key;
+        private final String name;
+        private long amount;
+        private long quantity;
+
+        private MutableMenuSales(String key, String name) {
+            this.key = key;
+            this.name = name;
+        }
     }
 
     private String dayType(DayOfWeek dayOfWeek) {

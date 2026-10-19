@@ -89,7 +89,8 @@ public class SalesSolutionGenerationService {
                                 triggerType,
                                 new SalesSolutionMetrics(base.salesSummary(), base.hourlyProfile(),
                                         base.categoryBreakdown(), base.predictedSalesToday(),
-                                        base.reviewSummary(), weatherContext)
+                                        base.reviewSummary(), weatherContext, base.menuRankings(),
+                                        base.businessHours(), base.conditionPatterns())
                         )
                 );
                 if (!targetDate.equals(response.data().targetDate())) {
