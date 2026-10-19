@@ -12,8 +12,10 @@ import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import com.memme.dto.sales.MenuRankingMetric;
@@ -35,7 +37,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class SalesSolutionMetricsAssembler {
 
-    private static final int MAX_MENU_RANKINGS = 5;
+    private static final int MAX_MENU_RANKING_GROUP_SIZE = 5;
+    private static final int MIN_BASELINE_AVERAGE_DAILY_QUANTITY = 3;
     private static final int RATE_SCALE = 4;
     private static final DateTimeFormatter BUSINESS_TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -88,7 +91,7 @@ public class SalesSolutionMetricsAssembler {
                 forecast.getPredictedSalesAmount(),
                 null,
                 null,
-                menuRankings(current, previous, currentNetSales),
+                menuRankings(current, previous, currentNetSales, days),
                 businessHours(storeId),
                 conditionPatternsService.resolve(storeId, forecast.getTargetDate())
         );
@@ -97,7 +100,8 @@ public class SalesSolutionMetricsAssembler {
     private List<MenuRankingMetric> menuRankings(
             PeriodItems current,
             PeriodItems previous,
-            long currentNetSales
+            long currentNetSales,
+            long comparisonDays
     ) {
         if (currentNetSales <= 0 || current.menuItems().isEmpty()) {
             return null;
@@ -108,18 +112,58 @@ public class SalesSolutionMetricsAssembler {
         if (currentTotals.values().stream().anyMatch(menu -> menu.amount < 0 || menu.quantity < 0)) {
             return null;
         }
-        List<MutableMenuSales> ranked = currentTotals.values().stream()
-                .sorted(Comparator.comparingLong((MutableMenuSales menu) -> menu.amount).reversed()
-                        .thenComparing(menu -> menu.name))
-                .limit(MAX_MENU_RANKINGS)
-                .toList();
 
-        List<MenuRankingMetric> result = new ArrayList<>(ranked.size());
+        Map<String, MutableMenuSales> allMenuTotals = new HashMap<>(currentTotals);
+        previousTotals.forEach((key, previousMenu) -> allMenuTotals.computeIfAbsent(
+                key,
+                ignored -> new MutableMenuSales(key, previousMenu.name)
+        ));
+        List<MutableMenuSales> ranked = allMenuTotals.values().stream()
+                .sorted(menuSalesOrder())
+                .toList();
+        Map<String, Integer> rankByMenuKey = new HashMap<>();
         for (int index = 0; index < ranked.size(); index++) {
-            MutableMenuSales menu = ranked.get(index);
+            rankByMenuKey.put(ranked.get(index).key, index + 1);
+        }
+
+        Set<String> selectedMenuKeys = new LinkedHashSet<>();
+        currentTotals.values().stream()
+                .sorted(menuSalesOrder())
+                .limit(MAX_MENU_RANKING_GROUP_SIZE)
+                .map(menu -> menu.key)
+                .forEach(selectedMenuKeys::add);
+
+        long minimumBaselineQuantity = MIN_BASELINE_AVERAGE_DAILY_QUANTITY * comparisonDays;
+        ranked.stream()
+                .map(menu -> {
+                    MutableMenuSales previousMenu = previousTotals.get(menu.key);
+                    if (previousMenu == null
+                            || previousMenu.amount <= 0
+                            || previousMenu.quantity < minimumBaselineQuantity) {
+                        return null;
+                    }
+                    BigDecimal changeRate = decimalChangeRate(menu.amount, previousMenu.amount);
+                    return changeRate == null
+                            ? null
+                            : new MenuChangeCandidate(menu.key, rankByMenuKey.get(menu.key), changeRate);
+                })
+                .filter(candidate -> candidate != null)
+                .sorted(Comparator.comparing(
+                                (MenuChangeCandidate candidate) -> candidate.changeRate().abs()
+                        ).reversed()
+                        .thenComparingInt(MenuChangeCandidate::rank))
+                .limit(MAX_MENU_RANKING_GROUP_SIZE)
+                .map(MenuChangeCandidate::key)
+                .forEach(selectedMenuKeys::add);
+
+        List<MenuRankingMetric> result = new ArrayList<>(selectedMenuKeys.size());
+        for (MutableMenuSales menu : ranked) {
+            if (!selectedMenuKeys.contains(menu.key)) {
+                continue;
+            }
             MutableMenuSales previousMenu = previousTotals.get(menu.key);
             result.add(new MenuRankingMetric(
-                    index + 1,
+                    rankByMenuKey.get(menu.key),
                     menu.name,
                     BigDecimal.valueOf(menu.amount),
                     menu.quantity,
@@ -128,6 +172,12 @@ public class SalesSolutionMetricsAssembler {
             ));
         }
         return List.copyOf(result);
+    }
+
+    private Comparator<MutableMenuSales> menuSalesOrder() {
+        return Comparator.comparingLong((MutableMenuSales menu) -> menu.amount).reversed()
+                .thenComparing(menu -> menu.name)
+                .thenComparing(menu -> menu.key, Comparator.nullsFirst(Comparator.naturalOrder()));
     }
 
     private Map<String, MutableMenuSales> menuTotals(List<SalesOrderItemEntity> items) {
@@ -304,7 +354,7 @@ public class SalesSolutionMetricsAssembler {
 
     private BigDecimal decimalChangeRate(long current, long previous) {
         if (previous == 0) {
-            return current == 0 ? BigDecimal.ZERO.setScale(RATE_SCALE) : null;
+            return null;
         }
         return BigDecimal.valueOf(current).subtract(BigDecimal.valueOf(previous))
                 .divide(BigDecimal.valueOf(previous).abs(), RATE_SCALE, RoundingMode.HALF_UP);
@@ -347,6 +397,8 @@ public class SalesSolutionMetricsAssembler {
             this.name = name;
         }
     }
+
+    private record MenuChangeCandidate(String key, int rank, BigDecimal changeRate) {}
 
     private String dayType(DayOfWeek dayOfWeek) {
         return dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY
