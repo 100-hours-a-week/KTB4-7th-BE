@@ -84,7 +84,8 @@ public class SalesSolutionMetricsAssembler {
         return new SalesSolutionMetrics(
                 new SalesSolutionMetrics.SalesSummary(
                         currentNetSales,
-                        changeRate(currentNetSales, previousNetSales)
+                        changeRate(currentNetSales, previousNetSales),
+                        start + "~" + end
                 ),
                 hourlyProfile(current),
                 categoryBreakdown(current, previous, currentNetSales),
