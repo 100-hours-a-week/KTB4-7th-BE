@@ -62,6 +62,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 @Order(Ordered.LOWEST_PRECEDENCE)
@@ -113,6 +115,18 @@ public class GlobalExceptionHandler {
             MethodArgumentTypeMismatchException exception
     ) {
         return badRequestResponse();
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingRequestParameter(
+            MissingServletRequestParameterException exception) {
+        return badRequestResponse();
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiResponse<Void>> handleResponseStatus(ResponseStatusException exception) {
+        return ResponseEntity.status(exception.getStatusCode())
+                .body(new ApiResponse<>(exception.getReason(), null));
     }
 
     @ExceptionHandler(InvalidStoreCostMonthException.class)
