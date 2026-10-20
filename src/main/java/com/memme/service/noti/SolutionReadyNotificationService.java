@@ -14,6 +14,11 @@ import com.memme.repository.store.StoreRepository;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,8 +60,76 @@ public class SolutionReadyNotificationService {
     @Transactional
     public void notifyTodaysSolutions() {
         LocalDate today = LocalDate.now(clock);
-        solutionBundleRepository.findAllByTargetDateAndStatus(today, SolutionBundleStatus.COMPLETED)
-                .forEach(this::notifySolutionReady);
+        List<SolutionBundleEntity> bundles = solutionBundleRepository.findAllByTargetDateAndStatus(
+                today,
+                SolutionBundleStatus.COMPLETED
+        );
+        if (bundles.isEmpty()) {
+            return;
+        }
+
+        Set<Long> storeIds = bundles.stream()
+                .map(SolutionBundleEntity::getStoreId)
+                .collect(Collectors.toSet());
+        Map<Long, Long> ownerUserIdByStoreId = storeRepository.findStoreOwnersByStoreIds(storeIds).stream()
+                .collect(Collectors.toMap(
+                        StoreRepository.StoreOwner::getStoreId,
+                        StoreRepository.StoreOwner::getOwnerUserId
+                ));
+        if (ownerUserIdByStoreId.isEmpty()) {
+            return;
+        }
+
+        Set<Long> ownerUserIds = Set.copyOf(ownerUserIdByStoreId.values());
+        Map<Long, Boolean> solutionEnabledByUserId = preferenceRepository
+                .findSolutionPreferenceSettingsByUserIds(ownerUserIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        NotificationPreferenceRepository.SolutionPreferenceSetting::getUserId,
+                        NotificationPreferenceRepository.SolutionPreferenceSetting::getSolutionEnabled
+                ));
+
+        List<NotificationCandidate> candidates = new ArrayList<>();
+        for (SolutionBundleEntity bundle : bundles) {
+            Long ownerUserId = ownerUserIdByStoreId.get(bundle.getStoreId());
+            if (ownerUserId == null || !Boolean.TRUE.equals(solutionEnabledByUserId.get(ownerUserId))) {
+                continue;
+            }
+            candidates.add(new NotificationCandidate(
+                    ownerUserId,
+                    bundle.getId(),
+                    "solution-ready:%d".formatted(bundle.getId())
+            ));
+        }
+        if (candidates.isEmpty()) {
+            return;
+        }
+
+        Set<Long> candidateOwnerUserIds = candidates.stream()
+                .map(NotificationCandidate::ownerUserId)
+                .collect(Collectors.toSet());
+        Set<String> candidateNotificationKeys = candidates.stream()
+                .map(NotificationCandidate::notificationKey)
+                .collect(Collectors.toSet());
+        Set<NotificationIdentity> existingNotifications = notificationRepository
+                .findNotificationUserKeysByUserIdsAndTypeAndKeysIn(
+                        candidateOwnerUserIds,
+                        NotificationType.SOLUTION_READY,
+                        candidateNotificationKeys
+                )
+                .stream()
+                .map(existing -> new NotificationIdentity(existing.getUserId(), existing.getNotificationKey()))
+                .collect(Collectors.toSet());
+
+        for (NotificationCandidate candidate : candidates) {
+            NotificationIdentity identity = new NotificationIdentity(
+                    candidate.ownerUserId(),
+                    candidate.notificationKey()
+            );
+            if (!existingNotifications.contains(identity)) {
+                saveNotification(candidate.ownerUserId(), candidate.bundleId(), candidate.notificationKey());
+            }
+        }
     }
 
     @Transactional
@@ -82,6 +155,10 @@ public class SolutionReadyNotificationService {
             return;
         }
 
+        saveNotification(ownerUserId, bundleId, notificationKey);
+    }
+
+    private void saveNotification(Long ownerUserId, Long bundleId, String notificationKey) {
         LocalDateTime now = LocalDateTime.now(clock);
         User user = userRepository.getReferenceById(ownerUserId);
         notificationRepository.save(Notification.create(
@@ -95,5 +172,11 @@ public class SolutionReadyNotificationService {
                 now,
                 now
         ));
+    }
+
+    private record NotificationCandidate(Long ownerUserId, Long bundleId, String notificationKey) {
+    }
+
+    private record NotificationIdentity(Long ownerUserId, String notificationKey) {
     }
 }
