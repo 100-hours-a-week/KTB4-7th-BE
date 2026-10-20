@@ -30,20 +30,22 @@ public class SeoulDistrictQuarterAggregationService {
         Map<String, SeoulStoreCountResponse.Row> stores = new HashMap<>();
         Set<String> storeDistricts = new HashSet<>();
         for (var row : storeRows) {
+            String dongCode = row == null ? null : normalizeDong(row.administrativeDongCode());
             if (row != null && sourceQuarter.equals(row.quarterCode())
-                    && INDUSTRY_CODE.equals(row.industryCode()) && validDong(row.administrativeDongCode())) {
-                if (!storeDistricts.add(row.administrativeDongCode())) {
+                    && INDUSTRY_CODE.equals(row.industryCode()) && dongCode != null) {
+                if (!storeDistricts.add(dongCode)) {
                     throw new IllegalStateException("Duplicate Seoul store-count district");
                 }
                 if (row.storeCount() != null && row.storeCount() >= 3 && row.storeCount() <= Integer.MAX_VALUE) {
-                    stores.put(row.administrativeDongCode(), row);
+                    stores.put(dongCode, row);
                 }
             }
         }
         Map<String, SeoulFootTrafficResponse.Row> traffic = new HashMap<>();
         for (var row : trafficRows) {
-            if (row != null && sourceQuarter.equals(row.quarterCode()) && validDong(row.administrativeDongCode())) {
-                if (traffic.putIfAbsent(row.administrativeDongCode(), row) != null) {
+            String dongCode = row == null ? null : normalizeDong(row.administrativeDongCode());
+            if (row != null && sourceQuarter.equals(row.quarterCode()) && dongCode != null) {
+                if (traffic.putIfAbsent(dongCode, row) != null) {
                     throw new IllegalStateException("Duplicate Seoul foot-traffic district");
                 }
             }
@@ -51,15 +53,16 @@ public class SeoulDistrictQuarterAggregationService {
         List<Benchmark> result = new ArrayList<>();
         Set<String> salesDistricts = new HashSet<>();
         for (var row : salesRows) {
+            String dongCode = row == null ? null : normalizeDong(row.administrativeDongCode());
             if (row == null || !sourceQuarter.equals(row.quarterCode())
-                    || !INDUSTRY_CODE.equals(row.industryCode()) || !validDong(row.administrativeDongCode())) {
+                    || !INDUSTRY_CODE.equals(row.industryCode()) || dongCode == null) {
                 continue;
             }
-            if (!salesDistricts.add(row.administrativeDongCode())) {
+            if (!salesDistricts.add(dongCode)) {
                 throw new IllegalStateException("Duplicate Seoul sales district");
             }
-            var store = stores.get(row.administrativeDongCode());
-            var people = traffic.get(row.administrativeDongCode());
+            var store = stores.get(dongCode);
+            var people = traffic.get(dongCode);
             if (store == null || people == null) {
                 continue;
             }
@@ -70,14 +73,17 @@ public class SeoulDistrictQuarterAggregationService {
                     row.salesFrom11To14(), row.salesFrom14To17(), row.salesFrom17To21(), row.salesFrom21To24()});
             String trafficBand = peakBand(new Long[] {people.from00To06(), people.from06To11(),
                     people.from11To14(), people.from14To17(), people.from17To21(), people.from21To24()});
-            result.add(new Benchmark(row.administrativeDongCode(), store.storeCount().intValue(),
+            result.add(new Benchmark(dongCode, store.storeCount().intValue(),
                     row.salesAmount() / store.storeCount(), salesBand, trafficBand));
         }
         return List.copyOf(result);
     }
 
-    private static boolean validDong(String code) {
-        return code != null && code.matches("[0-9]{10}");
+    private static String normalizeDong(String code) {
+        if (code != null && code.matches("[0-9]{8}")) {
+            return code + "00";
+        }
+        return code != null && code.matches("[0-9]{10}") ? code : null;
     }
 
     private static String peakBand(Long[] values) {
