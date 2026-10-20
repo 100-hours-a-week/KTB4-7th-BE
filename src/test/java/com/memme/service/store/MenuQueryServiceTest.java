@@ -75,6 +75,19 @@ class MenuQueryServiceTest {
     }
 
     @Test
+    void 저장된_TEA_메뉴를_같은_카테고리로_조회한다() {
+        Menu tea = Menu.create(7L, "녹차", MenuCategory.TEA, 4500, 1, NOW);
+        ReflectionTestUtils.setField(tea, "id", 28L);
+        when(menus.findAllByStoreIdAndRemovedAtIsNullOrderBySortOrderAscIdAsc(7L))
+                .thenReturn(List.of(tea));
+
+        var result = query.getMenuList(3L, 7L);
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().getFirst().category()).isEqualTo("TEA");
+    }
+
+    @Test
     void 저장되거나_교체된_배치는_임시_배치에서_제외한다() {
         MenuUploadBatch saved = batch(15L);
         saved.startProcessing();

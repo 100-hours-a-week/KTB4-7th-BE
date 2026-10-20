@@ -18,7 +18,7 @@ CREATE TABLE menus (
   CONSTRAINT fk_menu_store FOREIGN KEY (store_id) REFERENCES stores(id),
   CONSTRAINT ck_menu_price CHECK (price <= 1000000),
   CONSTRAINT ck_menu_status CHECK (status IN ('ACTIVE','INACTIVE','SOLD_OUT')),
-  CONSTRAINT ck_menu_category CHECK (category IN ('COFFEE','NON_COFFEE','BEVERAGE','CAKE','BAKERY','OTHER'))
+  CONSTRAINT ck_menu_category CHECK (category IN ('COFFEE','TEA','BEVERAGE','CAKE','BAKERY','OTHER'))
 ) ENGINE=InnoDB;
 
 CREATE TABLE menu_upload_batches (

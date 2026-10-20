@@ -108,6 +108,34 @@ Cloud 배포 설정:
 같은 타입으로 생성합니다. 신규 DB의 `stores.id`와 `store_id`는 `BIGINT UNSIGNED`입니다.
 기존 매장의 메뉴 개정 번호는 0으로 시작하며 기존 매장·매출 데이터는 변경하지 않습니다.
 
+## 메뉴판 카테고리 TEA 전환 (#451)
+
+기존 DB에는 BE 배포 전에 `20261014-menu-category-tea.sql`을 한 번 실행합니다.
+실행 전 아래 쿼리로 같은 매장의 활성 `NON_COFFEE`와 `OTHER` 메뉴가
+같은 이름·가격을 갖는지 확인하고, 결과가 있으면 카테고리를 직접 정리합니다.
+그대로 실행하면 `uk_menus_active_tuple` 유니크 제약에 걸립니다.
+
+```sql
+SELECT old_menu.store_id, old_menu.id AS non_coffee_menu_id,
+       other_menu.id AS other_menu_id
+FROM menus old_menu
+JOIN menus other_menu
+  ON other_menu.store_id = old_menu.store_id
+ AND other_menu.active_normalized_name = old_menu.active_normalized_name
+ AND other_menu.price = old_menu.price
+WHERE old_menu.category = 'NON_COFFEE'
+  AND other_menu.category = 'OTHER'
+  AND old_menu.removed_at IS NULL
+  AND other_menu.removed_at IS NULL;
+```
+
+기존 `menus.category=NON_COFFEE`는 차가 아닌 메뉴도 포함할 수 있으므로
+`OTHER`로 전환합니다. 검토 대기 중인 `menu_image_items.detected_category=NON_COFFEE`는
+`NULL`로 바꿔 사용자가 다시 선택하게 하고, 검토가 끝난 후보는 `OTHER`로 전환합니다. 이후 허용값을
+`COFFEE`, `TEA`, `BEVERAGE`, `CAKE`, `BAKERY`, `OTHER`로 제한합니다.
+신규 DB는 `docker/mysql/init/07-menu-recognition.sql`에 이 값을 적용합니다.
+매출 데이터의 `standard_category`와 `category_raw`는 변경하지 않습니다.
+
 ## 메뉴 이미지 순서 타입 보정 (#431)
 
 `MenuImage.imageOrder`의 Java `int`와 Hibernate `INTEGER` 매핑에 맞춰 신규 초기화 SQL과
