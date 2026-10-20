@@ -2,6 +2,7 @@ package com.memme.service.noti;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -23,6 +24,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -109,15 +111,38 @@ class SolutionReadyNotificationServiceTest {
         SolutionBundleEntity second = solutionBundle(21L, 11L);
         when(solutionBundleRepository.findAllByTargetDateAndStatus(today, SolutionBundleStatus.COMPLETED))
                 .thenReturn(List.of(first, second));
-        givenEnabledOwner(10L, 3L);
-        givenEnabledOwner(11L, 4L);
+
+        StoreRepository.StoreOwner firstOwner = storeOwner(10L, 3L);
+        StoreRepository.StoreOwner secondOwner = storeOwner(11L, 4L);
+        when(storeRepository.findStoreOwnersByStoreIds(Set.of(10L, 11L)))
+                .thenReturn(List.of(firstOwner, secondOwner));
+        NotificationPreferenceRepository.SolutionPreferenceSetting firstPreference =
+                solutionPreference(3L, true);
+        NotificationPreferenceRepository.SolutionPreferenceSetting secondPreference =
+                solutionPreference(4L, true);
+        when(preferenceRepository.findSolutionPreferenceSettingsByUserIds(Set.of(3L, 4L)))
+                .thenReturn(List.of(firstPreference, secondPreference));
+        when(notificationRepository.findNotificationUserKeysByUserIdsAndTypeAndKeysIn(
+                Set.of(3L, 4L),
+                com.memme.entity.noti.NotificationType.SOLUTION_READY,
+                Set.of("solution-ready:20", "solution-ready:21")
+        )).thenReturn(List.of());
         when(userRepository.getReferenceById(any())).thenReturn(mock(User.class));
-        when(notificationRepository.existsByUserIdAndNotificationTypeAndNotificationKey(any(), any(), any()))
-                .thenReturn(false);
 
         service.notifyTodaysSolutions();
 
         verify(notificationRepository, org.mockito.Mockito.times(2)).save(any());
+        verify(storeRepository).findStoreOwnersByStoreIds(Set.of(10L, 11L));
+        verify(preferenceRepository).findSolutionPreferenceSettingsByUserIds(Set.of(3L, 4L));
+        verify(notificationRepository).findNotificationUserKeysByUserIdsAndTypeAndKeysIn(
+                Set.of(3L, 4L),
+                com.memme.entity.noti.NotificationType.SOLUTION_READY,
+                Set.of("solution-ready:20", "solution-ready:21")
+        );
+        verify(storeRepository, never()).findOwnerUserIdByStoreId(anyLong());
+        verify(preferenceRepository, never()).findByUserId(anyLong());
+        verify(notificationRepository, never()).existsByUserIdAndNotificationTypeAndNotificationKey(
+                anyLong(), any(), any());
     }
 
     @Test
@@ -136,6 +161,24 @@ class SolutionReadyNotificationServiceTest {
         NotificationPreference preference = mock(NotificationPreference.class);
         when(preference.isSolutionEnabled()).thenReturn(true);
         when(preferenceRepository.findByUserId(ownerUserId)).thenReturn(Optional.of(preference));
+    }
+
+    private StoreRepository.StoreOwner storeOwner(Long storeId, Long ownerUserId) {
+        StoreRepository.StoreOwner storeOwner = mock(StoreRepository.StoreOwner.class);
+        when(storeOwner.getStoreId()).thenReturn(storeId);
+        when(storeOwner.getOwnerUserId()).thenReturn(ownerUserId);
+        return storeOwner;
+    }
+
+    private NotificationPreferenceRepository.SolutionPreferenceSetting solutionPreference(
+            Long userId,
+            boolean enabled
+    ) {
+        NotificationPreferenceRepository.SolutionPreferenceSetting preference =
+                mock(NotificationPreferenceRepository.SolutionPreferenceSetting.class);
+        when(preference.getUserId()).thenReturn(userId);
+        when(preference.getSolutionEnabled()).thenReturn(enabled);
+        return preference;
     }
 
     private SolutionBundleEntity solutionBundle(Long bundleId, Long storeId) {
