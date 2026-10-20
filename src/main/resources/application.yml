@@ -41,6 +41,8 @@ password-reset:
 app:
   asos-import:
     enabled: ${ASOS_OBSERVATION_IMPORT_ENABLED:false}
+  seoul-district-import:
+    enabled: ${SEOUL_DISTRICT_IMPORT_ENABLED:false}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   security:

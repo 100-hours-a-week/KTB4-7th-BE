@@ -9,11 +9,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SeoulDistrictQuarterCollectionService {
 
+    private static final Logger log = LoggerFactory.getLogger(SeoulDistrictQuarterCollectionService.class);
     private static final int PAGE_SIZE = 1000;
 
     private final SeoulDistrictApiService api;
@@ -52,6 +55,8 @@ public class SeoulDistrictQuarterCollectionService {
                 throw new IllegalStateException("Seoul benchmark data unavailable");
             }
             persistence.complete(id, benchmarks);
+            log.info("Seoul district quarter collection completed: quarter={}, benchmarkRows={}",
+                    basisQuarter, benchmarks.size());
             return true;
         } catch (RuntimeException exception) {
             persistence.fail(id);

@@ -14,7 +14,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Collections;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(OutputCaptureExtension.class)
 class SeoulDistrictQuarterCollectionServiceTest {
 
     private final SeoulDistrictApiService api = mock(SeoulDistrictApiService.class);
@@ -34,7 +38,7 @@ class SeoulDistrictQuarterCollectionServiceTest {
     }
 
     @Test
-    void 세_자료를_끝까지_조회한_뒤_한번에_저장한다() {
+    void 세_자료를_끝까지_조회한_뒤_한번에_저장한다(CapturedOutput output) {
         when(persistence.begin("2026Q2")).thenReturn(Optional.of(7L));
         var sales = new SeoulEstimatedSalesResponse.Row("20262", "1168051000", "역삼1동",
                 "CS100010", "커피-음료", 12_000_000L, 100L, 1L, 1L, 1L, 1L, 1L, 1L);
@@ -62,6 +66,7 @@ class SeoulDistrictQuarterCollectionServiceTest {
         verify(api).estimatedSales(1001, 1001, "20262");
         verify(persistence).complete(7L, List.of(benchmark));
         verify(persistence, never()).fail(anyLong());
+        assertThat(output).contains("quarter=2026Q2, benchmarkRows=1");
     }
 
     @Test
