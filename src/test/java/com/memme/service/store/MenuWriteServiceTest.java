@@ -65,6 +65,30 @@ class MenuWriteServiceTest {
     }
 
     @Test
+    void 메뉴판_카테고리는_TEA를_허용하고_NON_COFFEE를_거절한다() {
+        Store store = store();
+        Menu menu = menus.save(Menu.create(store.getId(), "녹차", MenuCategory.OTHER, 4500, 1, NOW));
+        var teaRequest = new MenuPatchRequest(0L, List.of(new MenuPatchRequest.Item(
+                menu.getId(), "녹차", 4500L, "TEA", 1, null)));
+
+        var response = writes.patch(ownerId(store), store.getId(),
+                "tea-" + UUID.randomUUID(), teaRequest);
+
+        assertThat(response.items().getFirst().category()).isEqualTo("TEA");
+        Long teaMenuId = response.items().getFirst().id();
+        assertThat(menus.findById(teaMenuId).orElseThrow().getCategory()).isEqualTo(MenuCategory.TEA);
+
+        var oldCategoryRequest = new MenuPatchRequest(1L, List.of(new MenuPatchRequest.Item(
+                teaMenuId, "녹차", 4500L, "NON_COFFEE", 1, null)));
+        assertThatThrownBy(() -> writes.patch(ownerId(store), store.getId(),
+                "old-category-" + UUID.randomUUID(), oldCategoryRequest))
+                .isInstanceOfSatisfying(MenuRequestException.class, error -> {
+                    assertThat(error.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
+                    assertThat(error.getData().toString()).contains("INVALID_CATEGORY");
+                });
+    }
+
+    @Test
     void 동일_멱등_키의_재요청은_기존_응답을_반환하고_다른_본문은_거절한다() {
         Store store = store();
         Menu coffee = menus.save(Menu.create(store.getId(), "커피", MenuCategory.COFFEE, 4000, 1, NOW));
@@ -113,6 +137,38 @@ class MenuWriteServiceTest {
         assertThat(menus.findById(old.getId()).orElseThrow().getRemovedAt()).isNotNull();
         assertThat(images.findById(firstImage.getId()).orElseThrow().getOcrStatus())
                 .isEqualTo(MenuProcessingStatus.COMPLETED);
+    }
+
+    @Test
+    void 카테고리가_없는_후보는_선택하기_전까지_확정할_수_없다() {
+        Store store = store();
+        MenuUploadBatch batch = completedBatch(store);
+        MenuImage image = image(batch, store, 1);
+        MenuImageItem candidate = candidates.save(MenuImageItem.pending(image.getId(),
+                "녹차", null, 4500L, 0, null, false, NOW));
+        var missingCategory = new MenuConfirmationRequest(0L, List.of(
+                new MenuConfirmationRequest.Item(candidate.getId(), "녹차", 4500L,
+                        null, 1, null)));
+
+        assertThatThrownBy(() -> writes.confirm(ownerId(store), store.getId(), batch.getId(),
+                "missing-category-" + UUID.randomUUID(), missingCategory))
+                .isInstanceOfSatisfying(MenuRequestException.class, error -> {
+                    assertThat(error.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
+                    assertThat(error.getData().toString()).contains("INVALID_CATEGORY");
+                });
+        assertThat(menus.findAllByStoreIdAndRemovedAtIsNullOrderBySortOrderAscIdAsc(store.getId()))
+                .isEmpty();
+        assertThat(batches.findById(batch.getId()).orElseThrow().getSavedAt()).isNull();
+        assertThat(stores.findById(store.getId()).orElseThrow().getMenuRevision()).isZero();
+
+        var selectedCategory = new MenuConfirmationRequest(0L, List.of(
+                new MenuConfirmationRequest.Item(candidate.getId(), "녹차", 4500L,
+                        "TEA", 1, null)));
+        var saved = writes.confirm(ownerId(store), store.getId(), batch.getId(),
+                "selected-category-" + UUID.randomUUID(), selectedCategory);
+
+        assertThat(saved.items().getFirst().category()).isEqualTo("TEA");
+        assertThat(batches.findById(batch.getId()).orElseThrow().getSavedAt()).isNotNull();
     }
 
     @Test
