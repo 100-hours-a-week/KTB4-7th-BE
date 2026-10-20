@@ -1,5 +1,14 @@
 # 기존 DB 마이그레이션 안내
 
+## V2 선택 재생성 실행 이력 (#517)
+
+기존 QA·운영 DB에는 BE 배포 전 `20261020-add-regeneration-executions.sql`을 한 번 적용합니다.
+신규 DB는 `docker/mysql/init/11-regeneration-executions.sql`을 사용합니다. 두 SQL은
+`sales_ai_insight_regenerations`와 `solution_regenerations` 테이블만 추가하며 기존 솔루션·인사이트 행을 변경하지 않습니다.
+기존 운영 `stores.id`가 signed `BIGINT`이므로 마이그레이션의 `store_id`도 signed입니다.
+적용 전 DB 백업과 테이블 부재를 확인하고, 적용 후 UNIQUE·FK·CHECK 제약 및 빈 행 수를 확인한 뒤
+BE 스키마 검증을 진행합니다. 이 변경만으로 기존 결과가 자동 재생성되지는 않습니다.
+
 ## V2 과거 강수 관측 지점·관측값 저장 (#482)
 
 기존 QA·운영 DB에는 BE 배포 전 `20261018-add-weather-observation-stations.sql`을 한 번 적용합니다.
