@@ -3,6 +3,7 @@ package com.memme.repository.store;
 import com.memme.entity.store.Store;
 import com.memme.entity.store.StoreStatus;
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -43,6 +44,20 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
             where store.id = :storeId
             """)
     Optional<Long> findOwnerUserIdByStoreId(@Param("storeId") Long storeId);
+
+    @Query("""
+            select store.id as storeId, store.owner.id as ownerUserId
+            from Store store
+            where store.id in :storeIds
+            """)
+    List<StoreOwner> findStoreOwnersByStoreIds(@Param("storeIds") Collection<Long> storeIds);
+
+    interface StoreOwner {
+
+        Long getStoreId();
+
+        Long getOwnerUserId();
+    }
 
     interface ActiveStoreOwner {
 
