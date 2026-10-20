@@ -39,6 +39,8 @@ password-reset:
   url: ${PASSWORD_RESET_URL}
 
 app:
+  asos-import:
+    enabled: ${ASOS_OBSERVATION_IMPORT_ENABLED:false}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   security:
