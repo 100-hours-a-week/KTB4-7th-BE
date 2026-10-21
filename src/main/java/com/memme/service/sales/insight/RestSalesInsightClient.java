@@ -62,10 +62,18 @@ public class RestSalesInsightClient implements SalesInsightClient {
 
     @Override
     public SalesInsightResponse generate(SalesInsightRequest request) {
+        return generate(request, "sales-insight:" + request.analysisRunId());
+    }
+
+    @Override
+    public SalesInsightResponse generate(SalesInsightRequest request, String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new IllegalArgumentException("idempotency key is required");
+        }
         int retryCount = 0;
         while (true) {
             try {
-                SalesInsightResponse response = request(request);
+                SalesInsightResponse response = request(request, idempotencyKey);
                 if (response == null) {
                     throw new SalesInsightClientException("AI 인사이트 응답 본문이 없습니다.");
                 }
@@ -80,11 +88,11 @@ public class RestSalesInsightClient implements SalesInsightClient {
         }
     }
 
-    private SalesInsightResponse request(SalesInsightRequest request) {
+    private SalesInsightResponse request(SalesInsightRequest request, String idempotencyKey) {
         RestClient.RequestBodySpec spec = restClient.post()
                 .uri(PATH)
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Idempotency-Key", "sales-insight:" + request.analysisRunId());
+                .header("Idempotency-Key", idempotencyKey);
         if (!bearerToken.isBlank()) {
             spec.header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
         }
