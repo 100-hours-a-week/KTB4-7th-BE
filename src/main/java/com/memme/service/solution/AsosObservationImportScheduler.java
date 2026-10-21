@@ -17,10 +17,13 @@ public class AsosObservationImportScheduler {
     private static final Logger log = LoggerFactory.getLogger(AsosObservationImportScheduler.class);
 
     private final AsosObservationImportService importService;
+    private final SolutionRegenerationService regenerationService;
     private final AtomicBoolean running = new AtomicBoolean();
 
-    public AsosObservationImportScheduler(AsosObservationImportService importService) {
+    public AsosObservationImportScheduler(AsosObservationImportService importService,
+                                          SolutionRegenerationService regenerationService) {
         this.importService = importService;
+        this.regenerationService = regenerationService;
     }
 
     @Async
@@ -42,6 +45,14 @@ public class AsosObservationImportScheduler {
         try {
             int inserted = importService.importForActiveStores();
             log.info("ASOS observation import completed: trigger={}, inserted={}", trigger, inserted);
+            if (inserted > 0) {
+                try {
+                    regenerationService.regenerateTodayAfterObservationImport();
+                } catch (RuntimeException exception) {
+                    log.error("Solution regeneration after ASOS import failed: trigger={}, cause={}",
+                            trigger, exception.getClass().getSimpleName());
+                }
+            }
         } catch (RuntimeException exception) {
             log.error("ASOS observation import failed: trigger={}, cause={}",
                     trigger, exception.getClass().getSimpleName());

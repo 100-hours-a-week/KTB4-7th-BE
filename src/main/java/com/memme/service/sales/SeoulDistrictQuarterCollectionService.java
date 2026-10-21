@@ -3,6 +3,7 @@ package com.memme.service.sales;
 import com.memme.dto.solution.external.SeoulEstimatedSalesResponse;
 import com.memme.dto.solution.external.SeoulFootTrafficResponse;
 import com.memme.dto.solution.external.SeoulStoreCountResponse;
+import com.memme.service.sales.insight.SalesInsightRegenerationService;
 import com.memme.service.solution.external.SeoulDistrictApiService;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,13 +23,16 @@ public class SeoulDistrictQuarterCollectionService {
     private final SeoulDistrictApiService api;
     private final SeoulDistrictQuarterAggregationService aggregation;
     private final SeoulDistrictQuarterImportPersistenceService persistence;
+    private final SalesInsightRegenerationService insightRegenerationService;
 
     public SeoulDistrictQuarterCollectionService(SeoulDistrictApiService api,
                                                  SeoulDistrictQuarterAggregationService aggregation,
-                                                 SeoulDistrictQuarterImportPersistenceService persistence) {
+                                                 SeoulDistrictQuarterImportPersistenceService persistence,
+                                                 SalesInsightRegenerationService insightRegenerationService) {
         this.api = api;
         this.aggregation = aggregation;
         this.persistence = persistence;
+        this.insightRegenerationService = insightRegenerationService;
     }
 
     public boolean collect(String basisQuarter) {
@@ -57,11 +61,17 @@ public class SeoulDistrictQuarterCollectionService {
             persistence.complete(id, benchmarks);
             log.info("Seoul district quarter collection completed: quarter={}, benchmarkRows={}",
                     basisQuarter, benchmarks.size());
-            return true;
         } catch (RuntimeException exception) {
             persistence.fail(id);
             throw exception;
         }
+        try {
+            insightRegenerationService.regenerateAfterDistrictQuarterImport(basisQuarter);
+        } catch (RuntimeException exception) {
+            log.error("Sales insight regeneration after Seoul district import failed: quarter={}, cause={}",
+                    basisQuarter, exception.getClass().getSimpleName());
+        }
+        return true;
     }
 
     private static <T, R> List<R> readAll(BiFunction<Integer, Integer, Optional<T>> fetch,
