@@ -1,5 +1,14 @@
 # 기존 DB 마이그레이션 안내
 
+## V2 재생성 결과 카드 보존 (#521)
+
+기존 QA·운영 DB에는 BE 배포 전에 `20261021-add-solution-card-versioning.sql`을 한 번 적용합니다.
+적용 전 DB 백업과 `solutions.original_rank_no` 컬럼 부재를 확인합니다. 신규 DB는
+`docker/mysql/init/03-solutions.sql`에 같은 컬럼이 포함됩니다. 이 변경은 NULL 허용 컬럼만
+추가하며 기존 `solutions`·`saved_solutions` 행을 수정하거나 삭제하지 않습니다.
+적용 후 컬럼 타입 `INT NULL`, 기존 행의 `NULL`, 기존 `(solution_bundle_id, rank_no)` UNIQUE를
+확인하고 BE 스키마 검증을 진행합니다. 실제 카드 교체는 후속 #513 서비스에서 처리합니다.
+
 ## V2 선택 재생성 실행 이력 (#517)
 
 기존 QA·운영 DB에는 BE 배포 전 `20261020-add-regeneration-executions.sql`을 한 번 적용합니다.

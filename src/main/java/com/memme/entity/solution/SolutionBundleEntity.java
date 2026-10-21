@@ -81,6 +81,16 @@ public class SolutionBundleEntity {
         this.status = SolutionBundleStatus.GENERATING;
     }
 
+    public void replaceCompletedAnalysis(Long expectedSalesAnalysisId, Long newSalesAnalysisId) {
+        if (status != SolutionBundleStatus.COMPLETED) {
+            throw new IllegalStateException("solution bundle must be completed");
+        }
+        if (!Objects.equals(salesAnalysisId, expectedSalesAnalysisId)) {
+            throw new IllegalStateException("solution bundle source changed during regeneration");
+        }
+        salesAnalysisId = Objects.requireNonNull(newSalesAnalysisId, "newSalesAnalysisId");
+    }
+
     @PrePersist
     private void prePersist() {
         LocalDateTime now = LocalDateTime.now();

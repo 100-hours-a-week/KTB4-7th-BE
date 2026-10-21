@@ -26,6 +26,7 @@ CREATE TABLE solutions (
   generated_at DATETIME NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   rank_no INT NOT NULL,
+  original_rank_no INT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uk_solutions_bundle_rank (solution_bundle_id, rank_no),
   KEY idx_solutions_store_created (store_id, created_at),

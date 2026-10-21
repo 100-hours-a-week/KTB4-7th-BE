@@ -6,11 +6,23 @@ import java.util.Optional;
 
 import com.memme.entity.solution.SolutionBundleEntity;
 import com.memme.entity.solution.SolutionBundleStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface SolutionBundleRepository extends JpaRepository<SolutionBundleEntity, Long> {
 
     Optional<SolutionBundleEntity> findByStoreIdAndTargetDate(Long storeId, LocalDate targetDate);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select b from SolutionBundleEntity b "
+            + "where b.storeId = :storeId and b.targetDate = :targetDate")
+    Optional<SolutionBundleEntity> findByStoreIdAndTargetDateForUpdate(
+            @Param("storeId") Long storeId,
+            @Param("targetDate") LocalDate targetDate
+    );
 
     Optional<SolutionBundleEntity> findByIdAndStoreId(Long id, Long storeId);
 
