@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.memme.config.AiCallConcurrencyGate;
 import com.memme.dto.sales.DistrictBenchmarkMetric;
 import com.memme.dto.sales.SalesInsightMetrics;
 import com.memme.dto.sales.SalesInsightRequest;
@@ -25,7 +26,10 @@ import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 class SalesInsightRegenerationServiceTest {
     private static final YearMonth MONTH = YearMonth.of(2026, 9);
@@ -41,7 +45,7 @@ class SalesInsightRegenerationServiceTest {
         var fingerprints = mock(SalesInsightRegenerationSourceFingerprint.class);
         var clock = Clock.fixed(Instant.parse("2026-10-21T03:00:00Z"), ZoneId.of("Asia/Seoul"));
         var service = new SalesInsightRegenerationService(insights, analyses, assembler, benchmarks,
-                client, persistence, fingerprints, clock);
+                client, persistence, fingerprints, new AiCallConcurrencyGate(), clock);
         var current = mock(SalesAiInsightEntity.class);
         var analysis = mock(SalesAnalysisEntity.class);
         var metrics = new SalesInsightMetrics(null, List.of(), List.of(), List.of(), List.of(), List.of());
@@ -66,4 +70,89 @@ class SalesInsightRegenerationServiceTest {
                 eq(List.of("new")), any());
         verify(persistence, never()).fail(eq(reservation), any());
     }
+
+    @Test
+    void 분기_적재후_분기부터_이후_두_분기까지_완료된_인사이트를_조회한다() {
+        var insights = mock(SalesAiInsightRepository.class);
+        var emptyPage = new PageImpl<com.memme.entity.sales.SalesAiInsightEntity>(List.of(),
+                PageRequest.of(0, 100), 0);
+        when(insights.findAllByTargetMonthBetweenAndStatusOrderByIdAsc(
+                java.time.LocalDate.of(2026, 4, 1), java.time.LocalDate.of(2026, 12, 1),
+                SalesAiInsightStatus.COMPLETED, PageRequest.of(0, 100))).thenReturn(emptyPage);
+        var service = new SalesInsightRegenerationService(insights, mock(SalesAnalysisRepository.class),
+                mock(SalesInsightMetricsAssembler.class), mock(DistrictBenchmarkService.class),
+                mock(SalesInsightClient.class), mock(SalesInsightRegenerationPersistenceService.class),
+                mock(SalesInsightRegenerationSourceFingerprint.class), new AiCallConcurrencyGate(),
+                Clock.fixed(Instant.parse("2026-10-21T03:00:00Z"), ZoneId.of("Asia/Seoul")));
+
+        SalesInsightRegenerationBatchResult result = service.regenerateAfterDistrictQuarterImport("2026Q2");
+
+        assertThat(result.candidates()).isZero();
+        verify(insights).findAllByTargetMonthBetweenAndStatusOrderByIdAsc(
+                java.time.LocalDate.of(2026, 4, 1), java.time.LocalDate.of(2026, 12, 1),
+                SalesAiInsightStatus.COMPLETED, PageRequest.of(0, 100));
+    }
+
+    @Test
+    void 상권_적재후_500건이_넘어도_모든_인사이트를_페이지별로_처리한다() {
+        var insights = mock(SalesAiInsightRepository.class);
+        List<SalesAiInsightEntity> rows = IntStream.range(0, 501)
+                .mapToObj(index -> {
+                    var insight = mock(SalesAiInsightEntity.class);
+                    when(insight.getStoreId()).thenReturn((long) index + 1);
+                    when(insight.getTargetMonth()).thenReturn(MONTH);
+                    return insight;
+                })
+                .toList();
+        when(insights.findAllByTargetMonthBetweenAndStatusOrderByIdAsc(
+                eq(java.time.LocalDate.of(2026, 4, 1)), eq(java.time.LocalDate.of(2026, 12, 1)),
+                eq(SalesAiInsightStatus.COMPLETED), any()))
+                .thenAnswer(invocation -> {
+                    PageRequest pageRequest = invocation.getArgument(3);
+                    int start = (int) pageRequest.getOffset();
+                    int end = Math.min(start + pageRequest.getPageSize(), rows.size());
+                    return new PageImpl<>(rows.subList(start, end), pageRequest, rows.size());
+                });
+        var service = new SalesInsightRegenerationService(insights, mock(SalesAnalysisRepository.class),
+                mock(SalesInsightMetricsAssembler.class), mock(DistrictBenchmarkService.class),
+                mock(SalesInsightClient.class), mock(SalesInsightRegenerationPersistenceService.class),
+                mock(SalesInsightRegenerationSourceFingerprint.class), new AiCallConcurrencyGate(),
+                Clock.fixed(Instant.parse("2026-10-21T03:00:00Z"), ZoneId.of("Asia/Seoul")));
+        var spy = org.mockito.Mockito.spy(service);
+        org.mockito.Mockito.doReturn(SalesInsightRegenerationOutcome.COMPLETED)
+                .when(spy).regenerate(any(Long.class), eq(MONTH));
+
+        SalesInsightRegenerationBatchResult result = spy.regenerateAfterDistrictQuarterImport("2026Q2");
+
+        assertThat(result.candidates()).isEqualTo(501);
+        assertThat(result.completed()).isEqualTo(501);
+        org.mockito.Mockito.verify(spy, org.mockito.Mockito.times(501)).regenerate(any(Long.class), eq(MONTH));
+    }
+
+    @Test
+    void 인사이트_재생성_실패는_대상별_최대_세_번_자동_재시도한다() {
+        var insights = mock(SalesAiInsightRepository.class);
+        var insight = mock(SalesAiInsightEntity.class);
+        when(insight.getStoreId()).thenReturn(1L);
+        when(insight.getTargetMonth()).thenReturn(MONTH);
+        when(insights.findAllByTargetMonthBetweenAndStatusOrderByIdAsc(
+                eq(java.time.LocalDate.of(2026, 4, 1)), eq(java.time.LocalDate.of(2026, 12, 1)),
+                eq(SalesAiInsightStatus.COMPLETED), any()))
+                .thenReturn(new PageImpl<>(List.of(insight), PageRequest.of(0, 100), 1));
+        var service = new SalesInsightRegenerationService(insights, mock(SalesAnalysisRepository.class),
+                mock(SalesInsightMetricsAssembler.class), mock(DistrictBenchmarkService.class),
+                mock(SalesInsightClient.class), mock(SalesInsightRegenerationPersistenceService.class),
+                mock(SalesInsightRegenerationSourceFingerprint.class), new AiCallConcurrencyGate(),
+                Clock.fixed(Instant.parse("2026-10-21T03:00:00Z"), ZoneId.of("Asia/Seoul")));
+        var spy = org.mockito.Mockito.spy(service);
+        org.mockito.Mockito.doReturn(SalesInsightRegenerationOutcome.FAILED, SalesInsightRegenerationOutcome.FAILED,
+                SalesInsightRegenerationOutcome.COMPLETED).when(spy).regenerate(1L, MONTH);
+
+        SalesInsightRegenerationBatchResult result = spy.regenerateAfterDistrictQuarterImport("2026Q2");
+
+        assertThat(result.completed()).isEqualTo(1);
+        assertThat(result.failed()).isZero();
+        org.mockito.Mockito.verify(spy, org.mockito.Mockito.times(3)).regenerate(1L, MONTH);
+    }
+
 }

@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SalesInsightRegenerationPersistenceService {
-    private static final int MAX_ATTEMPTS = 3;
+    static final int MAX_ATTEMPTS = 3;
     private static final Duration TIMEOUT = Duration.ofMinutes(30);
     private final SalesAiInsightRepository insights;
     private final SalesAiInsightRegenerationRepository executions;
