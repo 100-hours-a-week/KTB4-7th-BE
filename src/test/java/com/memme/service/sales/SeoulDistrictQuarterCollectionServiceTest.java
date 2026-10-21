@@ -10,6 +10,7 @@ import com.memme.dto.solution.external.SeoulEstimatedSalesResponse;
 import com.memme.dto.solution.external.SeoulFootTrafficResponse;
 import com.memme.dto.solution.external.SeoulStoreCountResponse;
 import com.memme.service.solution.external.SeoulDistrictApiService;
+import com.memme.service.sales.insight.SalesInsightRegenerationService;
 import java.util.List;
 import java.util.Optional;
 import java.util.Collections;
@@ -25,8 +26,9 @@ class SeoulDistrictQuarterCollectionServiceTest {
     private final SeoulDistrictQuarterAggregationService aggregation = mock(SeoulDistrictQuarterAggregationService.class);
     private final SeoulDistrictQuarterImportPersistenceService persistence =
             mock(SeoulDistrictQuarterImportPersistenceService.class);
+    private final SalesInsightRegenerationService regeneration = mock(SalesInsightRegenerationService.class);
     private final SeoulDistrictQuarterCollectionService service =
-            new SeoulDistrictQuarterCollectionService(api, aggregation, persistence);
+            new SeoulDistrictQuarterCollectionService(api, aggregation, persistence, regeneration);
 
     @Test
     void 완료된_분기는_API를_다시_조회하지_않는다() {
@@ -66,7 +68,35 @@ class SeoulDistrictQuarterCollectionServiceTest {
         verify(api).estimatedSales(1001, 1001, "20262");
         verify(persistence).complete(7L, List.of(benchmark));
         verify(persistence, never()).fail(anyLong());
+        verify(regeneration).regenerateAfterDistrictQuarterImport("2026Q2");
         assertThat(output).contains("quarter=2026Q2, benchmarkRows=1");
+    }
+
+    @Test
+    void 상권_인사이트_재생성_실패가_완료된_분기_적재를_실패로_되돌리지_않는다() {
+        when(persistence.begin("2026Q2")).thenReturn(Optional.of(7L));
+        var sales = new SeoulEstimatedSalesResponse.Row("20262", "1168051000", "역삼1동",
+                "CS100010", "커피-음료", 12_000_000L, 100L, 1L, 1L, 1L, 1L, 1L, 1L);
+        var stores = new SeoulStoreCountResponse.Row("20262", "1168051000", "역삼1동",
+                "CS100010", "커피-음료", 4L, 0L, 0L);
+        var traffic = new SeoulFootTrafficResponse.Row("20262", "1168051000", "역삼1동",
+                100L, 1L, 1L, 1L, 1L, 1L, 1L);
+        when(api.estimatedSales(1, 1000, "20262")).thenReturn(Optional.of(new SeoulEstimatedSalesResponse(
+                new SeoulEstimatedSalesResponse.Data(1, null, List.of(sales)), null)));
+        when(api.storeCount(1, 1000, "20262")).thenReturn(Optional.of(new SeoulStoreCountResponse(
+                new SeoulStoreCountResponse.Data(1, null, List.of(stores)), null)));
+        when(api.footTraffic(1, 1000)).thenReturn(Optional.of(new SeoulFootTrafficResponse(
+                new SeoulFootTrafficResponse.Data(1, null, List.of(traffic)), null)));
+        var benchmark = new SeoulDistrictQuarterAggregationService.Benchmark(
+                "1168051000", 4, 3_000_000L, "14-17", "14-17");
+        when(aggregation.aggregate(eq("2026Q2"), anyList(), anyList(), anyList())).thenReturn(List.of(benchmark));
+        org.mockito.Mockito.doThrow(new RuntimeException("AI unavailable"))
+                .when(regeneration).regenerateAfterDistrictQuarterImport("2026Q2");
+
+        assertThat(service.collect("2026Q2")).isTrue();
+
+        verify(persistence).complete(7L, List.of(benchmark));
+        verify(persistence, never()).fail(anyLong());
     }
 
     @Test
@@ -78,6 +108,7 @@ class SeoulDistrictQuarterCollectionServiceTest {
 
         verify(persistence).fail(7L);
         verify(persistence, never()).complete(anyLong(), anyList());
+        verify(regeneration, never()).regenerateAfterDistrictQuarterImport(anyString());
     }
 
     @Test
@@ -92,6 +123,7 @@ class SeoulDistrictQuarterCollectionServiceTest {
 
         verify(persistence).fail(7L);
         verify(persistence, never()).complete(anyLong(), anyList());
+        verify(regeneration, never()).regenerateAfterDistrictQuarterImport(anyString());
     }
 
     @Test
