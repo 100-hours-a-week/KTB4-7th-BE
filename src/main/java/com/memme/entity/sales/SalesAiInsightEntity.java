@@ -100,6 +100,24 @@ public class SalesAiInsightEntity {
         status = SalesAiInsightStatus.COMPLETED;
     }
 
+    public void replaceCompleted(
+            Long expectedSalesAnalysisId,
+            Long newSalesAnalysisId,
+            List<String> generatedInsights,
+            LocalDateTime regeneratedAt
+    ) {
+        requireStatus(SalesAiInsightStatus.COMPLETED);
+        if (!Objects.equals(salesAnalysisId, expectedSalesAnalysisId)) {
+            throw new IllegalStateException("sales insight source changed during regeneration");
+        }
+        if (newSalesAnalysisId == null || generatedInsights == null || generatedInsights.isEmpty()) {
+            throw new IllegalArgumentException("regenerated sales insight data is required");
+        }
+        salesAnalysisId = newSalesAnalysisId;
+        insights = List.copyOf(generatedInsights);
+        generatedAt = Objects.requireNonNull(regeneratedAt, "regeneratedAt");
+    }
+
     public void markInsufficientData() {
         requireStatus(SalesAiInsightStatus.GENERATING);
         insights = null;

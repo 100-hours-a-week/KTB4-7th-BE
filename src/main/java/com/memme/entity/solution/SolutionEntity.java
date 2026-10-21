@@ -70,6 +70,9 @@ public class SolutionEntity {
     @Column(name = "rank_no", nullable = false)
     private int rankNo;
 
+    @Column(name = "original_rank_no")
+    private Integer originalRankNo;
+
     protected SolutionEntity() {
     }
 
@@ -195,6 +198,29 @@ public class SolutionEntity {
     }
 
     public int getRankNo() {
+        return originalRankNo == null ? rankNo : originalRankNo;
+    }
+
+    public int getStorageRankNo() {
         return rankNo;
+    }
+
+    public Integer getOriginalRankNo() {
+        return originalRankNo;
+    }
+
+    public boolean isActive() {
+        return originalRankNo == null;
+    }
+
+    public void archive(int archivalRankNo) {
+        if (!isActive()) {
+            throw new IllegalStateException("solution card is already archived");
+        }
+        if (archivalRankNo <= 0 || archivalRankNo == rankNo) {
+            throw new IllegalArgumentException("archivalRankNo must be a different positive rank");
+        }
+        originalRankNo = rankNo;
+        rankNo = archivalRankNo;
     }
 }
