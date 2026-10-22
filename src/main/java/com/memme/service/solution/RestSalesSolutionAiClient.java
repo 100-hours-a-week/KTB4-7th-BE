@@ -9,8 +9,11 @@ import java.util.Set;
 import com.memme.dto.sales.SalesSolutionGenerationRequest;
 import com.memme.dto.sales.SalesSolutionGenerationResponse;
 import com.memme.dto.sales.SalesSolutionGenerationStatus;
+import com.memme.dto.sales.SalesSolutionMetrics;
 import com.memme.exception.solution.SalesSolutionAiException;
 import jakarta.validation.Validator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -26,6 +29,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Component
 public class RestSalesSolutionAiClient implements SalesSolutionAiClient {
 
+    private static final Logger log = LoggerFactory.getLogger(RestSalesSolutionAiClient.class);
     private static final String GENERATION_PATH = "/internal/v1/ai/solutions/generate";
     private static final Set<Integer> RETRYABLE_STATUS_CODES = Set.of(502, 503, 504);
 
@@ -74,6 +78,12 @@ public class RestSalesSolutionAiClient implements SalesSolutionAiClient {
             if (!internalAiToken.isBlank()) {
                 requestSpec.header(HttpHeaders.AUTHORIZATION, "Bearer " + internalAiToken);
             }
+            SalesSolutionMetrics metrics = request.metrics();
+            log.info("Solution AI request metrics: storeId={}, targetDate={}, weatherContextIncluded={}, "
+                            + "isNotable={}, menuRankingsIncluded={}, businessHoursIncluded={}",
+                    request.storeId(), request.targetDate(), metrics.weatherContext() != null,
+                    metrics.weatherContext() == null ? null : metrics.weatherContext().isNotable(),
+                    metrics.menuRankings() != null, metrics.businessHours() != null);
             SalesSolutionGenerationResponse response = requestSpec
                     .body(request)
                     .retrieve()
