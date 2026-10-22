@@ -64,6 +64,8 @@ app:
     address: ${QA_ACCOUNT_ADDRESS:}
     address-detail: ${QA_ACCOUNT_ADDRESS_DETAIL:}
   sales:
+    upload:
+      queue-capacity: ${SALES_UPLOAD_QUEUE_CAPACITY:10}
     storage:
       type: ${SALES_STORAGE_TYPE:local}
       s3:
