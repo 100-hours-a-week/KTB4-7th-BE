@@ -10,10 +10,9 @@ public record SalesUploadStatusResponse(
     public record Data(
             Long uploadId,
             Long analysisRunId,
-            Progress progress,
+            String processingPhase,
             Long analysisId,
+            String aiInsightStatus,
             boolean retryable
     ) {}
-
-    public record Progress(String step, int percent) {}
 }
