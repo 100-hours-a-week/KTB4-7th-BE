@@ -5,6 +5,8 @@ import java.time.Duration;
 
 import com.memme.dto.sales.SalesInsightRequest;
 import com.memme.dto.sales.SalesInsightResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -19,6 +21,7 @@ import org.springframework.web.client.RestClientResponseException;
 @Component
 public class RestSalesInsightClient implements SalesInsightClient {
 
+    private static final Logger log = LoggerFactory.getLogger(RestSalesInsightClient.class);
     static final String PATH = "/internal/v1/ai/sales-insights";
     private static final int MAX_RETRY_COUNT = 1;
     private static final Duration RETRY_DELAY = Duration.ofMillis(500);
@@ -96,6 +99,9 @@ public class RestSalesInsightClient implements SalesInsightClient {
         if (!bearerToken.isBlank()) {
             spec.header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
         }
+        log.info("Insight AI request metrics: storeId={}, targetMonth={}, triggerType={}, districtBenchmarkIncluded={}",
+                request.storeId(), request.targetMonth(), request.triggerType(),
+                request.metrics().districtBenchmark() != null);
         return spec.body(request)
                 .retrieve()
                 .body(SalesInsightResponse.class);

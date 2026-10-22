@@ -12,10 +12,14 @@ import com.memme.dto.sales.SalesInsightRequest;
 import com.memme.dto.sales.SalesInsightStatus;
 import com.memme.dto.sales.SalesInsightTriggerType;
 import com.memme.dto.sales.SalesSummaryMetric;
+import com.memme.dto.sales.DistrictBenchmarkMetric;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -31,6 +35,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+@ExtendWith(OutputCaptureExtension.class)
 class RestSalesInsightClientTest {
 
     private static final String BASE_URL = "http://ai.test";
@@ -59,6 +64,48 @@ class RestSalesInsightClientTest {
 
         assertThat(response.status()).isEqualTo(SalesInsightStatus.COMPLETED);
         assertThat(response.data().insights()).containsExactly("9월 총 매출은 7,920,000원입니다.");
+        server.verify();
+    }
+
+    @Test
+    void logsDistrictBenchmarkPresenceWithoutMetricDetails(CapturedOutput output) {
+        RestSalesInsightClient client = client("internal-token", ignored -> { });
+        SalesInsightRequest base = request();
+        SalesInsightMetrics baseMetrics = base.metrics();
+        SalesInsightMetrics metrics = new SalesInsightMetrics(
+                baseMetrics.salesSummary(), baseMetrics.salesTrend(), baseMetrics.weekdaySales(),
+                baseMetrics.hourlySales(), baseMetrics.categorySales(), baseMetrics.menuRankings(),
+                new DistrictBenchmarkMetric("2026Q2", 16887880, 159, "11-14", "17-21"));
+        SalesInsightRequest withBenchmark = new SalesInsightRequest(
+                base.storeId(), base.salesAnalysisId(), base.analysisRunId(), base.targetMonth(),
+                SalesInsightTriggerType.RETRY, metrics, base.maxInsightCount());
+        server.expect(requestTo(INSIGHT_URL))
+                .andRespond(withSuccess(completedResponse(), MediaType.APPLICATION_JSON));
+
+        client.generate(withBenchmark);
+
+        String diagnostic = output.getOut().lines()
+                .filter(line -> line.contains("Insight AI request metrics:"))
+                .findFirst().orElse("");
+        assertThat(diagnostic).contains("storeId=1", "targetMonth=2026-09",
+                "triggerType=RETRY", "districtBenchmarkIncluded=true");
+        assertThat(diagnostic).doesNotContain("internal-token", "16887880", "2026Q2", "159");
+        server.verify();
+    }
+
+    @Test
+    void logsDistrictBenchmarkAbsence(CapturedOutput output) {
+        RestSalesInsightClient client = client("internal-token", ignored -> { });
+        server.expect(requestTo(INSIGHT_URL))
+                .andRespond(withSuccess(completedResponse(), MediaType.APPLICATION_JSON));
+
+        client.generate(request());
+
+        String diagnostic = output.getOut().lines()
+                .filter(line -> line.contains("Insight AI request metrics:"))
+                .findFirst().orElse("");
+        assertThat(diagnostic).contains("storeId=1", "targetMonth=2026-09",
+                "triggerType=UPLOAD", "districtBenchmarkIncluded=false");
         server.verify();
     }
 
