@@ -111,7 +111,8 @@ class SalesFlowIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value("COMPLETED"))
                     .andExpect(jsonPath("$.data.analysisRunId").value(runId))
-                    .andExpect(jsonPath("$.data.progress.percent").value(100));
+                    .andExpect(jsonPath("$.data.processingPhase").isEmpty())
+                    .andExpect(jsonPath("$.data.progress").doesNotExist());
             mvc.perform(get("/v1/sales/analyses").param("periodType", "CUSTOM")
                             .param("startDate", parsed.periodStart().toString())
                             .param("endDate", parsed.periodEnd().toString())

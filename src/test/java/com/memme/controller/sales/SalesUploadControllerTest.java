@@ -119,8 +119,9 @@ class SalesUploadControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PROCESSING"))
                 .andExpect(jsonPath("$.data.analysisRunId").value(34))
-                .andExpect(jsonPath("$.data.progress.step").value("ANALYZING"))
-                .andExpect(jsonPath("$.data.progress.percent").value(90));
+                .andExpect(jsonPath("$.data.processingPhase").value("ANALYZING"))
+                .andExpect(jsonPath("$.data.aiInsightStatus").value("PENDING"))
+                .andExpect(jsonPath("$.data.progress").doesNotExist());
     }
 
     @Test
