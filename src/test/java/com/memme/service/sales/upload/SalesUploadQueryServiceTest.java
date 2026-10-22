@@ -106,8 +106,8 @@ class SalesUploadQueryServiceTest {
 
         assertThat(response.status()).isEqualTo("PROCESSING");
         assertThat(response.data().analysisRunId()).isEqualTo(34L);
-        assertThat(response.data().progress().step()).isEqualTo("ANALYZING");
-        assertThat(response.data().progress().percent()).isEqualTo(90);
+        assertThat(response.data().processingPhase()).isEqualTo("ANALYZING");
+        assertThat(response.data().aiInsightStatus()).isEqualTo("PENDING");
         assertThat(response.data().retryable()).isFalse();
     }
 

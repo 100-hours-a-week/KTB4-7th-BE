@@ -10,10 +10,18 @@ public record SalesUploadStatusResponse(
     public record Data(
             Long uploadId,
             Long analysisRunId,
-            Progress progress,
+            String processingPhase,
             Long analysisId,
+            String aiInsightStatus,
             boolean retryable
-    ) {}
+    ) {
+        public Data(Long uploadId, Long analysisRunId, Progress progress, Long analysisId, boolean retryable) {
+            this(uploadId, analysisRunId,
+                    progress == null || "PENDING".equals(progress.step()) || "COMPLETED".equals(progress.step())
+                            ? null : progress.step(),
+                    analysisId, "PENDING", retryable);
+        }
+    }
 
     public record Progress(String step, int percent) {}
 }
