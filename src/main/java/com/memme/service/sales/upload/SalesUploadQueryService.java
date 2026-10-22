@@ -6,17 +6,20 @@ import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import com.memme.dto.sales.SalesUploadHistoryRequest;
 import com.memme.dto.sales.SalesUploadHistoryResponse;
 import com.memme.dto.sales.SalesUploadStatusResponse;
 import com.memme.entity.sales.AnalysisRunEntity;
+import com.memme.entity.sales.SalesAnalysisEntity;
+import com.memme.entity.sales.SalesAiInsightEntity;
 import com.memme.entity.sales.SalesAiInsightStatus;
 import com.memme.entity.sales.SalesUploadEntity;
-import com.memme.entity.sales.SalesUploadProcessingPhase;
 import com.memme.entity.sales.SalesUploadStatus;
 import com.memme.exception.sales.SalesUploadQueryException;
 import com.memme.repository.sales.AnalysisRunRepository;
+import com.memme.repository.sales.SalesAnalysisRepository;
 import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesUploadRepository;
@@ -42,19 +45,22 @@ public class SalesUploadQueryService {
     private final AnalysisRunRepository analysisRunRepository;
     private final SalesAiInsightRepository insightRepository;
     private final StoreOwnershipRepository storeOwnershipRepository;
+    private final SalesAnalysisRepository salesAnalysisRepository;
 
     public SalesUploadQueryService(
             SalesUploadRepository uploadRepository,
             SalesOrderItemRepository salesOrderItemRepository,
             AnalysisRunRepository analysisRunRepository,
             SalesAiInsightRepository insightRepository,
-            StoreOwnershipRepository storeOwnershipRepository
+            StoreOwnershipRepository storeOwnershipRepository,
+            SalesAnalysisRepository salesAnalysisRepository
     ) {
         this.uploadRepository = uploadRepository;
         this.salesOrderItemRepository = salesOrderItemRepository;
         this.analysisRunRepository = analysisRunRepository;
         this.insightRepository = insightRepository;
         this.storeOwnershipRepository = storeOwnershipRepository;
+        this.salesAnalysisRepository = salesAnalysisRepository;
     }
 
     public SalesUploadHistoryResponse getHistory(
@@ -92,30 +98,50 @@ public class SalesUploadQueryService {
                 .findFirstByBasedOnUploadIdOrderByIdDesc(uploadId)
                 .orElseThrow(() -> new SalesUploadQueryException(UPLOAD_NOT_FOUND));
 
+        Optional<SalesAiInsightEntity> insight = upload.getPeriodEnd() == null
+                ? Optional.empty()
+                : insightRepository.findByStoreIdAndTargetMonth(
+                        upload.getStoreId(), YearMonth.from(upload.getPeriodEnd()));
+        SalesAiInsightStatus insightStatus = insight.map(SalesAiInsightEntity::getStatus)
+                .orElse(SalesAiInsightStatus.PENDING);
+        Long analysisId = findAnalysisId(uploadId, analysisRun, insight);
+        boolean retryable = upload.getStatus() == SalesUploadStatus.COMPLETED
+                && insightStatus == SalesAiInsightStatus.FAILED
+                && analysisId != null
+                && insight.map(found -> analysisId.equals(found.getSalesAnalysisId())).orElse(false);
+
         return new SalesUploadStatusResponse(
-                messageOf(upload.getStatus()),
+                retryable ? "기본 매출 분석은 완료되었지만 AI 인사이트 생성에 실패했습니다." : messageOf(upload.getStatus()),
                 upload.getStatus().name(),
-                upload.getFailReason(),
+                retryable ? "AI_INSIGHT_ERROR" : upload.getFailReason(),
                 new SalesUploadStatusResponse.Data(
                         upload.getId(),
                         analysisRun.getId(),
-                        progressOf(upload),
-                        null,
-                        retryable(upload)
+                        upload.getStatus() == SalesUploadStatus.COMPLETED || upload.getProcessingPhase() == null
+                                ? null : upload.getProcessingPhase().name(),
+                        analysisId,
+                        insightStatus.name(),
+                        retryable
                 )
         );
     }
 
-    private boolean retryable(SalesUploadEntity upload) {
-        if (upload.getStatus() != SalesUploadStatus.COMPLETED || upload.getPeriodEnd() == null) {
-            return false;
+    private Long findAnalysisId(
+            Long uploadId,
+            AnalysisRunEntity currentRun,
+            Optional<SalesAiInsightEntity> insight
+    ) {
+        Optional<SalesAnalysisEntity> currentAnalysis = salesAnalysisRepository.findByAnalysisRunId(currentRun.getId());
+        if (currentAnalysis.isPresent()) {
+            return currentAnalysis.get().getId();
         }
-        return insightRepository.findByStoreIdAndTargetMonth(
-                        upload.getStoreId(),
-                        YearMonth.from(upload.getPeriodEnd())
-                )
-                .map(insight -> insight.getStatus() == SalesAiInsightStatus.FAILED)
-                .orElse(false);
+        return insight.map(SalesAiInsightEntity::getSalesAnalysisId)
+                .flatMap(salesAnalysisRepository::findById)
+                .filter(analysis -> analysisRunRepository.findById(analysis.getAnalysisRunId())
+                        .map(run -> uploadId.equals(run.getBasedOnUploadId()))
+                        .orElse(false))
+                .map(SalesAnalysisEntity::getId)
+                .orElse(null);
     }
 
     private Page<SalesUploadEntity> findUploads(
@@ -158,33 +184,9 @@ public class SalesUploadQueryService {
         return upload.getUploadedAt().atZone(SEOUL).toOffsetDateTime();
     }
 
-    private SalesUploadStatusResponse.Progress progressOf(SalesUploadEntity upload) {
-        return switch (upload.getStatus()) {
-            case PENDING -> new SalesUploadStatusResponse.Progress("PENDING", 0);
-            case COMPLETED -> new SalesUploadStatusResponse.Progress("COMPLETED", 100);
-            case FAILED -> new SalesUploadStatusResponse.Progress("FAILED", phasePercent(upload.getProcessingPhase()));
-            case PROCESSING -> new SalesUploadStatusResponse.Progress(
-                    upload.getProcessingPhase() == null ? "PROCESSING" : upload.getProcessingPhase().name(),
-                    phasePercent(upload.getProcessingPhase())
-            );
-        };
-    }
-
-    private int phasePercent(SalesUploadProcessingPhase phase) {
-        if (phase == null) {
-            return 0;
-        }
-        return switch (phase) {
-            case VALIDATING -> 20;
-            case NORMALIZING -> 40;
-            case AGGREGATING -> 70;
-            case ANALYZING -> 90;
-        };
-    }
-
     private String messageOf(SalesUploadStatus status) {
         return switch (status) {
-            case PENDING -> "매출 파일 업로드를 기다리고 있습니다.";
+            case PENDING -> "매출 파일 처리를 기다리고 있습니다.";
             case PROCESSING -> "매출 파일을 처리하고 있습니다.";
             case COMPLETED -> "매출 파일 처리가 완료되었습니다.";
             case FAILED -> "매출 파일 처리에 실패했습니다.";
