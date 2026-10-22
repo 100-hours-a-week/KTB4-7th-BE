@@ -90,7 +90,7 @@ class SalesFlowIntegrationTest {
             var response = mvc.perform(multipart("/v1/sales/uploads")
                             .file(new MockMultipartFile("file", "sample.xlsx", null, content))
                             .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE, USER))
-                    .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING"))
+                    .andExpect(status().isAccepted()).andExpect(jsonPath("$.status").value("PENDING"))
                     .andReturn().getResponse().getContentAsString();
             var json = new tools.jackson.databind.ObjectMapper().readTree(response);
             long uploadId = json.path("data").path("uploadId").asLong();
@@ -110,7 +110,7 @@ class SalesFlowIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.connection.latestStatus").value("COMPLETED"))
                     .andExpect(jsonPath("$.items[0].uploadId").value(uploadId));
-            mvc.perform(get("/v1/sales/uploads/{uploadId}", uploadId)
+            mvc.perform(get("/v1/sales/uploads/{uploadId}/status", uploadId)
                             .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE, USER))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value("COMPLETED"))
@@ -133,11 +133,11 @@ class SalesFlowIntegrationTest {
         var invalidResponse = mvc.perform(multipart("/v1/sales/uploads")
                         .file(new MockMultipartFile("file", "invalid.xlsx", null, new byte[]{1, 2, 3}))
                         .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE, USER))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+                .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString();
         long invalidId = new tools.jackson.databind.ObjectMapper().readTree(invalidResponse)
                 .path("data").path("uploadId").asLong();
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
-                mvc.perform(get("/v1/sales/uploads/{uploadId}", invalidId)
+                mvc.perform(get("/v1/sales/uploads/{uploadId}/status", invalidId)
                         .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE, USER))
                         .andExpect(jsonPath("$.status").value("FAILED")));
         assertThat(summaries.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
