@@ -4,6 +4,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.concurrent.RejectedExecutionException;
+
+import com.memme.exception.sales.SalesUploadProcessingException;
 
 import com.memme.exception.sales.SalesUploadRequestException;
 import com.memme.repository.store.StoreOwnershipRepository;
@@ -19,18 +22,18 @@ public class SalesUploadService {
 
     private final SalesFileStorage fileStorage;
     private final SalesUploadLifecycleService lifecycleService;
-    private final SalesUploadProcessingService processingService;
+    private final SalesUploadWorker worker;
     private final StoreOwnershipRepository storeOwnershipRepository;
 
     public SalesUploadService(
             SalesFileStorage fileStorage,
             SalesUploadLifecycleService lifecycleService,
-            SalesUploadProcessingService processingService,
+            SalesUploadWorker worker,
             StoreOwnershipRepository storeOwnershipRepository
     ) {
         this.fileStorage = fileStorage;
         this.lifecycleService = lifecycleService;
-        this.processingService = processingService;
+        this.worker = worker;
         this.storeOwnershipRepository = storeOwnershipRepository;
     }
 
@@ -53,12 +56,17 @@ public class SalesUploadService {
                 storedFile.storageKey(),
                 checksum
         );
-        processingService.process(pendingReceipt.uploadId());
-        return new SalesUploadReceipt(
-                pendingReceipt.uploadId(),
-                pendingReceipt.analysisRunId(),
-                "COMPLETED"
-        );
+        try {
+            worker.process(pendingReceipt.uploadId());
+        } catch (RejectedExecutionException exception) {
+            lifecycleService.markFailed(
+                    pendingReceipt.uploadId(),
+                    "UPLOAD_PROCESSING_ERROR",
+                    "업로드 처리 대기열이 가득 찼습니다. 잠시 후 다시 시도해 주세요."
+            );
+            throw new SalesUploadProcessingException("업로드 접수에 실패했습니다. 기존 데이터는 유지됩니다.", exception);
+        }
+        return pendingReceipt;
     }
 
     private void validateStoreOwner(SalesUploadCommand command) {

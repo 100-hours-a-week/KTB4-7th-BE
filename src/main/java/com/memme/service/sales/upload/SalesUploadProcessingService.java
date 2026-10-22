@@ -86,13 +86,12 @@ public class SalesUploadProcessingService {
                     data.periodEnd()
             );
             Long salesAnalysisId = snapshotService.persist(uploadId, analysis);
-            startSalesInsightGeneration(
-                    uploadId,
-                    upload.getStoreId(),
-                    salesAnalysisId,
-                    data
-            );
             lifecycleService.markCompleted(uploadId, result.appliedRecordCount());
+            try {
+                startSalesInsightGeneration(uploadId, upload.getStoreId(), salesAnalysisId, data);
+            } catch (RuntimeException exception) {
+                log.warn("Sales insight generation could not be started for uploadId={}", uploadId, exception);
+            }
             recalculateRanking(data, uploadId);
             startAiPostProcessing(upload, uploadId, data);
             return result;

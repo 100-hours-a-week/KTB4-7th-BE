@@ -28,6 +28,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import java.time.Duration;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -88,16 +90,18 @@ class SalesFlowIntegrationTest {
             var response = mvc.perform(multipart("/v1/sales/uploads")
                             .file(new MockMultipartFile("file", "sample.xlsx", null, content))
                             .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE, USER))
-                    .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING"))
                     .andReturn().getResponse().getContentAsString();
             var json = new tools.jackson.databind.ObjectMapper().readTree(response);
             long uploadId = json.path("data").path("uploadId").asLong();
             long runId = json.path("data").path("analysisRunId").asLong();
-            assertThat(runs.findById(runId).orElseThrow().getStatus()).isEqualTo(AnalysisRunStatus.COMPLETED);
-            assertThat(insights.findByStoreIdAndTargetMonth(
-                    STORE_ID,
-                    YearMonth.from(parsed.periodEnd())
-            ).orElseThrow().getStatus()).isEqualTo(SalesAiInsightStatus.INSUFFICIENT_DATA);
+            await().atMost(Duration.ofSeconds(20)).untilAsserted(() -> {
+                assertThat(runs.findById(runId).orElseThrow().getStatus()).isEqualTo(AnalysisRunStatus.COMPLETED);
+                assertThat(insights.findByStoreIdAndTargetMonth(
+                        STORE_ID, YearMonth.from(parsed.periodEnd())
+                )).hasValueSatisfying(insight ->
+                        assertThat(insight.getStatus()).isEqualTo(SalesAiInsightStatus.INSUFFICIENT_DATA));
+            });
             mvc.perform(get("/v1/sales/uploads")
                             .param("targetMonth", parsed.periodStart().toString().substring(0, 7))
                             .param("page", "1")
@@ -111,8 +115,8 @@ class SalesFlowIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value("COMPLETED"))
                     .andExpect(jsonPath("$.data.analysisRunId").value(runId))
-                    .andExpect(jsonPath("$.data.processingPhase").isEmpty())
-                    .andExpect(jsonPath("$.data.progress").doesNotExist());
+                    .andExpect(jsonPath("$.data.aiInsightStatus").value("INSUFFICIENT_DATA"))
+                    .andExpect(jsonPath("$.data.analysisId").isNumber());
             mvc.perform(get("/v1/sales/analyses").param("periodType", "CUSTOM")
                             .param("startDate", parsed.periodStart().toString())
                             .param("endDate", parsed.periodEnd().toString())
@@ -126,10 +130,16 @@ class SalesFlowIntegrationTest {
                             .value("AI 인사이트를 확인하려면 최소 2주(14일) 이상의 매출 데이터가 필요합니다."));
         }
         // Invalid workbook must not replace previously successful sales.
-        mvc.perform(multipart("/v1/sales/uploads")
+        var invalidResponse = mvc.perform(multipart("/v1/sales/uploads")
                         .file(new MockMultipartFile("file", "invalid.xlsx", null, new byte[]{1, 2, 3}))
                         .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE, USER))
-                .andExpect(status().is4xxClientError());
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        long invalidId = new tools.jackson.databind.ObjectMapper().readTree(invalidResponse)
+                .path("data").path("uploadId").asLong();
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                mvc.perform(get("/v1/sales/uploads/{uploadId}", invalidId)
+                        .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE, USER))
+                        .andExpect(jsonPath("$.status").value("FAILED")));
         assertThat(summaries.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
                 STORE_ID, parsed.periodStart(), parsed.periodEnd()).stream()
                 .mapToLong(summary -> summary.getTotalNetAmount()).sum()).isEqualTo(expectedSales);

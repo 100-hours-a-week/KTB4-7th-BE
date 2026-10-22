@@ -11,6 +11,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -19,7 +21,7 @@ class SalesUploadServiceTest {
 
     private SalesFileStorage fileStorage;
     private SalesUploadLifecycleService lifecycleService;
-    private SalesUploadProcessingService processingService;
+    private SalesUploadWorker worker;
     private StoreOwnershipRepository storeOwnershipRepository;
     private SalesUploadService service;
 
@@ -27,18 +29,18 @@ class SalesUploadServiceTest {
     void setUp() {
         fileStorage = mock(SalesFileStorage.class);
         lifecycleService = mock(SalesUploadLifecycleService.class);
-        processingService = mock(SalesUploadProcessingService.class);
+        worker = mock(SalesUploadWorker.class);
         storeOwnershipRepository = mock(StoreOwnershipRepository.class);
         service = new SalesUploadService(
                 fileStorage,
                 lifecycleService,
-                processingService,
+                worker,
                 storeOwnershipRepository
         );
     }
 
     @Test
-    void validatesStoresProcessesFileAndReturnsCompletedReceipt() {
+    void storesFileAndSchedulesWorkerBeforeReturningPendingReceipt() {
         SalesUploadCommand command = command("sales.xlsx", new byte[]{1, 2, 3});
         SalesUploadReceipt pending = new SalesUploadReceipt(12L, 21L, "PENDING");
 
@@ -47,10 +49,12 @@ class SalesUploadServiceTest {
         when(lifecycleService.createPending(any(), any(), any(), any(), any())).thenReturn(pending);
 
         assertThat(service.upload(command)).isEqualTo(
-                new SalesUploadReceipt(12L, 21L, "COMPLETED")
+                pending
         );
-        verify(lifecycleService).createPending(any(), any(), any(), any(), any());
-        verify(processingService).process(12L);
+        var order = inOrder(fileStorage, lifecycleService, worker);
+        order.verify(fileStorage).store(any());
+        order.verify(lifecycleService).createPending(any(), any(), any(), any(), any());
+        order.verify(worker).process(12L);
     }
 
     @Test
@@ -61,7 +65,7 @@ class SalesUploadServiceTest {
         assertThatThrownBy(() -> service.upload(command))
                 .isInstanceOf(SalesUploadRequestException.class)
                 .hasMessage("매장 소유자만 매출 파일을 업로드할 수 있습니다.");
-        verifyNoInteractions(fileStorage, lifecycleService, processingService);
+        verifyNoInteractions(fileStorage, lifecycleService, worker);
     }
 
     @Test
@@ -71,7 +75,7 @@ class SalesUploadServiceTest {
         assertThatThrownBy(() -> service.upload(command))
                 .isInstanceOf(SalesUploadRequestException.class)
                 .hasMessage("파일 크기가 10MB를 초과했습니다.");
-        verifyNoInteractions(fileStorage, lifecycleService, processingService, storeOwnershipRepository);
+        verifyNoInteractions(fileStorage, lifecycleService, worker, storeOwnershipRepository);
     }
 
     @Test
@@ -81,7 +85,34 @@ class SalesUploadServiceTest {
         assertThatThrownBy(() -> service.upload(command))
                 .isInstanceOf(SalesUploadRequestException.class)
                 .hasMessage("지원하지 않는 파일 형식입니다.");
-        verifyNoInteractions(fileStorage, lifecycleService, processingService, storeOwnershipRepository);
+        verifyNoInteractions(fileStorage, lifecycleService, worker, storeOwnershipRepository);
+    }
+
+    @Test
+    void recordsFailureAndRejectsReceiptWhenWorkerQueueIsFull() {
+        when(storeOwnershipRepository.existsActiveStoreOwnedBy(1L, 7L)).thenReturn(true);
+        when(fileStorage.store(any())).thenReturn(new StoredSalesFile("1/file.xlsx"));
+        when(lifecycleService.createPending(any(), any(), any(), any(), any()))
+                .thenReturn(new SalesUploadReceipt(12L, 21L, "PENDING"));
+        doThrow(new java.util.concurrent.RejectedExecutionException("full"))
+                .when(worker).process(12L);
+
+        assertThatThrownBy(() -> service.upload(command("sales.xlsx", new byte[]{1})))
+                .isInstanceOf(com.memme.exception.sales.SalesUploadProcessingException.class);
+        verify(lifecycleService).markFailed(12L, "UPLOAD_PROCESSING_ERROR",
+                "업로드 처리 대기열이 가득 찼습니다. 잠시 후 다시 시도해 주세요.");
+    }
+
+    @Test
+    void doesNotStartWorkerWhenPendingTransactionFails() {
+        when(storeOwnershipRepository.existsActiveStoreOwnedBy(1L, 7L)).thenReturn(true);
+        when(fileStorage.store(any())).thenReturn(new StoredSalesFile("1/file.xlsx"));
+        when(lifecycleService.createPending(any(), any(), any(), any(), any()))
+                .thenThrow(new IllegalStateException("DB failure"));
+
+        assertThatThrownBy(() -> service.upload(command("sales.xlsx", new byte[]{1})))
+                .isInstanceOf(IllegalStateException.class);
+        verifyNoInteractions(worker);
     }
 
     private SalesUploadCommand command(String fileName, byte[] content) {
