@@ -8,7 +8,6 @@ import java.util.Optional;
 
 import com.memme.dto.sales.SalesUploadHistoryRequest;
 import com.memme.entity.sales.AnalysisRunEntity;
-import com.memme.entity.sales.SalesAnalysisEntity;
 import com.memme.entity.sales.SalesAiInsightEntity;
 import com.memme.entity.sales.SalesAiInsightStatus;
 import com.memme.entity.sales.SalesUploadEntity;
@@ -16,7 +15,6 @@ import com.memme.entity.sales.SalesUploadProcessingPhase;
 import com.memme.entity.sales.SalesUploadStatus;
 import com.memme.exception.sales.SalesUploadQueryException;
 import com.memme.repository.sales.AnalysisRunRepository;
-import com.memme.repository.sales.SalesAnalysisRepository;
 import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesUploadRepository;
@@ -40,7 +38,6 @@ class SalesUploadQueryServiceTest {
     private SalesAiInsightRepository insightRepository;
     private StoreOwnershipRepository storeOwnershipRepository;
     private SalesUploadQueryService service;
-    private SalesAnalysisRepository salesAnalysisRepository;
 
     @BeforeEach
     void setUp() {
@@ -49,14 +46,12 @@ class SalesUploadQueryServiceTest {
         analysisRunRepository = mock(AnalysisRunRepository.class);
         insightRepository = mock(SalesAiInsightRepository.class);
         storeOwnershipRepository = mock(StoreOwnershipRepository.class);
-        salesAnalysisRepository = mock(SalesAnalysisRepository.class);
         service = new SalesUploadQueryService(
                 uploadRepository,
                 salesOrderItemRepository,
                 analysisRunRepository,
                 insightRepository,
-                storeOwnershipRepository,
-                salesAnalysisRepository
+                storeOwnershipRepository
         );
     }
 
@@ -111,8 +106,8 @@ class SalesUploadQueryServiceTest {
 
         assertThat(response.status()).isEqualTo("PROCESSING");
         assertThat(response.data().analysisRunId()).isEqualTo(34L);
-        assertThat(response.data().processingPhase()).isEqualTo("ANALYZING");
-        assertThat(response.data().aiInsightStatus()).isEqualTo("PENDING");
+        assertThat(response.data().progress().step()).isEqualTo("ANALYZING");
+        assertThat(response.data().progress().percent()).isEqualTo(90);
         assertThat(response.data().retryable()).isFalse();
     }
 
@@ -125,10 +120,6 @@ class SalesUploadQueryServiceTest {
         SalesAiInsightEntity insight = mock(SalesAiInsightEntity.class);
         when(run.getId()).thenReturn(34L);
         when(insight.getStatus()).thenReturn(SalesAiInsightStatus.FAILED);
-        when(insight.getSalesAnalysisId()).thenReturn(51L);
-        SalesAnalysisEntity analysis = mock(SalesAnalysisEntity.class);
-        when(analysis.getId()).thenReturn(51L);
-        when(salesAnalysisRepository.findByAnalysisRunId(34L)).thenReturn(Optional.of(analysis));
         when(storeOwnershipRepository.existsActiveStoreOwnedBy(storeId, userId)).thenReturn(true);
         when(uploadRepository.findById(12L)).thenReturn(Optional.of(upload));
         when(analysisRunRepository.findFirstByBasedOnUploadIdOrderByIdDesc(12L))
@@ -139,66 +130,6 @@ class SalesUploadQueryServiceTest {
         var response = service.getStatus(userId, storeId, 12L);
 
         assertThat(response.data().retryable()).isTrue();
-        assertThat(response.status()).isEqualTo("COMPLETED");
-        assertThat(response.failReason()).isEqualTo("AI_INSIGHT_ERROR");
-        assertThat(response.data().processingPhase()).isNull();
-        assertThat(response.data().aiInsightStatus()).isEqualTo("FAILED");
-    }
-
-    @Test
-    void keepsOriginalAnalysisIdWhenLatestRunIsAnInsightRetry() {
-        var upload = upload(12L, 301L, SalesUploadStatus.COMPLETED);
-        var retryRun = mock(AnalysisRunEntity.class);
-        var originalRun = mock(AnalysisRunEntity.class);
-        var analysis = mock(SalesAnalysisEntity.class);
-        var insight = mock(SalesAiInsightEntity.class);
-        when(storeOwnershipRepository.existsActiveStoreOwnedBy(301L, 7L)).thenReturn(true);
-        when(uploadRepository.findById(12L)).thenReturn(Optional.of(upload));
-        when(analysisRunRepository.findFirstByBasedOnUploadIdOrderByIdDesc(12L)).thenReturn(Optional.of(retryRun));
-        when(retryRun.getId()).thenReturn(35L);
-        when(insightRepository.findByStoreIdAndTargetMonth(301L, YearMonth.of(2026, 9)))
-                .thenReturn(Optional.of(insight));
-        when(insight.getStatus()).thenReturn(SalesAiInsightStatus.GENERATING);
-        when(insight.getSalesAnalysisId()).thenReturn(51L);
-        when(salesAnalysisRepository.findById(51L)).thenReturn(Optional.of(analysis));
-        when(analysis.getId()).thenReturn(51L);
-        when(analysis.getAnalysisRunId()).thenReturn(34L);
-        when(analysisRunRepository.findById(34L)).thenReturn(Optional.of(originalRun));
-        when(originalRun.getBasedOnUploadId()).thenReturn(12L);
-
-        var response = service.getStatus(7L, 301L, 12L);
-
-        assertThat(response.data().analysisRunId()).isEqualTo(35L);
-        assertThat(response.data().analysisId()).isEqualTo(51L);
-        assertThat(response.data().aiInsightStatus()).isEqualTo("GENERATING");
-        assertThat(response.data().retryable()).isFalse();
-    }
-
-    @Test
-    void doesNotReturnAnotherUploadsAnalysisForTheSameMonth() {
-        var upload = upload(12L, 301L, SalesUploadStatus.COMPLETED);
-        var run = mock(AnalysisRunEntity.class);
-        var previousRun = mock(AnalysisRunEntity.class);
-        var analysis = mock(SalesAnalysisEntity.class);
-        var insight = mock(SalesAiInsightEntity.class);
-        when(storeOwnershipRepository.existsActiveStoreOwnedBy(301L, 7L)).thenReturn(true);
-        when(uploadRepository.findById(12L)).thenReturn(Optional.of(upload));
-        when(analysisRunRepository.findFirstByBasedOnUploadIdOrderByIdDesc(12L)).thenReturn(Optional.of(run));
-        when(run.getId()).thenReturn(34L);
-        when(insightRepository.findByStoreIdAndTargetMonth(301L, YearMonth.of(2026, 9)))
-                .thenReturn(Optional.of(insight));
-        when(insight.getStatus()).thenReturn(SalesAiInsightStatus.FAILED);
-        when(insight.getSalesAnalysisId()).thenReturn(40L);
-        when(salesAnalysisRepository.findById(40L)).thenReturn(Optional.of(analysis));
-        when(analysis.getAnalysisRunId()).thenReturn(30L);
-        when(analysisRunRepository.findById(30L)).thenReturn(Optional.of(previousRun));
-        when(previousRun.getBasedOnUploadId()).thenReturn(11L);
-
-        var response = service.getStatus(7L, 301L, 12L);
-
-        assertThat(response.data().analysisId()).isNull();
-        assertThat(response.data().retryable()).isFalse();
-        assertThat(response.failReason()).isNull();
     }
 
     @Test

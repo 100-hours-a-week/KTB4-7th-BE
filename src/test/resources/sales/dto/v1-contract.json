@@ -4,12 +4,11 @@
     "wrapper": "com.memme.dto.common.StatusResponse",
     "dataType": "com.memme.dto.sales.SalesUploadResponse",
     "json": {
-      "message": "매출 파일 업로드를 접수했습니다.",
-      "status": "PENDING",
+      "message": "매출 파일 업로드가 완료되었습니다.",
+      "status": "COMPLETED",
       "data": {
         "uploadId": 12,
-        "analysisRunId": 34,
-        "processingPhase": null
+        "analysisRunId": 34
       }
     }
   },
@@ -151,16 +150,18 @@
     "wrapper": "com.memme.dto.sales.SalesUploadStatusResponse",
     "dataType": null,
     "json": {
-      "message": "파일을 검증하고 있습니다.",
+      "message": "매출 패턴을 분석하고 있습니다.",
       "status": "PROCESSING",
       "failReason": null,
       "data": {
         "uploadId": 12,
         "analysisRunId": 34,
+        "progress": {
+          "step": "SALES_ANALYSIS",
+          "percent": 65
+        },
         "analysisId": null,
-        "retryable": false,
-        "processingPhase": "VALIDATING",
-        "aiInsightStatus": "PENDING"
+        "retryable": false
       }
     }
   },
@@ -169,16 +170,18 @@
     "wrapper": "com.memme.dto.sales.SalesUploadStatusResponse",
     "dataType": null,
     "json": {
-      "message": "기본 매출 분석이 완료되었습니다.",
+      "message": "매출 분석이 완료되었습니다.",
       "status": "COMPLETED",
       "failReason": null,
       "data": {
         "uploadId": 12,
         "analysisRunId": 34,
+        "progress": {
+          "step": "COMPLETED",
+          "percent": 100
+        },
         "analysisId": 51,
-        "retryable": false,
-        "processingPhase": null,
-        "aiInsightStatus": "GENERATING"
+        "retryable": false
       }
     }
   },
@@ -187,16 +190,18 @@
     "wrapper": "com.memme.dto.sales.SalesUploadStatusResponse",
     "dataType": null,
     "json": {
-      "message": "기본 매출 분석은 완료되었지만 AI 인사이트 생성에 실패했습니다.",
-      "status": "COMPLETED",
-      "failReason": "AI_INSIGHT_ERROR",
+      "message": "매출 분석에 실패했습니다.",
+      "status": "FAILED",
+      "failReason": "ANALYSIS_ENGINE_ERROR",
       "data": {
         "uploadId": 12,
         "analysisRunId": 34,
-        "analysisId": 51,
-        "retryable": true,
-        "processingPhase": null,
-        "aiInsightStatus": "FAILED"
+        "progress": {
+          "step": "FAILED",
+          "percent": 100
+        },
+        "analysisId": null,
+        "retryable": true
       }
     }
   },

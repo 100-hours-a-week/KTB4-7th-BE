@@ -131,7 +131,6 @@ class SalesUploadProcessingServiceTest {
         lifecycle.verify(lifecycleService).advancePhase(12L, SalesUploadProcessingPhase.ANALYZING);
         lifecycle.verify(analysisService).analyze(301L, "CUSTOM", periodStart, periodEnd);
         lifecycle.verify(snapshotService).persist(12L, analysis);
-        lifecycle.verify(lifecycleService).markCompleted(12L, 0);
         lifecycle.verify(lifecycleService).analysisRunId(12L);
         lifecycle.verify(insightGenerationService).generate(
                 301L,
@@ -140,6 +139,7 @@ class SalesUploadProcessingServiceTest {
                 java.time.YearMonth.of(2026, 9),
                 com.memme.dto.sales.SalesInsightTriggerType.UPLOAD
         );
+        lifecycle.verify(lifecycleService).markCompleted(12L, 0);
         lifecycle.verify(rankingSnapshotRecalculationService).recalculateIfAffected(periodStart, periodEnd);
     }
 
