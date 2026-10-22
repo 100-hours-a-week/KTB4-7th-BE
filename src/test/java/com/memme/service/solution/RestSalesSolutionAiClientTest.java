@@ -12,6 +12,9 @@ import jakarta.validation.ValidatorFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -29,6 +32,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+@ExtendWith(OutputCaptureExtension.class)
 class RestSalesSolutionAiClientTest {
 
     private static final String BASE_URL = "http://ai.test";
@@ -72,6 +76,52 @@ class RestSalesSolutionAiClientTest {
 
         assertThat(response.data().targetDate()).isEqualTo(LocalDate.of(2026, 9, 24));
         assertThat(response.data().solutionCards().getFirst().evidence()).isEqualTo("근거 문장");
+        server.verify();
+    }
+
+    @Test
+    void logsOnlySelectedMetricPresenceAndNotableValue(CapturedOutput output) {
+        SalesSolutionMetrics base = metrics();
+        SalesSolutionMetrics metrics = new SalesSolutionMetrics(
+                base.salesSummary(), base.hourlyProfile(), base.categoryBreakdown(),
+                base.predictedSalesToday(), base.reviewSummary(),
+                new SalesSolutionMetrics.WeatherContext("2026-09-24 11:00", "비", 14, 24,
+                        0.7, List.of(15), null, true),
+                List.of(),
+                new SalesSolutionMetrics.BusinessHours(
+                        new SalesSolutionMetrics.BusinessHourBand("09:00", "18:00"),
+                        new SalesSolutionMetrics.BusinessHourBand("10:00", "17:00"),
+                        null),
+                null);
+        SalesSolutionGenerationRequest request = new SalesSolutionGenerationRequest(
+                20L, 56L, LocalDate.of(2026, 9, 24), "UPLOAD", metrics);
+        server.expect(requestTo(URL))
+                .andRespond(withSuccess(successBody("근거 문장"), MediaType.APPLICATION_JSON));
+
+        client.generate(request);
+
+        String diagnostic = output.getOut().lines()
+                .filter(line -> line.contains("Solution AI request metrics:"))
+                .findFirst().orElse("");
+        assertThat(diagnostic).contains("storeId=20", "targetDate=2026-09-24",
+                "weatherContextIncluded=true", "isNotable=true",
+                "menuRankingsIncluded=true", "businessHoursIncluded=true");
+        assertThat(diagnostic).doesNotContain("internal-token", "1183600", "커피", "비");
+        server.verify();
+    }
+
+    @Test
+    void logsMissingSelectedMetricsAsAbsent(CapturedOutput output) {
+        server.expect(requestTo(URL))
+                .andRespond(withSuccess(successBody(null), MediaType.APPLICATION_JSON));
+
+        client.generate(request());
+
+        String diagnostic = output.getOut().lines()
+                .filter(line -> line.contains("Solution AI request metrics:"))
+                .findFirst().orElse("");
+        assertThat(diagnostic).contains("weatherContextIncluded=false", "isNotable=null",
+                "menuRankingsIncluded=false", "businessHoursIncluded=false");
         server.verify();
     }
 
