@@ -14,6 +14,7 @@ import com.memme.entity.noti.NotificationPreference;
 import com.memme.entity.solution.SolutionBundleEntity;
 import com.memme.entity.solution.SolutionBundleStatus;
 import com.memme.repository.auth.UserRepository;
+import com.memme.repository.noti.NotificationBulkInsertRepository;
 import com.memme.repository.noti.NotificationPreferenceRepository;
 import com.memme.repository.noti.NotificationRepository;
 import com.memme.repository.solution.SolutionBundleRepository;
@@ -34,6 +35,7 @@ class SolutionReadyNotificationServiceTest {
     private StoreRepository storeRepository;
     private NotificationPreferenceRepository preferenceRepository;
     private NotificationRepository notificationRepository;
+    private NotificationBulkInsertRepository bulkInsertRepository;
     private UserRepository userRepository;
     private SolutionBundleRepository solutionBundleRepository;
     private Clock clock;
@@ -44,6 +46,7 @@ class SolutionReadyNotificationServiceTest {
         storeRepository = mock(StoreRepository.class);
         preferenceRepository = mock(NotificationPreferenceRepository.class);
         notificationRepository = mock(NotificationRepository.class);
+        bulkInsertRepository = mock(NotificationBulkInsertRepository.class);
         userRepository = mock(UserRepository.class);
         solutionBundleRepository = mock(SolutionBundleRepository.class);
         clock = Clock.fixed(Instant.parse("2026-09-26T00:00:00Z"), ZoneOffset.UTC);
@@ -51,6 +54,7 @@ class SolutionReadyNotificationServiceTest {
                 storeRepository,
                 preferenceRepository,
                 notificationRepository,
+                bulkInsertRepository,
                 userRepository,
                 solutionBundleRepository,
                 clock
@@ -131,7 +135,14 @@ class SolutionReadyNotificationServiceTest {
 
         service.notifyTodaysSolutions();
 
-        verify(notificationRepository, org.mockito.Mockito.times(2)).save(any());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<NotificationBulkInsertRepository.NotificationRow>> rows =
+                ArgumentCaptor.forClass(List.class);
+        verify(bulkInsertRepository).insertAll(rows.capture());
+        assertThat(rows.getValue()).hasSize(2)
+                .extracting(NotificationBulkInsertRepository.NotificationRow::notificationKey)
+                .containsExactlyInAnyOrder("solution-ready:20", "solution-ready:21");
+        verify(notificationRepository, never()).save(any());
         verify(storeRepository).findStoreOwnersByStoreIds(Set.of(10L, 11L));
         verify(preferenceRepository).findSolutionPreferenceSettingsByUserIds(Set.of(3L, 4L));
         verify(notificationRepository).findNotificationUserKeysByUserIdsAndTypeAndKeysIn(
@@ -143,6 +154,63 @@ class SolutionReadyNotificationServiceTest {
         verify(preferenceRepository, never()).findByUserId(anyLong());
         verify(notificationRepository, never()).existsByUserIdAndNotificationTypeAndNotificationKey(
                 anyLong(), any(), any());
+    }
+
+    @Test
+    void 알림_설정이_꺼진_번들은_벌크_저장_대상에서_제외한다() {
+        LocalDate today = LocalDate.now(clock);
+        SolutionBundleEntity first = solutionBundle(20L, 10L);
+        SolutionBundleEntity second = solutionBundle(21L, 11L);
+        StoreRepository.StoreOwner firstOwner = storeOwner(10L, 3L);
+        StoreRepository.StoreOwner secondOwner = storeOwner(11L, 4L);
+        NotificationPreferenceRepository.SolutionPreferenceSetting firstPreference =
+                solutionPreference(3L, true);
+        NotificationPreferenceRepository.SolutionPreferenceSetting secondPreference =
+                solutionPreference(4L, false);
+        when(solutionBundleRepository.findAllByTargetDateAndStatus(today, SolutionBundleStatus.COMPLETED))
+                .thenReturn(List.of(first, second));
+        when(storeRepository.findStoreOwnersByStoreIds(Set.of(10L, 11L)))
+                .thenReturn(List.of(firstOwner, secondOwner));
+        when(preferenceRepository.findSolutionPreferenceSettingsByUserIds(Set.of(3L, 4L)))
+                .thenReturn(List.of(firstPreference, secondPreference));
+        when(notificationRepository.findNotificationUserKeysByUserIdsAndTypeAndKeysIn(
+                Set.of(3L), com.memme.entity.noti.NotificationType.SOLUTION_READY,
+                Set.of("solution-ready:20"))).thenReturn(List.of());
+
+        service.notifyTodaysSolutions();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<NotificationBulkInsertRepository.NotificationRow>> rows =
+                ArgumentCaptor.forClass(List.class);
+        verify(bulkInsertRepository).insertAll(rows.capture());
+        assertThat(rows.getValue()).hasSize(1)
+                .extracting(NotificationBulkInsertRepository.NotificationRow::notificationKey)
+                .containsExactly("solution-ready:20");
+    }
+
+    @Test
+    void 이미_알림이_있으면_벌크_저장을_다시_호출하지_않는다() {
+        LocalDate today = LocalDate.now(clock);
+        SolutionBundleEntity bundle = solutionBundle(20L, 10L);
+        StoreRepository.StoreOwner owner = storeOwner(10L, 3L);
+        NotificationPreferenceRepository.SolutionPreferenceSetting preference =
+                solutionPreference(3L, true);
+        when(solutionBundleRepository.findAllByTargetDateAndStatus(today, SolutionBundleStatus.COMPLETED))
+                .thenReturn(List.of(bundle));
+        when(storeRepository.findStoreOwnersByStoreIds(Set.of(10L)))
+                .thenReturn(List.of(owner));
+        when(preferenceRepository.findSolutionPreferenceSettingsByUserIds(Set.of(3L)))
+                .thenReturn(List.of(preference));
+        NotificationRepository.NotificationUserKey existing = mock(NotificationRepository.NotificationUserKey.class);
+        when(existing.getUserId()).thenReturn(3L);
+        when(existing.getNotificationKey()).thenReturn("solution-ready:20");
+        when(notificationRepository.findNotificationUserKeysByUserIdsAndTypeAndKeysIn(
+                Set.of(3L), com.memme.entity.noti.NotificationType.SOLUTION_READY,
+                Set.of("solution-ready:20"))).thenReturn(List.of(existing));
+
+        service.notifyTodaysSolutions();
+
+        verify(bulkInsertRepository, never()).insertAll(any());
     }
 
     @Test
