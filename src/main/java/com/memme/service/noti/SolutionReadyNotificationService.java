@@ -7,6 +7,7 @@ import com.memme.entity.noti.NotificationType;
 import com.memme.entity.solution.SolutionBundleEntity;
 import com.memme.entity.solution.SolutionBundleStatus;
 import com.memme.repository.auth.UserRepository;
+import com.memme.repository.noti.NotificationBulkInsertRepository;
 import com.memme.repository.noti.NotificationPreferenceRepository;
 import com.memme.repository.noti.NotificationRepository;
 import com.memme.repository.solution.SolutionBundleRepository;
@@ -32,6 +33,7 @@ public class SolutionReadyNotificationService {
     private final StoreRepository storeRepository;
     private final NotificationPreferenceRepository preferenceRepository;
     private final NotificationRepository notificationRepository;
+    private final NotificationBulkInsertRepository bulkInsertRepository;
     private final UserRepository userRepository;
     private final SolutionBundleRepository solutionBundleRepository;
     private final Clock clock;
@@ -40,6 +42,7 @@ public class SolutionReadyNotificationService {
             StoreRepository storeRepository,
             NotificationPreferenceRepository preferenceRepository,
             NotificationRepository notificationRepository,
+            NotificationBulkInsertRepository bulkInsertRepository,
             UserRepository userRepository,
             SolutionBundleRepository solutionBundleRepository,
             Clock clock
@@ -47,6 +50,7 @@ public class SolutionReadyNotificationService {
         this.storeRepository = storeRepository;
         this.preferenceRepository = preferenceRepository;
         this.notificationRepository = notificationRepository;
+        this.bulkInsertRepository = bulkInsertRepository;
         this.userRepository = userRepository;
         this.solutionBundleRepository = solutionBundleRepository;
         this.clock = clock;
@@ -121,14 +125,29 @@ public class SolutionReadyNotificationService {
                 .map(existing -> new NotificationIdentity(existing.getUserId(), existing.getNotificationKey()))
                 .collect(Collectors.toSet());
 
+        List<NotificationBulkInsertRepository.NotificationRow> newNotifications = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now(clock);
         for (NotificationCandidate candidate : candidates) {
             NotificationIdentity identity = new NotificationIdentity(
                     candidate.ownerUserId(),
                     candidate.notificationKey()
             );
             if (!existingNotifications.contains(identity)) {
-                saveNotification(candidate.ownerUserId(), candidate.bundleId(), candidate.notificationKey());
+                newNotifications.add(new NotificationBulkInsertRepository.NotificationRow(
+                        candidate.ownerUserId(),
+                        NotificationType.SOLUTION_READY,
+                        candidate.notificationKey(),
+                        NOTIFICATION_TITLE,
+                        NOTIFICATION_CONTENT,
+                        RELATED_ENTITY_TYPE,
+                        candidate.bundleId(),
+                        now,
+                        now
+                ));
             }
+        }
+        if (!newNotifications.isEmpty()) {
+            bulkInsertRepository.insertAll(newNotifications);
         }
     }
 
