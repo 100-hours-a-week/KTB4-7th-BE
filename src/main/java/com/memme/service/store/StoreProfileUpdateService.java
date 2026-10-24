@@ -74,6 +74,12 @@ public class StoreProfileUpdateService {
         StoreCoordinates coordinates = roadAddressChanged
                 ? storeLocationService.resolveCoordinates(updatedRoadAddress).orElse(null)
                 : null;
+        String administrativeDongCode = roadAddressChanged && coordinates != null
+                ? storeLocationService.findAdministrativeDistrict(coordinates.longitude(), coordinates.latitude())
+                        .map(AdministrativeDistrict::code)
+                        .map(this::normalizeAdministrativeDongCode)
+                        .orElse(null)
+                : null;
 
         if (hasStoreChanges(request)) {
             StoreProfileUpdateRequest.Address address = request.address();
@@ -90,6 +96,7 @@ public class StoreProfileUpdateService {
                     coordinates == null ? null : coordinates.latitude(),
                     coordinates == null ? null : coordinates.longitude()
             );
+            store.updateAdministrativeDongCode(administrativeDongCode);
         }
         if (businessVerification != null) {
             store.updateBusinessRegistration(request.businessRegNumber(), businessVerification.getVerifiedAt(), now);
@@ -260,6 +267,20 @@ public class StoreProfileUpdateService {
                 isClosed ? null : businessHours.getOpensAt(),
                 isClosed ? null : businessHours.getClosesAt()
         );
+    }
+
+    private String normalizeAdministrativeDongCode(String code) {
+        if (code == null) {
+            return null;
+        }
+        String normalizedCode = code.trim();
+        if (normalizedCode.matches("\\d{10}")) {
+            return normalizedCode;
+        }
+        if (normalizedCode.matches("\\d{8}")) {
+            return normalizedCode + "00";
+        }
+        return null;
     }
 
     private InvalidStoreProfileUpdateRequestException invalidBusinessHours() {
