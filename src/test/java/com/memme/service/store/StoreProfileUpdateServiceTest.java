@@ -69,6 +69,9 @@ class StoreProfileUpdateServiceTest {
                 .thenReturn(currentBusinessHours);
         when(storeLocationService.resolveCoordinates("서울특별시 강남구 테헤란로 456"))
                 .thenReturn(Optional.of(new StoreCoordinates(new BigDecimal("37.498095"), new BigDecimal("127.027610"))));
+        when(storeLocationService.findAdministrativeDistrict(
+                new BigDecimal("127.0276100"), new BigDecimal("37.4980950")
+        )).thenReturn(Optional.of(new AdministrativeDistrict("11680640", "서울특별시 강남구 역삼1동")));
 
         StoreProfileUpdateResponse response = storeProfileUpdateService.updateProfile(1L, new StoreProfileUpdateRequest(
                 "수정된 맴매카페",
@@ -84,6 +87,7 @@ class StoreProfileUpdateServiceTest {
         assertThat(store.getAddressDetail()).isEqualTo("101호");
         assertThat(store.getLatitude()).isEqualByComparingTo("37.498095");
         assertThat(store.getLongitude()).isEqualByComparingTo("127.027610");
+        assertThat(store.getAdministrativeDongCode()).isEqualTo("1168064000");
         assertThat(response.store().storeName()).isEqualTo("수정된 맴매카페");
         assertThat(response.store().businessHours()).hasSize(7);
         assertThat(response.store().businessHours().get(6).isClosed()).isTrue();
@@ -95,6 +99,7 @@ class StoreProfileUpdateServiceTest {
     @Test
     void 주소가_변경되고_좌표를_찾지_못하면_이전_좌표를_지운다() throws Exception {
         Store store = storeWithCoordinates(10L);
+        store.updateAdministrativeDongCode("1168051000");
         when(storeRepository.findByOwnerId(1L)).thenReturn(Optional.of(store));
         when(storeBusinessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(businessHours(store));
         when(storeLocationService.resolveCoordinates("경기도 광명시 새주소 1"))
@@ -111,11 +116,41 @@ class StoreProfileUpdateServiceTest {
         assertThat(store.getAddress()).isEqualTo("경기도 광명시 새주소 1");
         assertThat(store.getLatitude()).isNull();
         assertThat(store.getLongitude()).isNull();
+        assertThat(store.getAdministrativeDongCode()).isNull();
+        verify(storeLocationService, never()).findAdministrativeDistrict(
+                new BigDecimal("126.8646"), new BigDecimal("37.4786")
+        );
+    }
+
+    @Test
+    void 주소가_변경되어도_새_행정동을_찾지_못하면_이전_행정동코드를_지운다() throws Exception {
+        Store store = storeWithCoordinates(10L);
+        store.updateAdministrativeDongCode("1168051000");
+        when(storeRepository.findByOwnerId(1L)).thenReturn(Optional.of(store));
+        when(storeBusinessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(businessHours(store));
+        when(storeLocationService.resolveCoordinates("서울특별시 강남구 새주소 456"))
+                .thenReturn(Optional.of(new StoreCoordinates(new BigDecimal("37.498095"), new BigDecimal("127.027610"))));
+        when(storeLocationService.findAdministrativeDistrict(
+                new BigDecimal("127.0276100"), new BigDecimal("37.4980950")
+        )).thenReturn(Optional.empty());
+
+        storeProfileUpdateService.updateProfile(1L, new StoreProfileUpdateRequest(
+                null,
+                new StoreProfileUpdateRequest.Address(null, "서울특별시 강남구 새주소 456", null),
+                null,
+                null,
+                null
+        ));
+
+        assertThat(store.getLatitude()).isEqualByComparingTo("37.498095");
+        assertThat(store.getLongitude()).isEqualByComparingTo("127.027610");
+        assertThat(store.getAdministrativeDongCode()).isNull();
     }
 
     @Test
     void 기본주소가_같으면_좌표를_다시_조회하지_않고_기존_좌표를_유지한다() throws Exception {
         Store store = storeWithCoordinates(10L);
+        store.updateAdministrativeDongCode("1168051000");
         when(storeRepository.findByOwnerId(1L)).thenReturn(Optional.of(store));
         when(storeBusinessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(businessHours(store));
 
@@ -128,8 +163,12 @@ class StoreProfileUpdateServiceTest {
         ));
 
         verify(storeLocationService, never()).resolveCoordinates("서울특별시 강남구 테헤란로 123");
+        verify(storeLocationService, never()).findAdministrativeDistrict(
+                new BigDecimal("126.8646"), new BigDecimal("37.4786")
+        );
         assertThat(store.getLatitude()).isEqualByComparingTo("37.4786");
         assertThat(store.getLongitude()).isEqualByComparingTo("126.8646");
+        assertThat(store.getAdministrativeDongCode()).isEqualTo("1168051000");
     }
 
     @Test
