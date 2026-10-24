@@ -21,7 +21,8 @@ import java.util.List;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class SignupService {
@@ -30,21 +31,23 @@ public class SignupService {
     private final SignupDraftRepository signupDraftRepository;
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
+    private final TransactionTemplate transactionTemplate;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public SignupService(
             UserRepository userRepository,
             SignupDraftRepository signupDraftRepository,
             PasswordEncoder passwordEncoder,
-            Clock clock
+            Clock clock,
+            PlatformTransactionManager transactionManager
     ) {
         this.userRepository = userRepository;
         this.signupDraftRepository = signupDraftRepository;
         this.passwordEncoder = passwordEncoder;
         this.clock = clock;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
-    @Transactional
     public SignupAccountResponse signupAccount(SignupAccountRequest request) {
         validatePasswordConfirmation(request);
 
@@ -57,12 +60,13 @@ public class SignupService {
         OffsetDateTime now = OffsetDateTime.now(clock);
         OffsetDateTime expiresAt = now.plusHours(1);
         String signupToken = generateSignupToken();
+        String passwordHash = passwordEncoder.encode(request.password());
 
         SignupAccountRequest.Agreements agreements = request.agreements();
         SignupDraft signupDraft = SignupDraft.create(
                 sha256(signupToken),
                 request.email(),
-                passwordEncoder.encode(request.password()),
+                passwordHash,
                 request.phone(),
                 agreements.termsOfService(),
                 agreements.termsOfServiceVersion(),
@@ -71,7 +75,7 @@ public class SignupService {
                 expiresAt.toLocalDateTime(),
                 now.toLocalDateTime()
         );
-        signupDraftRepository.save(signupDraft);
+        transactionTemplate.executeWithoutResult(status -> signupDraftRepository.save(signupDraft));
 
         return new SignupAccountResponse(signupToken, expiresAt);
     }
