@@ -72,7 +72,7 @@ class SalesUploadAsyncIntegrationTest {
                                     .file(new MockMultipartFile("file", "sales.xlsx", null, new byte[]{1}))
                                     .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE,
                                             new AuthenticatedUserSession(96007L, 96001L)))
-                            .andExpect(status().isOk())
+                            .andExpect(status().isAccepted())
                             .andExpect(jsonPath("$.status").value("PENDING"))
                             .andExpect(jsonPath("$.data.uploadId").isNumber())
                             .andExpect(jsonPath("$.data.analysisRunId").isNumber()));

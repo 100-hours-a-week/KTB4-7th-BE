@@ -106,39 +106,39 @@ class SalesUploadControllerTest {
                 new SalesUploadStatusResponse.Data(
                         12L,
                         34L,
-                        new SalesUploadStatusResponse.Progress("ANALYZING", 90),
+                        "ANALYZING",
                         null,
+                        "PENDING",
                         false
                 )
         );
         when(salesUploadQueryService.getStatus(7L, 301L, 12L)).thenReturn(response);
 
-        mockMvc.perform(get("/v1/sales/uploads/12")
+        mockMvc.perform(get("/v1/sales/uploads/12/status")
                         .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE,
                                 new AuthenticatedUserSession(7L, 301L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PROCESSING"))
                 .andExpect(jsonPath("$.data.analysisRunId").value(34))
                 .andExpect(jsonPath("$.data.processingPhase").value("ANALYZING"))
-                .andExpect(jsonPath("$.data.aiInsightStatus").value("PENDING"))
-                .andExpect(jsonPath("$.data.progress").doesNotExist());
+                .andExpect(jsonPath("$.data.aiInsightStatus").value("PENDING"));
     }
 
     @Test
-    void returnsCompletedResult() throws Exception {
+    void acceptsUploadWithoutWaitingForProcessing() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "sales.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 new byte[]{1, 2, 3}
         );
-        when(salesUploadService.upload(any())).thenReturn(new SalesUploadReceipt(12L, 34L, "COMPLETED"));
+        when(salesUploadService.upload(any())).thenReturn(new SalesUploadReceipt(12L, 34L, "PENDING"));
 
         mockMvc.perform(multipart("/v1/sales/uploads")
                         .file(file)
                         .sessionAttr(AuthenticatedUserSession.SESSION_ATTRIBUTE,
                                 new AuthenticatedUserSession(7L, 301L)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("매출 파일 업로드가 완료되었습니다."))
-                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.message").value("매출 파일 업로드를 접수했습니다."))
+                .andExpect(jsonPath("$.status").value("PENDING"))
                 .andExpect(jsonPath("$.data.uploadId").value(12))
                 .andExpect(jsonPath("$.data.analysisRunId").value(34))
                 .andExpect(jsonPath("$.data.status").doesNotExist());

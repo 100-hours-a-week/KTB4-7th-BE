@@ -63,7 +63,7 @@ public class SalesUploadController {
         );
     }
 
-    @GetMapping("/{uploadId}")
+    @GetMapping({"/{uploadId}/status", "/{uploadId}"})
     public SalesUploadStatusResponse getStatus(
             @SessionAttribute(value = AuthenticatedUserSession.SESSION_ATTRIBUTE, required = false)
             AuthenticatedUserSession authenticatedUser,
@@ -106,10 +106,10 @@ public class SalesUploadController {
         requireAuthentication(authenticatedUser);
         validateFileCount(multipartRequest);
         SalesUploadReceipt receipt = salesUploadService.upload(toCommand(authenticatedUser, request));
-        return ResponseEntity.status(HttpStatus.OK).body(new StatusResponse<>(
-                "매출 파일 업로드가 완료되었습니다.",
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(new StatusResponse<>(
+                "매출 파일 업로드를 접수했습니다.",
                 receipt.status(),
-                new SalesUploadResponse(receipt.uploadId(), receipt.analysisRunId())
+                new SalesUploadResponse(receipt.uploadId(), receipt.analysisRunId(), null)
         ));
     }
 
