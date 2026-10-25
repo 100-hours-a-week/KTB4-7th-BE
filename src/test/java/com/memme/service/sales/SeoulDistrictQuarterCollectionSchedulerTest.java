@@ -19,9 +19,13 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.scheduling.annotation.Scheduled;
 
+@ExtendWith(OutputCaptureExtension.class)
 class SeoulDistrictQuarterCollectionSchedulerTest {
 
     private static final Clock OCTOBER = Clock.fixed(Instant.parse("2026-10-20T03:00:00Z"), ZoneId.of("UTC"));
@@ -39,6 +43,21 @@ class SeoulDistrictQuarterCollectionSchedulerTest {
         ordered.verify(collection).collect("2026Q3");
         ordered.verify(collection).collect("2026Q2");
         ordered.verifyNoMoreInteractions();
+    }
+
+    @Test
+    void 수집_실패_로그에_예외_메시지와_스택_트레이스를_남긴다(CapturedOutput output) {
+        when(collection.collect("2026Q3")).thenAnswer(ignored -> {
+            throw new IllegalStateException("Seoul data unavailable");
+        });
+        when(collection.collect("2026Q2")).thenReturn(true);
+
+        scheduler(OCTOBER).collectOnStartup();
+
+        assertThat(output.getOut())
+                .contains("Seoul district quarter collection failed: trigger=startup, quarter=2026Q3, "
+                                + "cause=IllegalStateException: Seoul data unavailable",
+                        "at com.memme.service.sales.SeoulDistrictQuarterCollectionScheduler.collectLatest");
     }
 
     @Test
