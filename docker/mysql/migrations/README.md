@@ -201,3 +201,7 @@ ORDER BY SEQ_IN_INDEX;
 신규 DB는 `docker/mysql/init/08-weather-forecast-summaries.sql`을 사용하며, fresh-init의 `stores.id`와 `store_id`는 `BIGINT UNSIGNED`입니다.
 매장·KST 대상일에 한 행만 저장하며, 원본 예보 응답이나 과거 관측값은 이 테이블에 넣지 않습니다.
 이 마이그레이션은 새 테이블만 만들고 기존 데이터를 변경하지 않습니다.
+
+## 매출 업로드 Outbox (#556 승인 / #557)
+
+`20261025-add-sales-upload-outbox.sql`은 신규 테이블만 생성한다. 기존 테이블·데이터는 변경하지 않는다. 백업·Outbox 테이블 부재와 참조 PK 타입을 확인한 후 수동 적용한다. `information_schema`에서 stores/sales_uploads/analysis_runs PK의 실제 signedness를 읽어 FK 타입을 맞춘다. 새 DB는 init/12-sales-upload-outbox.sql을 사용한다. 스키마를 먼저 적용하고 `SALES_OUTBOX_ENABLED=false`를 유지한 상태에서 배포한다. Worker 전환은 docs/sales-upload-outbox-operations.md의 드레인·검증 절차를 따른다. 이 파일의 추가는 운영 DB 실행을 의미하지 않는다.
