@@ -4,7 +4,6 @@ import com.memme.entity.sales.SalesUploadOutboxEntity;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,14 +20,14 @@ public interface SalesUploadOutboxRepository extends JpaRepository<SalesUploadOu
 
     @Query(value = """
             SELECT j.* FROM sales_upload_outbox j
-            WHERE ((j.status = 'READY' AND j.available_at <= :now)
-                OR (j.status = 'RUNNING' AND j.lease_until <= :now))
+            WHERE ((j.status = 'READY' AND j.available_at <= UTC_TIMESTAMP(6))
+                OR (j.status = 'RUNNING' AND j.lease_until <= UTC_TIMESTAMP(6)))
             AND NOT EXISTS (SELECT 1 FROM sales_upload_outbox previous
                 WHERE previous.store_id = j.store_id AND previous.id < j.id
                 AND previous.status IN ('READY', 'RUNNING'))
             ORDER BY j.available_at, j.id LIMIT 32
             """, nativeQuery = true)
-    List<SalesUploadOutboxEntity> candidates(@Param("now") LocalDateTime now);
+    List<SalesUploadOutboxEntity> candidates();
 
     @Query(value = "SELECT MIN(id) FROM sales_upload_outbox WHERE store_id = :storeId AND status IN ('READY','RUNNING')", nativeQuery = true)
     Long firstActiveId(@Param("storeId") Long storeId);
