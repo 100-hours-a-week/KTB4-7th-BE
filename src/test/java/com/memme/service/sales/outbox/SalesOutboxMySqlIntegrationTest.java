@@ -42,7 +42,11 @@ class SalesOutboxMySqlIntegrationTest {
     static { try { STORAGE = Files.createTempDirectory("sales-outbox-mysql-"); }
         catch (Exception failure) { throw new ExceptionInInitializerError(failure); } }
     @DynamicPropertySource static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> System.getenv("OUTBOX_MYSQL_TEST_URL"));
+        String url = System.getenv("OUTBOX_MYSQL_TEST_URL");
+        if (url == null || !url.startsWith("jdbc:mysql://127.0.0.1:") || !url.contains("/outbox_test?")) {
+            throw new IllegalArgumentException("isolated loopback outbox_test DB required");
+        }
+        registry.add("spring.datasource.url", () -> url);
         registry.add("spring.datasource.driver-class-name", () -> "com.mysql.cj.jdbc.Driver");
         registry.add("spring.datasource.username", () -> "root");
         registry.add("spring.datasource.password", () -> "");

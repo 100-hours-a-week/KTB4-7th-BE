@@ -56,3 +56,5 @@ docker rm -f codex-sales-outbox-test
 테스트 URL은 outbox_test DB로 제한하고 별도 JVM 강제 종료 probe는 loopback 주소만 허용한다. 실제 실행은 준비 상태 확인 후 수행한다. 환경변수가 없으면 MySQL 전용 테스트는 건너뛰며, 이 결과를 MySQL 검증 통과로 보고하지 않는다.
 
 별도 JVM은 실제 Coordinator로 선점 후 halt(73), 또는 체크포인트 flush 후 커밋 전에 halt(74)한다. 부모 검증은 프로세스 종료·실제 DB 롤백을 확인하고 테스트용 SQL로 lease를 만료시킨 뒤 다른 소유자로 완료한다. 60초를 실시간 대기하는 테스트는 아니다. 스냅샷/완료 트랜잭션은 예외 주입 롤백으로 별도 검증하며 모든 장애 지점을 OS 종료로 재현했다고 주장하지 않는다. 쿼리 계획은 build/reports/outbox/mysql-query-plan.txt에 기록한다.
+
+CI verify 작업에도 별도 MySQL 8.4 서비스와 loopback outbox_test URL을 설정해 Outbox 잠금 테스트가 기본 건너뜀으로 끝나지 않게 한다. 기존 Redis ACL 검증과 이미지 게시 단계는 유지한다. 이 CI 변경은 아직 원격 실행하지 않았으며 로컬의 같은 검증 경로만 실행했다.
