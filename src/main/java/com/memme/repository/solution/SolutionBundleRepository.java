@@ -32,4 +32,7 @@ public interface SolutionBundleRepository extends JpaRepository<SolutionBundleEn
 
     Page<SolutionBundleEntity> findAllByTargetDateAndStatusOrderByIdAsc(
             LocalDate targetDate, SolutionBundleStatus status, Pageable pageable);
+
+    List<SolutionBundleEntity> findByTargetDateAndStatusAndIdGreaterThanOrderByIdAsc(
+            LocalDate targetDate, SolutionBundleStatus status, Long id, Pageable pageable);
 }
