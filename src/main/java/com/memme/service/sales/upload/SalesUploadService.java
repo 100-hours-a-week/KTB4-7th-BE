@@ -56,6 +56,9 @@ public class SalesUploadService {
                 storedFile.storageKey(),
                 checksum
         );
+        if (lifecycleService.usesOutbox()) {
+            return pendingReceipt;
+        }
         try {
             worker.process(pendingReceipt.uploadId());
         } catch (RejectedExecutionException exception) {
