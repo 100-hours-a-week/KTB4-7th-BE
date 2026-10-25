@@ -76,8 +76,12 @@ public class SeoulDistrictQuarterCollectionScheduler {
                         return;
                     }
                 } catch (RuntimeException exception) {
+                    String cause = exception.getClass().getSimpleName();
+                    if (exception.getMessage() != null && !exception.getMessage().isBlank()) {
+                        cause += ": " + exception.getMessage();
+                    }
                     log.warn("Seoul district quarter collection failed: trigger={}, quarter={}, cause={}",
-                            trigger, basisQuarter, exception.getClass().getSimpleName());
+                            trigger, basisQuarter, cause, exception);
                 }
             }
             log.info("No complete Seoul district quarter available: trigger={}", trigger);
