@@ -16,6 +16,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: never
 
 JUSO_CONFM_KEY: test-confirmation-key
 NTS_SERVICE_KEY: test-service-key
