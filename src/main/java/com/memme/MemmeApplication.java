@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 
 @SpringBootApplication
 @EnableConfigurationProperties(QaAccountProperties.class)
-public class MemmeApplication {
+public class    MemmeApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(MemmeApplication.class, args);
