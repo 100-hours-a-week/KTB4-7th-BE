@@ -44,6 +44,7 @@ public class SalesUploadWorker {
         long started = System.nanoTime();
         try {
             heartbeat = heartbeats.scheduleAtFixedRate(() -> {
+                if (!healthy.get()) return;
                 try { coordinator.heartbeat(claim); }
                 catch (RuntimeException failure) { healthy.set(false); }
             }, 10, 10, TimeUnit.SECONDS);
