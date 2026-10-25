@@ -18,7 +18,9 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class PasswordResetService {
@@ -32,6 +34,8 @@ public class PasswordResetService {
     private final PasswordResetRateLimiter passwordResetRateLimiter;
     private final PasswordEncoder passwordEncoder;
     private final String passwordResetUrl;
+    private final TransactionTemplate nonTransactionalTemplate;
+    private final TransactionTemplate transactionTemplate;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public PasswordResetService(
@@ -40,7 +44,8 @@ public class PasswordResetService {
             PasswordResetMailSender passwordResetMailSender,
             PasswordResetRateLimiter passwordResetRateLimiter,
             PasswordEncoder passwordEncoder,
-            @Value("${password-reset.url}") String passwordResetUrl
+            @Value("${password-reset.url}") String passwordResetUrl,
+            PlatformTransactionManager transactionManager
     ) {
         this.userRepository = userRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
@@ -48,6 +53,9 @@ public class PasswordResetService {
         this.passwordResetRateLimiter = passwordResetRateLimiter;
         this.passwordEncoder = passwordEncoder;
         this.passwordResetUrl = passwordResetUrl;
+        this.nonTransactionalTemplate = new TransactionTemplate(transactionManager);
+        this.nonTransactionalTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     public void requestResetEmail(PasswordResetEmailRequest request, String clientIp) {
@@ -68,23 +76,36 @@ public class PasswordResetService {
         });
     }
 
-    @Transactional
     public void resetPassword(PasswordResetRequest request) {
+        nonTransactionalTemplate.executeWithoutResult(status -> resetPasswordWithoutTransaction(request));
+    }
+
+    private void resetPasswordWithoutTransaction(PasswordResetRequest request) {
         if (!request.newPassword().equals(request.confirmPassword())) {
             throw new InvalidPasswordResetRequestException(List.of(
                     new FieldError("confirmPassword", "비밀번호와 일치하지 않습니다.")
             ));
         }
 
-        PasswordResetToken passwordResetToken = passwordResetTokenRepository.findByTokenHash(hash(request.token()))
+        String tokenHash = hash(request.token());
+        PasswordResetToken passwordResetToken = passwordResetTokenRepository.findByTokenHash(tokenHash)
                 .orElseThrow(PasswordResetTokenExpiredException::new);
         if (passwordResetToken.isExpiredAt(LocalDateTime.now()) || passwordResetToken.isUsed()) {
             throw new PasswordResetTokenExpiredException();
         }
 
-        LocalDateTime now = LocalDateTime.now();
-        passwordResetToken.getUser().changePassword(passwordEncoder.encode(request.newPassword()), now);
-        passwordResetToken.markUsedAt(now);
+        String newPasswordHash = passwordEncoder.encode(request.newPassword());
+        transactionTemplate.executeWithoutResult(status -> {
+            PasswordResetToken tokenToUpdate = passwordResetTokenRepository.findByIdForUpdate(passwordResetToken.getId())
+                    .orElseThrow(PasswordResetTokenExpiredException::new);
+            LocalDateTime now = LocalDateTime.now();
+            if (tokenToUpdate.isExpiredAt(now) || tokenToUpdate.isUsed()) {
+                throw new PasswordResetTokenExpiredException();
+            }
+
+            tokenToUpdate.getUser().changePassword(newPasswordHash, now);
+            tokenToUpdate.markUsedAt(now);
+        });
     }
 
     private String generateRawToken() {
