@@ -46,6 +46,15 @@ public class SalesAnalysisSnapshotService {
                 .orElseGet(() -> persistNew(run.getId(), result));
     }
 
+    @Transactional
+    public Long persistForRun(Long analysisRunId, SalesAnalysisResult result) {
+        AnalysisRunEntity run = analysisRunRepository.findById(analysisRunId)
+                .orElseThrow(() -> new IllegalStateException("analysis run not found"));
+        return salesAnalysisRepository.findByAnalysisRunId(run.getId())
+                .map(SalesAnalysisEntity::getId)
+                .orElseGet(() -> persistNew(run.getId(), result));
+    }
+
     private Long persistNew(Long analysisRunId, SalesAnalysisResult result) {
         SalesAnalysisEntity analysis = salesAnalysisRepository.save(
                 SalesAnalysisEntity.create(analysisRunId, null)
