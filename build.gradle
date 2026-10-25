@@ -39,4 +39,5 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    systemProperty 'outbox.test.runtime-classpath', sourceSets.test.runtimeClasspath.asPath
 }
