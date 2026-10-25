@@ -183,3 +183,9 @@
 - 미구현 도메인 식별자는 물리 FK 없이 BIGINT 컬럼으로 반영한다.
 
 MySQL 신규 환경에는 `docker/mysql/init/04-sales-analysis-insights.sql`을 적용한다. 기존 환경에도 같은 DDL을 1회 적용한 뒤 애플리케이션을 시작해야 하며, `ddl-auto: validate`는 설계와 실제 테이블의 일치 여부만 검사한다.
+
+
+## 매출 업로드 Outbox (#556 승인·#557)
+
+2026-10-25 사용자 승인 정책에 따른 `sales_upload_outbox`를 추가한다. 기존 공개 API 변경은 없다.
+전체 필드·관계·정책은 [승인 명세](sales-upload-outbox.md)를 기준으로 한다. store/upload/analysis_run 식별자만 저장하며 JPA 양방향 연관관계는 만들지 않는다. 물리 FK와 CHECK는 init/12-sales-upload-outbox.sql 및 기존 DB 마이그레이션에서 정의한다. 기존 DB 참조 PK signedness는 실제 information_schema에서 읽어 FK 타입을 일치시킨다.
