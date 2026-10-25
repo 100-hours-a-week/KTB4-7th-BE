@@ -23,6 +23,7 @@ public class SalesOutboxRetryPolicy {
             if (cause instanceof TransientDataAccessException) return true;
             if (cause instanceof AwsServiceException aws && (aws.statusCode() == 429 || aws.statusCode() >= 500)) return true;
             if (cause instanceof SdkClientException && cause.getCause() instanceof IOException) return true;
+            if (cause instanceof java.sql.SQLException sql && sql.getSQLState() != null && sql.getSQLState().startsWith("08")) return true;
             if (cause instanceof java.sql.SQLTransientException || cause instanceof java.sql.SQLRecoverableException) return true;
         }
         return false;

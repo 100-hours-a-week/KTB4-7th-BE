@@ -19,6 +19,7 @@ public class SalesUploadOutboxCoordinator {
     private final SalesOutboxDatabaseClock clock;
     private final SalesOutboxRetryPolicy retries;
     private final TransactionTemplate transactions;
+    private final java.util.concurrent.atomic.LongAdder leaseRecoveries = new java.util.concurrent.atomic.LongAdder();
 
     public SalesUploadOutboxCoordinator(SalesUploadOutboxRepository jobs, SalesUploadRepository uploads,
                                        AnalysisRunRepository runs, SalesOutboxDatabaseClock clock,
@@ -29,7 +30,7 @@ public class SalesUploadOutboxCoordinator {
     }
 
     public Optional<SalesUploadOutboxClaim> claimNext(String owner) {
-        for (var candidate : jobs.candidates(clock.now())) {
+        for (var candidate : jobs.candidates()) {
             var claim = transactions.execute(tx -> {
                 if (jobs.tryLockStore(candidate.getStoreId()).isEmpty()) return null;
                 var job = jobs.lockJob(candidate.getId()).orElseThrow();
@@ -39,9 +40,13 @@ public class SalesUploadOutboxCoordinator {
                     markDead(job, "UPLOAD_PROCESSING_ERROR", "처리 재시도 횟수를 초과했습니다.", now);
                     return null;
                 }
-                return job.claim(owner, now);
+                boolean recovered = job.getStatus() == SalesUploadOutboxEntity.Status.RUNNING;
+                return new Selection(job.claim(owner, now), recovered);
             });
-            if (claim != null) return Optional.of(claim);
+            if (claim != null) {
+                if (claim.recovered()) leaseRecoveries.increment();
+                return Optional.of(claim.claim());
+            }
         }
         return Optional.empty();
     }
@@ -62,6 +67,8 @@ public class SalesUploadOutboxCoordinator {
     }
 
     public void heartbeat(SalesUploadOutboxClaim claim) { write(claim, job -> null); }
+    public long leaseRecoveries() { return leaseRecoveries.sum(); }
+    private record Selection(SalesUploadOutboxClaim claim, boolean recovered) {}
     public void rejected(SalesUploadOutboxClaim claim) { write(claim, job -> { job.rejected(clock.now()); return null; }); }
 
     public SalesUploadOutboxEntity.Status failed(SalesUploadOutboxClaim claim, Throwable failure) {
