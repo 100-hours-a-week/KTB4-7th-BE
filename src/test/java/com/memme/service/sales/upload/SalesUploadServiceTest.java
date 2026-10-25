@@ -115,6 +115,19 @@ class SalesUploadServiceTest {
         verifyNoInteractions(worker);
     }
 
+    @Test
+    void outboxReceiptDoesNotDependOnExecutorAvailability() {
+        when(storeOwnershipRepository.existsActiveStoreOwnedBy(1L, 7L)).thenReturn(true);
+        when(fileStorage.store(any())).thenReturn(new StoredSalesFile("1/file.xlsx"));
+        when(lifecycleService.createPending(any(), any(), any(), any(), any()))
+                .thenReturn(new SalesUploadReceipt(12L, 21L, "PENDING"));
+        when(lifecycleService.usesOutbox()).thenReturn(true);
+
+        assertThat(service.upload(command("sales.xlsx", new byte[]{1})).status()).isEqualTo("PENDING");
+        verifyNoInteractions(worker);
+        verify(lifecycleService, never()).markFailed(any(), any(), any());
+    }
+
     private SalesUploadCommand command(String fileName, byte[] content) {
         return new SalesUploadCommand(
                 1L,
