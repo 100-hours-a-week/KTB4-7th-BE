@@ -69,6 +69,10 @@ app:
     address: ${QA_ACCOUNT_ADDRESS:}
     address-detail: ${QA_ACCOUNT_ADDRESS_DETAIL:}
   sales:
+    outbox:
+      enabled: ${SALES_OUTBOX_ENABLED:false}
+      dispatch-enabled: ${SALES_OUTBOX_DISPATCH_ENABLED:true}
+      poll-interval-ms: 1000
     upload:
       queue-capacity: ${SALES_UPLOAD_QUEUE_CAPACITY:10}
     storage:
