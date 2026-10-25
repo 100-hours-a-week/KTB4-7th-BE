@@ -14,40 +14,52 @@ import com.memme.repository.noti.NotificationPreferenceRepository;
 import com.memme.repository.noti.NotificationRepository;
 import com.memme.repository.solution.SolutionBundleRepository;
 import com.memme.repository.store.StoreRepository;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityManagerFactory;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
-import org.hibernate.SessionFactory;
-import org.hibernate.stat.Statistics;
+import javax.sql.DataSource;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.junit.jupiter.api.Test;
+import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.job.Job;
+import org.springframework.batch.core.job.JobExecution;
+import org.springframework.batch.core.job.parameters.JobParametersBuilder;
+import org.springframework.batch.core.launch.JobOperator;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.transaction.annotation.Transactional;
 
-@SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
-@Transactional
+@SpringBootTest(properties = {
+        "spring.batch.job.enabled=false",
+        "spring.datasource.url=jdbc:h2:mem:solution-ready-query-${random.uuid};MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE"
+})
 class SolutionReadyNotificationBatchQueryIntegrationTest {
 
-    @Autowired private SolutionReadyNotificationService notificationService;
+    @Autowired private JobOperator jobOperator;
+    @Autowired @Qualifier("solutionReadyNotificationJob") private Job notificationJob;
     @Autowired private UserRepository userRepository;
     @Autowired private StoreRepository storeRepository;
     @Autowired private NotificationPreferenceRepository preferenceRepository;
     @Autowired private NotificationRepository notificationRepository;
     @Autowired private SolutionBundleRepository solutionBundleRepository;
-    @Autowired private EntityManager entityManager;
-    @Autowired private EntityManagerFactory entityManagerFactory;
     @Autowired private Clock clock;
+    @Autowired private DataSource dataSource;
+    @Autowired private JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void initializeBatchMetadata() throws Exception {
+        com.memme.service.noti.batch.BatchMetadataTestSupport.initializeSchemaIfNeeded(dataSource);
+        com.memme.service.noti.batch.BatchMetadataTestSupport.clearExecutions(jdbcTemplate);
+    }
 
     @Test
-    void 완료_번들을_일괄_조회하고_설정과_중복을_유지하면서_SELECT를_네번만_실행한다() {
+    void 오늘_완료된_번들에서_알림_설정과_소유자별_중복_조건을_유지한다() throws Exception {
         LocalDate today = LocalDate.now(clock);
         LocalDateTime now = LocalDateTime.now(clock);
-        List<User> owners = new ArrayList<>();
-        List<SolutionBundleEntity> bundles = new ArrayList<>();
+        List<User> owners = new java.util.ArrayList<>();
+        List<SolutionBundleEntity> bundles = new java.util.ArrayList<>();
 
         for (int index = 1; index <= 4; index++) {
             User owner = userRepository.save(User.create(
@@ -78,58 +90,44 @@ class SolutionReadyNotificationBatchQueryIntegrationTest {
         bundleWithoutOwner.changeStatus(SolutionBundleStatus.COMPLETED);
         bundles.add(solutionBundleRepository.save(bundleWithoutOwner));
 
-        NotificationPreference enabled = NotificationPreference.create(owners.get(0), now);
-        preferenceRepository.save(enabled);
-
+        preferenceRepository.save(NotificationPreference.create(owners.get(0), now));
         NotificationPreference disabled = NotificationPreference.create(owners.get(1), now);
         disabled.updatePreferences(false, null, now);
         preferenceRepository.save(disabled);
+        preferenceRepository.save(NotificationPreference.create(owners.get(3), now));
 
-        NotificationPreference alreadyNotified = NotificationPreference.create(owners.get(3), now);
-        preferenceRepository.save(alreadyNotified);
+        String alreadyNotifiedKey = "solution-ready:%d".formatted(bundles.get(3).getId());
+        String sameKeyForDifferentOwner = "solution-ready:%d".formatted(bundles.get(0).getId());
+        notificationRepository.save(notification(owners.get(3), alreadyNotifiedKey, bundles.get(3).getId(), now));
+        notificationRepository.save(notification(owners.get(3), sameKeyForDifferentOwner, bundles.get(0).getId(), now));
 
-        String existingKey = "solution-ready:%d".formatted(bundles.get(3).getId());
-        String notificationKeyForAnotherOwner = "solution-ready:%d".formatted(bundles.get(0).getId());
-        notificationRepository.save(Notification.create(
-                owners.get(3),
+        JobExecution execution = jobOperator.start(
+                notificationJob,
+                new JobParametersBuilder().addLocalDate("targetDate", today).toJobParameters()
+        );
+
+        assertThat(execution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+        assertThat(notificationRepository.findAllByUserIdOrderBySentAtDesc(owners.get(0).getId()))
+                .extracting(Notification::getNotificationKey)
+                .containsExactly("solution-ready:%d".formatted(bundles.get(0).getId()));
+        assertThat(notificationRepository.findAllByUserIdOrderBySentAtDesc(owners.get(1).getId())).isEmpty();
+        assertThat(notificationRepository.findAllByUserIdOrderBySentAtDesc(owners.get(2).getId())).isEmpty();
+        assertThat(notificationRepository.findAllByUserIdOrderBySentAtDesc(owners.get(3).getId()))
+                .extracting(Notification::getNotificationKey)
+                .containsExactlyInAnyOrder(alreadyNotifiedKey, sameKeyForDifferentOwner);
+    }
+
+    private Notification notification(User user, String key, Long bundleId, LocalDateTime now) {
+        return Notification.create(
+                user,
                 NotificationType.SOLUTION_READY,
-                existingKey,
+                key,
                 "새 솔루션이 준비되었습니다.",
                 "오늘의 솔루션을 확인해 주세요.",
                 "SOLUTION_BUNDLE",
-                bundles.get(3).getId(),
+                bundleId,
                 now,
                 now
-        ));
-        notificationRepository.save(Notification.create(
-                owners.get(3),
-                NotificationType.SOLUTION_READY,
-                notificationKeyForAnotherOwner,
-                "이전 소유자에게 생성된 알림",
-                "이전 소유자의 알림입니다.",
-                "SOLUTION_BUNDLE",
-                bundles.get(0).getId(),
-                now,
-                now
-        ));
-        entityManager.flush();
-        List<Long> ownerIds = owners.stream().map(User::getId).toList();
-        entityManager.clear();
-
-        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
-        statistics.clear();
-
-        notificationService.notifyTodaysSolutions();
-        entityManager.flush();
-
-        assertThat(statistics.getQueryExecutionCount()).isEqualTo(4);
-        assertThat(notificationRepository.findAllByUserIdOrderBySentAtDesc(ownerIds.get(0)))
-                .extracting(Notification::getNotificationKey)
-                .containsExactly("solution-ready:%d".formatted(bundles.get(0).getId()));
-        assertThat(notificationRepository.findAllByUserIdOrderBySentAtDesc(ownerIds.get(1))).isEmpty();
-        assertThat(notificationRepository.findAllByUserIdOrderBySentAtDesc(ownerIds.get(2))).isEmpty();
-        assertThat(notificationRepository.findAllByUserIdOrderBySentAtDesc(ownerIds.get(3)))
-                .extracting(Notification::getNotificationKey)
-                .containsExactlyInAnyOrder(existingKey, notificationKeyForAnotherOwner);
+        );
     }
 }

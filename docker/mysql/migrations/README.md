@@ -1,5 +1,16 @@
 # 기존 DB 마이그레이션 안내
 
+## Spring Batch 메타데이터 (#549)
+
+기존 QA·운영 DB에는 BE 배포 전에 `20261024-add-spring-batch-metadata.sql`을 한 번 적용합니다.
+신규 DB는 `docker/mysql/init/12-spring-batch-metadata.sql`을 사용합니다. 두 파일은 Spring Batch 6.0.5의
+MySQL 스키마를 기준으로 Job·Step 실행 이력과 재시작 체크포인트 테이블을 생성합니다.
+
+적용 전 DB 백업 여부와 `BATCH_JOB_INSTANCE`, `BATCH_JOB_EXECUTION`, `BATCH_STEP_EXECUTION` 등
+메타데이터 테이블의 부재를 확인합니다. 적용 후 9개 `BATCH_*` 테이블 및 sequence 초기 행을 확인한 뒤
+BE 스키마 검증과 배치 실행을 진행합니다. 애플리케이션은 자동 스키마 생성을 사용하지 않으므로
+배포 전에 해당 SQL을 적용해야 합니다.
+
 ## V2 재생성 결과 카드 보존 (#521)
 
 기존 QA·운영 DB에는 BE 배포 전에 `20261021-add-solution-card-versioning.sql`을 한 번 적용합니다.
