@@ -47,13 +47,19 @@ import com.memme.exception.store.InvalidStoreBusinessVerificationException;
 import com.memme.exception.store.InvalidStoreProfileUpdateRequestException;
 import com.memme.exception.store.StoreProfileNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
+import java.sql.SQLTransientConnectionException;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -74,6 +80,9 @@ public class GlobalExceptionHandler {
             "서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
     private static final String RANKING_LOAD_ERROR_MESSAGE =
             "성장 랭킹을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.";
+    private static final String DATABASE_CONNECTION_UNAVAILABLE_MESSAGE =
+            "서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요.";
+    private static final String DATABASE_CONNECTION_RETRY_AFTER_SECONDS = "3";
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final Pattern COST_ITEM_FIELD = Pattern.compile("items\\[(\\d+)]\\.(.+)");
 
@@ -440,6 +449,34 @@ public class GlobalExceptionHandler {
                 .toList();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiResponse<>("입력값을 확인해 주세요.", new FieldErrors(fieldErrors)));
+    }
+
+    @ExceptionHandler(CannotCreateTransactionException.class)
+    public ResponseEntity<ApiResponse<Void>> handleCannotCreateTransaction(
+            CannotCreateTransactionException exception,
+            HttpServletRequest request
+    ) {
+        if (!hasConnectionAcquisitionFailure(exception)) {
+            return handleUnhandledException(exception, request);
+        }
+
+        log.warn("Database connection unavailable while starting transaction", exception);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(HttpHeaders.RETRY_AFTER, DATABASE_CONNECTION_RETRY_AFTER_SECONDS)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ApiResponse<>(DATABASE_CONNECTION_UNAVAILABLE_MESSAGE, null));
+    }
+
+    private boolean hasConnectionAcquisitionFailure(Throwable exception) {
+        Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable cause = exception;
+        while (cause != null && visited.add(cause)) {
+            if (cause instanceof SQLTransientConnectionException) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 
     @ExceptionHandler(Exception.class)

@@ -29,12 +29,16 @@ import com.memme.exception.store.EmptyStoreProfileUpdateException;
 import com.memme.exception.store.InvalidStoreBusinessVerificationException;
 import com.memme.exception.store.InvalidStoreProfileUpdateRequestException;
 import com.memme.exception.store.StoreProfileNotFoundException;
+import java.sql.SQLTransientConnectionException;
 import java.util.List;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -59,12 +63,72 @@ class GlobalExceptionHandlerTest {
         assertFalse(responseBody.contains("sensitive internal detail"));
     }
 
+    @Test
+    void 트랜잭션_시작_중_DB_연결_획득_실패는_503과_Retry_After로_응답한다() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new UnhandledExceptionController())
+                .setControllerAdvice(exceptionHandler)
+                .build();
+
+        mockMvc.perform(get("/test/db-connection-unavailable"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string(HttpHeaders.RETRY_AFTER, "3"))
+                .andExpect(jsonPath("$.message")
+                        .value("서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요."))
+                .andExpect(jsonPath("$.data").value((Object) null));
+    }
+
+    @Test
+    void 연결획득실패가_아닌_트랜잭션_시작_예외는_기존_공통_500_응답으로_유지한다() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new UnhandledExceptionController())
+                .setControllerAdvice(exceptionHandler)
+                .build();
+
+        mockMvc.perform(get("/test/transaction-start-error"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .doesNotExist(HttpHeaders.RETRY_AFTER))
+                .andExpect(jsonPath("$.message").value("서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."));
+    }
+
+    @Test
+    void 다른_DB_예외는_기존_공통_500_응답으로_유지한다() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new UnhandledExceptionController())
+                .setControllerAdvice(exceptionHandler)
+                .build();
+
+        mockMvc.perform(get("/test/db-integrity-error"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.message").value("서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."));
+    }
+
     @RestController
     private static class UnhandledExceptionController {
 
         @GetMapping("/test/unhandled")
         public void triggerUnhandledException() {
             throw new RuntimeException("sensitive internal detail");
+        }
+
+        @GetMapping("/test/db-connection-unavailable")
+        public void triggerDbConnectionUnavailable() {
+            throw new CannotCreateTransactionException(
+                    "connection acquisition timeout",
+                    new SQLTransientConnectionException("Hikari connection acquisition timed out")
+            );
+        }
+
+        @GetMapping("/test/transaction-start-error")
+        public void triggerTransactionStartError() {
+            throw new CannotCreateTransactionException(
+                    "transaction start failed",
+                    new IllegalStateException("non-connection transaction failure")
+            );
+        }
+
+        @GetMapping("/test/db-integrity-error")
+        public void triggerDbIntegrityError() {
+            throw new DataIntegrityViolationException("constraint violation");
         }
     }
 
