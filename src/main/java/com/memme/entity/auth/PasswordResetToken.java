@@ -57,6 +57,10 @@ public class PasswordResetToken {
         return user;
     }
 
+    public Long getId() {
+        return id;
+    }
+
     public boolean isExpiredAt(LocalDateTime now) {
         return !expiresAt.isAfter(now);
     }
