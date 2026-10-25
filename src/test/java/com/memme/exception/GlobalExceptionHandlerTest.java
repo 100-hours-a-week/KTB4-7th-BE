@@ -32,6 +32,7 @@ import com.memme.exception.store.StoreProfileNotFoundException;
 import java.sql.SQLTransientConnectionException;
 import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpHeaders;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -102,6 +103,34 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.message").value("서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."));
     }
 
+    @Test
+    void 트랜잭션_밖의_DB_연결_획득_실패는_503과_Retry_After로_응답한다() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new UnhandledExceptionController())
+                .setControllerAdvice(exceptionHandler)
+                .build();
+
+        mockMvc.perform(get("/test/repository-db-connection-unavailable"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string(HttpHeaders.RETRY_AFTER, "3"))
+                .andExpect(jsonPath("$.message")
+                        .value("서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요."))
+                .andExpect(jsonPath("$.data").value((Object) null));
+    }
+
+    @Test
+    void 연결획득실패가_아닌_DB_자원오류는_기존_공통_500_응답으로_유지한다() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new UnhandledExceptionController())
+                .setControllerAdvice(exceptionHandler)
+                .build();
+
+        mockMvc.perform(get("/test/repository-db-resource-error"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .doesNotExist(HttpHeaders.RETRY_AFTER))
+                .andExpect(jsonPath("$.message").value("서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."));
+    }
+
     @RestController
     private static class UnhandledExceptionController {
 
@@ -129,6 +158,25 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/test/db-integrity-error")
         public void triggerDbIntegrityError() {
             throw new DataIntegrityViolationException("constraint violation");
+        }
+
+        @GetMapping("/test/repository-db-connection-unavailable")
+        public void triggerRepositoryDbConnectionUnavailable() {
+            throw new DataAccessResourceFailureException(
+                    "JDBC connection unavailable",
+                    new org.hibernate.exception.JDBCConnectionException(
+                            "Unable to acquire JDBC connection",
+                            new SQLTransientConnectionException("Hikari connection acquisition timed out")
+                    )
+            );
+        }
+
+        @GetMapping("/test/repository-db-resource-error")
+        public void triggerRepositoryDbResourceError() {
+            throw new DataAccessResourceFailureException(
+                    "database resource unavailable",
+                    new IllegalStateException("non-connection database failure")
+            );
         }
     }
 
