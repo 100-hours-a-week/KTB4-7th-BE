@@ -56,6 +56,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -456,11 +457,26 @@ public class GlobalExceptionHandler {
             CannotCreateTransactionException exception,
             HttpServletRequest request
     ) {
+        return handleDatabaseConnectionFailure(exception, request);
+    }
+
+    @ExceptionHandler(DataAccessResourceFailureException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataAccessResourceFailure(
+            DataAccessResourceFailureException exception,
+            HttpServletRequest request
+    ) {
+        return handleDatabaseConnectionFailure(exception, request);
+    }
+
+    private ResponseEntity<ApiResponse<Void>> handleDatabaseConnectionFailure(
+            RuntimeException exception,
+            HttpServletRequest request
+    ) {
         if (!hasConnectionAcquisitionFailure(exception)) {
             return handleUnhandledException(exception, request);
         }
 
-        log.warn("Database connection unavailable while starting transaction", exception);
+        log.warn("Database connection unavailable", exception);
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .header(HttpHeaders.RETRY_AFTER, DATABASE_CONNECTION_RETRY_AFTER_SECONDS)
                 .contentType(MediaType.APPLICATION_JSON)
