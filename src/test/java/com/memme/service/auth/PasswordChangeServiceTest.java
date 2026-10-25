@@ -30,7 +30,7 @@ class PasswordChangeServiceTest {
 
     @BeforeEach
     void setUp() {
-        passwordChangeService = new PasswordChangeService(userRepository, passwordEncoder);
+        passwordChangeService = new PasswordChangeService(userRepository, passwordEncoder, new TestTransactionManager());
     }
 
     @Test
@@ -40,6 +40,7 @@ class PasswordChangeServiceTest {
                 "OldPassword1!", "NewPassword1!", "NewPassword1!"
         );
         when(userRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdAndDeletedAtIsNullForUpdate(1L)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("OldPassword1!", "old-encoded-password")).thenReturn(true);
         when(passwordEncoder.matches("NewPassword1!", "old-encoded-password")).thenReturn(false);
         when(passwordEncoder.encode("NewPassword1!")).thenReturn("new-encoded-password");
@@ -48,6 +49,24 @@ class PasswordChangeServiceTest {
 
         assertThat(user.getPasswordHash()).isEqualTo("new-encoded-password");
         verify(passwordEncoder).encode("NewPassword1!");
+    }
+
+    @Test
+    void 해시_계산_중_다른_요청이_비밀번호를_변경하면_덮어쓰지_않는다() throws Exception {
+        User initiallyLoadedUser = user(1L, "old-encoded-password");
+        User userChangedByAnotherRequest = user(1L, "changed-by-another-request");
+        when(userRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(initiallyLoadedUser));
+        when(userRepository.findByIdAndDeletedAtIsNullForUpdate(1L))
+                .thenReturn(Optional.of(userChangedByAnotherRequest));
+        when(passwordEncoder.matches("OldPassword1!", "old-encoded-password")).thenReturn(true);
+        when(passwordEncoder.matches("NewPassword1!", "old-encoded-password")).thenReturn(false);
+        when(passwordEncoder.encode("NewPassword1!")).thenReturn("new-encoded-password");
+
+        assertThrows(InvalidCurrentPasswordException.class, () -> passwordChangeService.changePassword(
+                1L, new PasswordChangeRequest("OldPassword1!", "NewPassword1!", "NewPassword1!")
+        ));
+
+        assertThat(userChangedByAnotherRequest.getPasswordHash()).isEqualTo("changed-by-another-request");
     }
 
     @Test

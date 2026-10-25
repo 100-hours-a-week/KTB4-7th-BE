@@ -51,7 +51,8 @@ class PasswordResetServiceTest {
                 passwordResetMailSender,
                 passwordResetRateLimiter,
                 passwordEncoder,
-                FRONTEND_RESET_URL
+                FRONTEND_RESET_URL,
+                new TestTransactionManager()
         );
     }
 
@@ -112,6 +113,7 @@ class PasswordResetServiceTest {
                 LocalDateTime.now()
         );
         when(passwordResetTokenRepository.findByTokenHash(any())).thenReturn(Optional.of(token));
+        when(passwordResetTokenRepository.findByIdForUpdate(any())).thenReturn(Optional.of(token));
         when(passwordEncoder.encode("NewPassword1!")).thenReturn("encoded-new-password");
 
         passwordResetService.resetPassword(new PasswordResetRequest(
@@ -120,6 +122,30 @@ class PasswordResetServiceTest {
 
         assertThat(user.getPasswordHash()).isEqualTo("encoded-new-password");
         assertThat(token.isUsed()).isTrue();
+        verify(passwordEncoder).encode("NewPassword1!");
+    }
+
+    @Test
+    void 해시_중_다른_요청이_토큰을_사용하면_비밀번호를_변경하지_않는다() {
+        User user = user();
+        LocalDateTime now = LocalDateTime.now();
+        PasswordResetToken initialToken = PasswordResetToken.create(
+                user, "a".repeat(64), now.plusMinutes(1), now
+        );
+        PasswordResetToken tokenUsedByAnotherRequest = PasswordResetToken.create(
+                user, "a".repeat(64), now.plusMinutes(1), now
+        );
+        tokenUsedByAnotherRequest.markUsedAt(now);
+        when(passwordResetTokenRepository.findByTokenHash(any())).thenReturn(Optional.of(initialToken));
+        when(passwordResetTokenRepository.findByIdForUpdate(any()))
+                .thenReturn(Optional.of(tokenUsedByAnotherRequest));
+        when(passwordEncoder.encode("NewPassword1!")).thenReturn("encoded-new-password");
+
+        assertThatThrownBy(() -> passwordResetService.resetPassword(new PasswordResetRequest(
+                "raw-token", "NewPassword1!", "NewPassword1!"
+        ))).isInstanceOf(PasswordResetTokenExpiredException.class);
+
+        assertThat(user.getPasswordHash()).isEqualTo("encoded-password");
         verify(passwordEncoder).encode("NewPassword1!");
     }
 
