@@ -3,6 +3,8 @@ package com.memme.entity.sales;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "sales_upload_outbox", uniqueConstraints = @UniqueConstraint(
@@ -23,15 +25,21 @@ public class SalesUploadOutboxEntity {
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 24) private Checkpoint checkpoint;
     @Column(name = "attempt_count", nullable = false) private int attemptCount;
     @Column(name = "max_attempts", nullable = false) private int maxAttempts;
+    @JdbcTypeCode(SqlTypes.LOCAL_DATE_TIME)
     @Column(name = "available_at", nullable = false) private LocalDateTime availableAt;
+    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(name = "claim_token", length = 36) private String claimToken;
     @Column(name = "lease_owner", length = 100) private String leaseOwner;
+    @JdbcTypeCode(SqlTypes.LOCAL_DATE_TIME)
     @Column(name = "lease_until") private LocalDateTime leaseUntil;
     @Column(name = "applied_record_count") private Integer appliedRecordCount;
     @Column(name = "last_error_code", length = 50) private String lastErrorCode;
     @Column(name = "last_error_message", length = 500) private String lastErrorMessage;
+    @JdbcTypeCode(SqlTypes.LOCAL_DATE_TIME)
     @Column(name = "created_at", nullable = false) private LocalDateTime createdAt;
+    @JdbcTypeCode(SqlTypes.LOCAL_DATE_TIME)
     @Column(name = "updated_at", nullable = false) private LocalDateTime updatedAt;
+    @JdbcTypeCode(SqlTypes.LOCAL_DATE_TIME)
     @Column(name = "finished_at") private LocalDateTime finishedAt;
 
     protected SalesUploadOutboxEntity() {}
