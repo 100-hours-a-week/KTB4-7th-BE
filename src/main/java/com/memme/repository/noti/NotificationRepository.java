@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface NotificationRepository extends JpaRepository<Notification, Long>, NotificationSseQueryRepository {
+public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
     List<Notification> findAllByUserIdOrderBySentAtDesc(Long userId);
 
