@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 import com.memme.entity.auth.User;
 import com.memme.entity.noti.Notification;
 import com.memme.entity.noti.NotificationPreference;
+import com.memme.entity.noti.NotificationType;
+import com.memme.repository.noti.NotificationSseQueryRepository.NotificationIdentity;
 import com.memme.entity.sales.SalesUploadEntity;
 import com.memme.repository.auth.UserRepository;
 import com.memme.repository.noti.NotificationPreferenceRepository;
@@ -34,6 +36,7 @@ class SalesUploadReminderServiceTest {
     private NotificationPreferenceRepository preferenceRepository;
     private NotificationRepository notificationRepository;
     private UserRepository userRepository;
+    private NotificationSsePublicationService publisher;
 
     @BeforeEach
     void setUp() {
@@ -43,6 +46,7 @@ class SalesUploadReminderServiceTest {
         preferenceRepository = mock(NotificationPreferenceRepository.class);
         notificationRepository = mock(NotificationRepository.class);
         userRepository = mock(UserRepository.class);
+        publisher = mock(NotificationSsePublicationService.class);
     }
 
     @Test
@@ -59,6 +63,8 @@ class SalesUploadReminderServiceTest {
         assertThat(notification.getTitle()).isEqualTo("다음 매출 데이터를 미리 준비해주세요");
         assertThat(notification.getContent())
                 .isEqualTo("예측이 끊기지 않도록 다음 달에도 매출 파일을 업로드해주세요");
+        verify(publisher).publishAfterCommit(NotificationType.SALES_UPLOAD_REMINDER,
+                List.of(new NotificationIdentity(3L, notification.getNotificationKey())));
     }
 
     @Test
@@ -88,6 +94,7 @@ class SalesUploadReminderServiceTest {
 
         verify(salesUploadRepository, never()).findFirstByStoreIdAndStatusOrderByUploadedAtDesc(any(), any());
         verify(notificationRepository, never()).save(any());
+        verify(publisher, never()).publishAfterCommit(any(), any());
     }
 
     @Test
@@ -102,6 +109,7 @@ class SalesUploadReminderServiceTest {
 
         verify(notificationRepository, never()).save(any());
         verify(userRepository, never()).getReferenceById(any());
+        verify(publisher, never()).publishAfterCommit(any(), any());
     }
 
     private SalesUploadReminderService serviceAt(String instant) {
@@ -113,7 +121,8 @@ class SalesUploadReminderServiceTest {
                 preferenceRepository,
                 notificationRepository,
                 userRepository,
-                clock
+                clock,
+                publisher
         );
     }
 
