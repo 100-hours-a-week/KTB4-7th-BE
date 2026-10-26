@@ -42,3 +42,20 @@ app:
   login:
     rate-limit:
       hash-key: test-login-rate-limit-key
+
+server:
+  tomcat:
+    mbeanregistry:
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      application: memme
+    distribution:
+      slo:
+        "[http.server.requests]": 100ms,300ms,1s,3s,10s

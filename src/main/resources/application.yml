@@ -34,6 +34,23 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+  tomcat:
+    mbeanregistry:
+      enabled: true
+
+management:
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      slo:
+        "[http.server.requests]": 100ms,300ms,1s,3s,10s
 
 sentry:
   dsn: ${SENTRY_DSN:}
