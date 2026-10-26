@@ -7,8 +7,6 @@ import static org.mockito.Mockito.verify;
 
 import com.memme.entity.noti.NotificationType;
 import com.memme.repository.noti.NotificationBulkInsertRepository;
-import com.memme.repository.noti.NotificationSseQueryRepository.NotificationIdentity;
-import com.memme.service.noti.NotificationSsePublicationService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -42,30 +40,23 @@ class SolutionReadyNotificationItemProcessingTest {
     @Test
     void writer는_청크의_알림들을_벌크_저장소에_한번_전달한다() throws Exception {
         NotificationBulkInsertRepository bulkInsertRepository = mock(NotificationBulkInsertRepository.class);
-        NotificationSsePublicationService publisher = mock(NotificationSsePublicationService.class);
-        SolutionReadyNotificationItemWriter writer = new SolutionReadyNotificationItemWriter(bulkInsertRepository, publisher);
+        SolutionReadyNotificationItemWriter writer = new SolutionReadyNotificationItemWriter(bulkInsertRepository);
         NotificationBulkInsertRepository.NotificationRow first = row(1L);
         NotificationBulkInsertRepository.NotificationRow second = row(2L);
 
         writer.write(new Chunk<>(List.of(first, second)));
 
         verify(bulkInsertRepository).insertAll(List.of(first, second));
-        verify(publisher).publishAfterCommit(NotificationType.SOLUTION_READY, List.of(
-                new NotificationIdentity(1L, "solution-ready:1"),
-                new NotificationIdentity(2L, "solution-ready:2")));
     }
 
     @Test
     void 빈_청크는_저장소를_호출하지_않는다() throws Exception {
         NotificationBulkInsertRepository bulkInsertRepository = mock(NotificationBulkInsertRepository.class);
-        NotificationSsePublicationService publisher = mock(NotificationSsePublicationService.class);
-        SolutionReadyNotificationItemWriter writer = new SolutionReadyNotificationItemWriter(bulkInsertRepository, publisher);
+        SolutionReadyNotificationItemWriter writer = new SolutionReadyNotificationItemWriter(bulkInsertRepository);
 
         writer.write(new Chunk<>());
 
         verify(bulkInsertRepository, never()).insertAll(org.mockito.ArgumentMatchers.anyList());
-        verify(publisher, never()).publishAfterCommit(org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyList());
     }
 
     private NotificationBulkInsertRepository.NotificationRow row(Long bundleId) {

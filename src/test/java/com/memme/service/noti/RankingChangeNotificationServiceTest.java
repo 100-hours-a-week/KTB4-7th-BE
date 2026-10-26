@@ -13,7 +13,6 @@ import com.memme.entity.auth.User;
 import com.memme.entity.noti.Notification;
 import com.memme.entity.noti.NotificationPreference;
 import com.memme.entity.noti.NotificationType;
-import com.memme.repository.noti.NotificationSseQueryRepository.NotificationIdentity;
 import com.memme.entity.ranking.RankingEntryEntity;
 import com.memme.entity.ranking.RankingProfileEntity;
 import com.memme.entity.ranking.RankingSnapshotEntity;
@@ -55,7 +54,6 @@ class RankingChangeNotificationServiceTest {
     private NotificationPreferenceRepository preferenceRepository;
     private NotificationRepository notificationRepository;
     private UserRepository userRepository;
-    private NotificationSsePublicationService publisher;
     private RankingChangeNotificationService service;
 
     @BeforeEach
@@ -67,7 +65,6 @@ class RankingChangeNotificationServiceTest {
         preferenceRepository = mock(NotificationPreferenceRepository.class);
         notificationRepository = mock(NotificationRepository.class);
         userRepository = mock(UserRepository.class);
-        publisher = mock(NotificationSsePublicationService.class);
         service = new RankingChangeNotificationService(
                 snapshotRepository,
                 entryRepository,
@@ -77,8 +74,7 @@ class RankingChangeNotificationServiceTest {
                 notificationRepository,
                 userRepository,
                 FIXED_CLOCK,
-                SNAPSHOT_STORAGE_ZONE,
-                publisher
+                SNAPSHOT_STORAGE_ZONE
         );
     }
 
@@ -114,10 +110,6 @@ class RankingChangeNotificationServiceTest {
         verify(notificationRepository).saveAll(notificationsCaptor.capture());
         List<Notification> notifications = toList(notificationsCaptor.getValue());
         assertThat(notifications).hasSize(3);
-        verify(publisher).publishAfterCommit(eq(NotificationType.RANKING_CHANGED), eq(List.of(
-                new NotificationIdentity(101L, "RANKING_CHANGED:101:2026-09:2026-10-11"),
-                new NotificationIdentity(102L, "RANKING_CHANGED:102:2026-09:2026-10-11"),
-                new NotificationIdentity(103L, "RANKING_CHANGED:103:2026-09:2026-10-11"))));
         assertThat(notifications).extracting(Notification::getNotificationKey)
                 .containsExactlyInAnyOrder(
                         "RANKING_CHANGED:101:2026-09:2026-10-11",

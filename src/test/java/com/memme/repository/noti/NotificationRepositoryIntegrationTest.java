@@ -7,11 +7,8 @@ import com.memme.entity.noti.Notification;
 import com.memme.entity.noti.NotificationType;
 import com.memme.entity.noti.NotificationPreference;
 import com.memme.repository.auth.UserRepository;
-import com.memme.repository.noti.NotificationSseQueryRepository.NotificationIdentity;
-import com.memme.repository.noti.NotificationSseQueryRepository.StoredNotification;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -146,85 +143,5 @@ class NotificationRepositoryIntegrationTest {
         assertThat(notificationRepository.existsByUserIdAndNotificationTypeAndNotificationKey(
                 owner.getId(), NotificationType.SALES_UPLOAD_REMINDER, "sales-upload:42:REMINDER:2026-09-26"
         )).isFalse();
-    }
-
-    @Test
-    void 사용자와_유형과_멱등키에_맞는_저장_알림을_SSE용으로_묶음_조회한다() {
-        LocalDateTime now = LocalDateTime.of(2026, 10, 26, 8, 0);
-        User owner = userRepository.saveAndFlush(User.create(
-                "sse-notification-owner@example.com", "encoded-password", "01012121212", now));
-        User otherUser = userRepository.saveAndFlush(User.create(
-                "sse-notification-other@example.com", "encoded-password", "01034343434", now));
-
-        Notification matching = Notification.create(owner, NotificationType.SOLUTION_READY,
-                "solution-ready:10", "솔루션 도착", "솔루션을 확인해 주세요.", "SOLUTION_BUNDLE", 10L, now, now);
-        matching.markAsRead(now.plusMinutes(5));
-        notificationRepository.saveAndFlush(matching);
-        notificationRepository.saveAndFlush(Notification.create(owner, NotificationType.SOLUTION_READY,
-                "solution-ready:11", "요청하지 않은 사용자 키 조합", "다른 알림", "SOLUTION_BUNDLE", 11L, now, now));
-        Notification otherUsersNotification = Notification.create(otherUser, NotificationType.SOLUTION_READY,
-                "solution-ready:11", "다른 사용자 알림", "솔루션을 확인해 주세요.", "SOLUTION_BUNDLE", 11L, now, now);
-        notificationRepository.saveAndFlush(otherUsersNotification);
-        notificationRepository.saveAndFlush(Notification.create(owner, NotificationType.SALES_UPLOAD_REMINDER,
-                "solution-ready:10", "다른 유형", "다른 알림", null, null, now, now));
-        notificationRepository.saveAndFlush(Notification.create(otherUser, NotificationType.SOLUTION_READY,
-                "solution-ready:10", "다른 사용자", "다른 알림", "SOLUTION_BUNDLE", 10L, now, now));
-        for (NotificationType type : NotificationType.values()) {
-            String key = "sse:" + type.name();
-            notificationRepository.saveAndFlush(Notification.create(owner, type,
-                    key, type.name(), "알림 내용", "SOLUTION_BUNDLE", 10L, now, now));
-        }
-        entityManager.clear();
-
-        List<StoredNotification> results = notificationRepository
-                .findSseNotificationsByIdentitiesAndType(
-                        List.of(
-                                new NotificationIdentity(owner.getId(), "solution-ready:10"),
-                                new NotificationIdentity(otherUser.getId(), "solution-ready:11")
-                        ),
-                        NotificationType.SOLUTION_READY
-                );
-
-        assertThat(results).hasSize(2);
-        StoredNotification stored = results.stream()
-                .filter(notification -> notification.notificationKey().equals("solution-ready:10"))
-                .findFirst()
-                .orElseThrow();
-        assertThat(stored.id()).isEqualTo(matching.getId());
-        assertThat(stored.userId()).isEqualTo(owner.getId());
-        assertThat(stored.notificationType()).isEqualTo(NotificationType.SOLUTION_READY);
-        assertThat(stored.notificationKey()).isEqualTo("solution-ready:10");
-        assertThat(stored.title()).isEqualTo("솔루션 도착");
-        assertThat(stored.content()).isEqualTo("솔루션을 확인해 주세요.");
-        assertThat(stored.relatedEntityType()).isEqualTo("SOLUTION_BUNDLE");
-        assertThat(stored.relatedEntityId()).isEqualTo(10L);
-        assertThat(stored.sentAt()).isEqualTo(now);
-        assertThat(stored.readAt()).isEqualTo(now.plusMinutes(5));
-
-        StoredNotification otherUsersStored = results.stream()
-                .filter(notification -> notification.userId().equals(otherUser.getId()))
-                .findFirst()
-                .orElseThrow();
-        assertThat(otherUsersStored.id()).isEqualTo(otherUsersNotification.getId());
-
-        assertThat(results).extracting(StoredNotification::userId, StoredNotification::notificationKey)
-                .containsExactlyInAnyOrder(
-                        org.assertj.core.groups.Tuple.tuple(owner.getId(), "solution-ready:10"),
-                        org.assertj.core.groups.Tuple.tuple(otherUser.getId(), "solution-ready:11")
-                );
-
-        for (NotificationType type : NotificationType.values()) {
-            List<StoredNotification> notifications = notificationRepository
-                    .findSseNotificationsByIdentitiesAndType(
-                            List.of(new NotificationIdentity(owner.getId(), "sse:" + type.name())), type
-                    );
-
-            assertThat(notifications).singleElement()
-                    .extracting(StoredNotification::notificationType)
-                    .isEqualTo(type);
-        }
-
-        assertThat(notificationRepository.findSseNotificationsByIdentitiesAndType(
-                List.of(), NotificationType.SOLUTION_READY)).isEmpty();
     }
 }
