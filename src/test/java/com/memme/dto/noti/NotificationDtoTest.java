@@ -58,23 +58,6 @@ class NotificationDtoTest {
                 .containsExactly("updatedCount", "readAt");
     }
 
-    @Test
-    void SSE_이벤트는_세_알림_유형에_같은_목록_항목_형식을_사용한다() {
-        OffsetDateTime sentAt = OffsetDateTime.parse("2026-10-26T08:00:00+09:00");
-        OffsetDateTime readAt = OffsetDateTime.parse("2026-10-26T08:10:00+09:00");
-
-        for (NotificationType type : NotificationType.values()) {
-            NotificationListResponse.Item item = new NotificationListResponse.Item(
-                    1L, type, "알림 제목", "알림 내용", "SOLUTION", 10L, sentAt, readAt
-            );
-
-            NotificationSseEvent event = new NotificationSseEvent(item);
-
-            assertThat(event.name()).isEqualTo("notification");
-            assertThat(event.data()).isEqualTo(item);
-        }
-    }
-
     private List<String> componentNames(Class<?> type) {
         return Arrays.stream(type.getRecordComponents())
                 .map(RecordComponent::getName)

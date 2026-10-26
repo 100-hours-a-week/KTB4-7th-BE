@@ -9,7 +9,6 @@ import com.memme.entity.sales.SalesUploadStatus;
 import com.memme.repository.auth.UserRepository;
 import com.memme.repository.noti.NotificationPreferenceRepository;
 import com.memme.repository.noti.NotificationRepository;
-import com.memme.repository.noti.NotificationSseQueryRepository.NotificationIdentity;
 import com.memme.repository.sales.SalesForecastRepository;
 import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.repository.store.StoreRepository;
@@ -18,8 +17,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,7 +40,6 @@ public class SalesUploadReminderService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final Clock clock;
-    private final NotificationSsePublicationService publisher;
 
     public SalesUploadReminderService(
             StoreRepository storeRepository,
@@ -52,8 +48,7 @@ public class SalesUploadReminderService {
             NotificationPreferenceRepository preferenceRepository,
             NotificationRepository notificationRepository,
             UserRepository userRepository,
-            Clock clock,
-            NotificationSsePublicationService publisher
+            Clock clock
     ) {
         this.storeRepository = storeRepository;
         this.salesUploadRepository = salesUploadRepository;
@@ -62,27 +57,21 @@ public class SalesUploadReminderService {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.clock = clock;
-        this.publisher = publisher;
     }
 
     @Transactional
     public void sendDailyReminders() {
         LocalDate targetDate = LocalDate.now(clock);
         LocalDateTime sentAt = LocalDateTime.now(clock);
-        List<NotificationIdentity> created = new ArrayList<>();
 
         storeRepository.findAllActiveStoreOwners()
-                .forEach(storeOwner -> sendReminder(storeOwner, targetDate, sentAt, created));
-        if (!created.isEmpty()) {
-            publisher.publishAfterCommit(NotificationType.SALES_UPLOAD_REMINDER, created);
-        }
+                .forEach(storeOwner -> sendReminder(storeOwner, targetDate, sentAt));
     }
 
     private void sendReminder(
             StoreRepository.ActiveStoreOwner storeOwner,
             LocalDate targetDate,
-            LocalDateTime sentAt,
-            List<NotificationIdentity> created
+            LocalDateTime sentAt
     ) {
         Long ownerUserId = storeOwner.getOwnerUserId();
         if (!isReminderEnabled(ownerUserId)) {
@@ -106,8 +95,7 @@ public class SalesUploadReminderService {
         LocalDate forecastStartDate = endDate.minusDays(34);
         LocalDate prepareDate = forecastStartDate.with(TemporalAdjusters.lastDayOfMonth());
         if (targetDate.equals(prepareDate)) {
-            saveIfAbsent(ownerUserId, upload.getId(), targetDate, "PREPARE", PREPARE_TITLE, PREPARE_CONTENT,
-                    sentAt, created);
+            saveIfAbsent(ownerUserId, upload.getId(), targetDate, "PREPARE", PREPARE_TITLE, PREPARE_CONTENT, sentAt);
             return;
         }
 
@@ -116,8 +104,7 @@ public class SalesUploadReminderService {
         }
 
         ReminderMessage message = reminderMessage(prepareDate.plusDays(1), endDate, targetDate);
-        saveIfAbsent(ownerUserId, upload.getId(), targetDate, "REMINDER", message.title(), message.content(),
-                sentAt, created);
+        saveIfAbsent(ownerUserId, upload.getId(), targetDate, "REMINDER", message.title(), message.content(), sentAt);
     }
 
     private boolean isReminderEnabled(Long ownerUserId) {
@@ -148,8 +135,7 @@ public class SalesUploadReminderService {
             String phase,
             String title,
             String content,
-            LocalDateTime sentAt,
-            List<NotificationIdentity> created
+            LocalDateTime sentAt
     ) {
         String notificationKey = "sales-upload:%d:%s:%s".formatted(uploadId, phase, targetDate);
         if (notificationRepository.existsByUserIdAndNotificationTypeAndNotificationKey(
@@ -172,7 +158,6 @@ public class SalesUploadReminderService {
                 sentAt,
                 sentAt
         ));
-        created.add(new NotificationIdentity(ownerUserId, notificationKey));
     }
 
     private record ReminderMessage(String title, String content) {
