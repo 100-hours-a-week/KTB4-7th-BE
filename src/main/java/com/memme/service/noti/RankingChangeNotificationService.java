@@ -10,6 +10,7 @@ import com.memme.entity.ranking.RankingSnapshotEntity;
 import com.memme.repository.auth.UserRepository;
 import com.memme.repository.noti.NotificationPreferenceRepository;
 import com.memme.repository.noti.NotificationRepository;
+import com.memme.repository.noti.NotificationSseQueryRepository.NotificationIdentity;
 import com.memme.repository.ranking.RankingEntryRepository;
 import com.memme.repository.ranking.RankingProfileRepository;
 import com.memme.repository.ranking.RankingSnapshotRepository;
@@ -46,6 +47,7 @@ public class RankingChangeNotificationService {
     private final UserRepository userRepository;
     private final Clock clock;
     private final ZoneId snapshotTimestampZone;
+    private final NotificationSsePublicationService publisher;
 
     @Autowired
     public RankingChangeNotificationService(
@@ -56,7 +58,8 @@ public class RankingChangeNotificationService {
             NotificationPreferenceRepository preferenceRepository,
             NotificationRepository notificationRepository,
             UserRepository userRepository,
-            Clock clock
+            Clock clock,
+            NotificationSsePublicationService publisher
     ) {
         this(
                 snapshotRepository,
@@ -67,7 +70,8 @@ public class RankingChangeNotificationService {
                 notificationRepository,
                 userRepository,
                 clock,
-                ZoneId.systemDefault()
+                ZoneId.systemDefault(),
+                publisher
         );
     }
 
@@ -80,7 +84,8 @@ public class RankingChangeNotificationService {
             NotificationRepository notificationRepository,
             UserRepository userRepository,
             Clock clock,
-            ZoneId snapshotTimestampZone
+            ZoneId snapshotTimestampZone,
+            NotificationSsePublicationService publisher
     ) {
         this.snapshotRepository = snapshotRepository;
         this.entryRepository = entryRepository;
@@ -91,6 +96,7 @@ public class RankingChangeNotificationService {
         this.userRepository = userRepository;
         this.clock = clock;
         this.snapshotTimestampZone = snapshotTimestampZone;
+        this.publisher = publisher;
     }
 
     @Transactional
@@ -127,6 +133,7 @@ public class RankingChangeNotificationService {
                 .collect(Collectors.toMap(RankingProfileEntity::getId, Function.identity()));
         LocalDateTime sentAt = LocalDateTime.now(clock.withZone(KOREA_ZONE));
         List<Notification> notifications = new ArrayList<>();
+        List<NotificationIdentity> identities = new ArrayList<>();
         for (RankingChange change : changes) {
             RankingProfileEntity profile = profilesById.get(change.rankingProfileId());
             if (profile == null) {
@@ -142,12 +149,14 @@ public class RankingChangeNotificationService {
                             currentSnapshot.get(),
                             change,
                             sentAt,
-                            notifications
+                            notifications,
+                            identities
                     ));
         }
 
         if (!notifications.isEmpty()) {
             notificationRepository.saveAll(notifications);
+            publisher.publishAfterCommit(NotificationType.RANKING_CHANGED, identities);
         }
     }
 
@@ -213,7 +222,8 @@ public class RankingChangeNotificationService {
             RankingSnapshotEntity currentSnapshot,
             RankingChange change,
             LocalDateTime sentAt,
-            List<Notification> notifications
+            List<Notification> notifications,
+            List<NotificationIdentity> identities
     ) {
         String notificationKey = "RANKING_CHANGED:%d:%s:%s".formatted(
                 userId,
@@ -241,6 +251,7 @@ public class RankingChangeNotificationService {
                 sentAt,
                 sentAt
         ));
+        identities.add(new NotificationIdentity(userId, notificationKey));
     }
 
     private Message messageFor(RankingChange change) {
