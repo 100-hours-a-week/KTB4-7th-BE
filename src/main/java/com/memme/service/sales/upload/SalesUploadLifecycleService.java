@@ -8,17 +8,30 @@ import com.memme.repository.sales.SalesUploadRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import com.memme.entity.sales.SalesUploadOutboxEntity;
+import com.memme.repository.sales.outbox.SalesUploadOutboxRepository;
+import com.memme.repository.sales.outbox.SalesOutboxDatabaseClock;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class SalesUploadLifecycleService {
 
     private final SalesUploadRepository uploadRepository;
     private final AnalysisRunRepository analysisRunRepository;
+    private final SalesUploadOutboxRepository outboxRepository;
+    private final SalesOutboxDatabaseClock databaseClock;
+    private final boolean outboxEnabled;
 
     public SalesUploadLifecycleService(SalesUploadRepository uploadRepository,
-                                       AnalysisRunRepository analysisRunRepository) {
+                                       AnalysisRunRepository analysisRunRepository,
+                                       SalesUploadOutboxRepository outboxRepository,
+                                       SalesOutboxDatabaseClock databaseClock,
+                                       @Value("${app.sales.outbox.enabled:false}") boolean outboxEnabled) {
         this.uploadRepository = uploadRepository;
         this.analysisRunRepository = analysisRunRepository;
+        this.outboxRepository = outboxRepository;
+        this.databaseClock = databaseClock;
+        this.outboxEnabled = outboxEnabled;
     }
 
     @Transactional
@@ -29,6 +42,9 @@ public class SalesUploadLifecycleService {
             String storageKey,
             String checksum
     ) {
+        if (outboxEnabled && outboxRepository.lockStore(storeId) == null) {
+            throw new IllegalStateException("매출 접수 매장을 찾을 수 없습니다.");
+        }
         SalesUploadEntity upload = SalesUploadEntity.pending(
                 storeId,
                 requestedByUserId,
@@ -40,8 +56,14 @@ public class SalesUploadLifecycleService {
         AnalysisRunEntity run = analysisRunRepository.saveAndFlush(
                 AnalysisRunEntity.pending(storeId, requestedByUserId, upload.getId())
         );
+        if (outboxEnabled) {
+            outboxRepository.saveAndFlush(SalesUploadOutboxEntity.ready(
+                    storeId, upload.getId(), run.getId(), databaseClock.now()));
+        }
         return new SalesUploadReceipt(upload.getId(), run.getId(), "PENDING");
     }
+
+    public boolean usesOutbox() { return outboxEnabled; }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void startProcessing(Long uploadId) {
