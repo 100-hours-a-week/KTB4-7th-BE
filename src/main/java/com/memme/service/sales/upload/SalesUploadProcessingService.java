@@ -129,6 +129,11 @@ public class SalesUploadProcessingService {
             TossPosWorkbookData data
     ) {
         Long analysisRunId = lifecycleService.analysisRunId(uploadId);
+        startSalesInsightGeneration(uploadId, storeId, salesAnalysisId, data, analysisRunId);
+    }
+
+    private void startSalesInsightGeneration(Long uploadId, Long storeId, Long salesAnalysisId,
+                                             TossPosWorkbookData data, Long analysisRunId) {
         YearMonth endMonth = YearMonth.from(data.periodEnd());
         for (YearMonth targetMonth = YearMonth.from(data.periodStart());
              !targetMonth.isAfter(endMonth);
@@ -159,6 +164,21 @@ public class SalesUploadProcessingService {
         return insightRepository.findByStoreIdAndTargetMonth(storeId, targetMonth.atDay(1))
                 .map(insight -> insight.getStatus() == SalesAiInsightStatus.COMPLETED)
                 .orElse(false);
+    }
+
+    public void afterOutboxBasicAnalysis(Long uploadId, Long analysisRunId, Long analysisId, TossPosWorkbookData data) {
+        SalesUploadEntity upload = findUpload(uploadId);
+        try {
+            startSalesInsightGeneration(uploadId, upload.getStoreId(), analysisId, data, analysisRunId);
+        } catch (RuntimeException exception) {
+            log.warn("Sales insight generation could not start after outbox completion", exception);
+        }
+        recalculateRanking(data, uploadId);
+        try {
+            aiPostProcessingJob.start(upload.getStoreId(), uploadId, analysisRunId, data.periodEnd().plusDays(1));
+        } catch (RuntimeException exception) {
+            log.warn("AI post processing could not start after outbox completion", exception);
+        }
     }
 
     private void startAiPostProcessing(
