@@ -1,0 +1,5 @@
+# This profile does not enable Outbox. SALES_OUTBOX_ENABLED remains opt-in.
+app:
+  sales:
+    outbox:
+      dispatch-enabled: true

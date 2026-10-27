@@ -1,0 +1,5 @@
+# ECS web tasks accept uploads; only the batch task polls Outbox.
+app:
+  sales:
+    outbox:
+      dispatch-enabled: false
