@@ -29,6 +29,61 @@ class SalesSolutionWeatherContextTest {
     }
 
     @Test
+    void serializesAlertNamesWithoutChangingThemAndRemovesDuplicates() {
+        var metrics = metrics(new SalesSolutionMetrics.WeatherContext(
+                "2026-10-07 11:00", "비", 14, 24, 0.6,
+                List.of(15, 16, 17), 5.0, true,
+                List.of("강풍주의보", "대설경보", "강풍주의보")
+        ));
+
+        var json = mapper.readTree(mapper.writeValueAsString(metrics));
+
+        assertThat(json.path("weatherContext").path("alerts").toString())
+                .isEqualTo("[\"강풍주의보\",\"대설경보\"]");
+    }
+
+    @Test
+    void serializesEmptyAlertsWhenLookupSucceededWithoutActiveAlerts() {
+        var metrics = metrics(new SalesSolutionMetrics.WeatherContext(
+                "2026-10-07 11:00", "맑음", 14, 24, 0.0,
+                List.of(), null, false, List.of()
+        ));
+
+        var json = mapper.readTree(mapper.writeValueAsString(metrics));
+
+        assertThat(json.path("weatherContext").path("alerts").isArray()).isTrue();
+        assertThat(json.path("weatherContext").path("alerts").size()).isZero();
+    }
+
+    @Test
+    void omitsAlertsWhenLookupResultIsUnknown() {
+        var metrics = metrics(new SalesSolutionMetrics.WeatherContext(
+                "2026-10-07 11:00", "비", 14, 24, 0.6,
+                List.of(15, 16, 17), 5.0, true
+        ));
+
+        var json = mapper.readTree(mapper.writeValueAsString(metrics));
+
+        assertThat(json.path("weatherContext").has("alerts")).isFalse();
+    }
+
+    @Test
+    void rejectsBlankAlertNames() {
+        var metrics = metrics(new SalesSolutionMetrics.WeatherContext(
+                "2026-10-07 11:00", "비", 14, 24, 0.6,
+                List.of(15, 16, 17), 5.0, true, List.of(" ")
+        ));
+
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            var propertyPaths = factory.getValidator().validate(metrics).stream()
+                    .map(violation -> violation.getPropertyPath().toString())
+                    .toList();
+
+            assertThat(propertyPaths).anyMatch(path -> path.contains("weatherContext.alerts"));
+        }
+    }
+
+    @Test
     void omitsWeatherContextWhenUnavailable() {
         var json = mapper.readTree(mapper.writeValueAsString(metrics(null)));
 
