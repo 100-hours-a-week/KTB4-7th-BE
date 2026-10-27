@@ -80,6 +80,26 @@ class RestSalesSolutionAiClientTest {
     }
 
     @Test
+    void sendsActiveWeatherAlertsAndNotableValueInActualRequestJson() throws Exception {
+        SalesSolutionMetrics base = metrics();
+        SalesSolutionMetrics requestMetrics = new SalesSolutionMetrics(
+                base.salesSummary(), base.hourlyProfile(), base.categoryBreakdown(),
+                base.predictedSalesToday(), base.reviewSummary(),
+                new SalesSolutionMetrics.WeatherContext("2026-09-24 11:00", "맑음", 14, 24,
+                        0.0, List.of(), null, true, List.of("강풍주의보")),
+                null, null, null);
+        SalesSolutionGenerationRequest request = new SalesSolutionGenerationRequest(
+                1L, 56L, LocalDate.of(2026, 9, 24), "UPLOAD", requestMetrics);
+        server.expect(requestTo(URL))
+                .andExpect(content().json(jsonMapper.writeValueAsString(request)))
+                .andRespond(withSuccess(successBody("특보 근거"), MediaType.APPLICATION_JSON));
+
+        client.generate(request);
+
+        server.verify();
+    }
+
+    @Test
     void logsOnlySelectedMetricPresenceAndNotableValue(CapturedOutput output) {
         SalesSolutionMetrics base = metrics();
         SalesSolutionMetrics metrics = new SalesSolutionMetrics(
