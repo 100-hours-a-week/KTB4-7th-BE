@@ -1,5 +1,6 @@
 package com.memme.dto.sales;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -90,8 +91,26 @@ public record SalesSolutionMetrics(
             @NotNull @DecimalMin("0.0") @DecimalMax("1.0") Double maxPop,
             @NotNull List<@NotNull @Min(0) @Max(23) Integer> rainHours,
             @JsonInclude(JsonInclude.Include.NON_NULL) @DecimalMin("0.0") Double precipitationMm,
-            @NotNull Boolean isNotable
-    ) {}
+            @NotNull Boolean isNotable,
+            @JsonInclude(JsonInclude.Include.NON_NULL) List<@NotBlank String> alerts
+    ) {
+        public WeatherContext(
+                String basisDateTime,
+                String skyText,
+                int minTempC,
+                int maxTempC,
+                Double maxPop,
+                List<Integer> rainHours,
+                Double precipitationMm,
+                Boolean isNotable
+        ) {
+            this(basisDateTime, skyText, minTempC, maxTempC, maxPop, rainHours, precipitationMm, isNotable, null);
+        }
+
+        public WeatherContext {
+            alerts = alerts == null ? null : List.copyOf(new LinkedHashSet<>(alerts));
+        }
+    }
 
     public record BusinessHours(
             @JsonProperty("WEEKDAY") @NotNull @Valid BusinessHourBand weekday,
