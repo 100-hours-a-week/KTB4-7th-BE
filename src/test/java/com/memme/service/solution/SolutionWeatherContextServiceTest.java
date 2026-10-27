@@ -4,6 +4,7 @@ import com.memme.dto.sales.SalesSolutionMetrics.WeatherContext;
 import com.memme.dto.solution.external.KmaVillageForecastResponse;
 import com.memme.entity.solution.WeatherForecastSummaryEntity;
 import com.memme.entity.store.Store;
+import com.memme.exception.solution.ExternalDataLookupException;
 import com.memme.repository.store.StoreBusinessHoursRepository;
 import com.memme.repository.store.StoreRepository;
 import com.memme.service.solution.external.KmaVillageForecastService;
@@ -20,7 +21,10 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -29,6 +33,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(OutputCaptureExtension.class)
 class SolutionWeatherContextServiceTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 15);
@@ -125,7 +130,7 @@ class SolutionWeatherContextServiceTest {
     }
 
     @Test
-    void alertLookupFailureOmitsAlertsAndPreservesForecastWeather() {
+    void alertLookupFailureOmitsAlertsPreservesForecastAndLogsOnlySafeReason(CapturedOutput output) {
         givenCoordinates();
         KmaVillageForecastResponse response = mock(KmaVillageForecastResponse.class);
         when(forecastService.fetch(any(StoreCoordinates.class))).thenReturn(Optional.of(response));
@@ -133,12 +138,16 @@ class SolutionWeatherContextServiceTest {
                 0.0, List.of(), null, false);
         when(summaryService.summarize(response, List.of())).thenReturn(Optional.of(forecastWeather));
         when(persistenceService.saveIfNewer(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(alertService.findActiveLandAlerts(STORE_ADDRESS)).thenThrow(new IllegalStateException("unavailable"));
+        when(alertService.findActiveLandAlerts(STORE_ADDRESS))
+                .thenThrow(new ExternalDataLookupException("KMA_ALERT_AUTH_ERROR"));
 
         WeatherContext resolved = service.resolve(1L, TODAY).orElseThrow();
 
         assertThat(resolved.isNotable()).isFalse();
         assertThat(resolved.alerts()).isNull();
+        assertThat(output.getOut())
+                .contains("reason=KMA_ALERT_AUTH_ERROR")
+                .doesNotContain("authKey", "encoded%2Bkey%3D");
     }
 
     @Test
