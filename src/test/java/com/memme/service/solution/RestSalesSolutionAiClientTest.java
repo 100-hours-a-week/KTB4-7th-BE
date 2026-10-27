@@ -80,7 +80,7 @@ class RestSalesSolutionAiClientTest {
     }
 
     @Test
-    void sendsActiveWeatherAlertsAndNotableValueInActualRequestJson() throws Exception {
+    void sendsActiveWeatherAlertsAndNotableValueInActualRequestJson(CapturedOutput output) throws Exception {
         SalesSolutionMetrics base = metrics();
         SalesSolutionMetrics requestMetrics = new SalesSolutionMetrics(
                 base.salesSummary(), base.hourlyProfile(), base.categoryBreakdown(),
@@ -96,6 +96,11 @@ class RestSalesSolutionAiClientTest {
 
         client.generate(request);
 
+        String diagnostic = output.getOut().lines()
+                .filter(line -> line.contains("Solution AI request metrics:"))
+                .findFirst().orElse("");
+        assertThat(diagnostic).contains("weatherContextIncluded=true", "alertsCount=1")
+                .doesNotContain("강풍주의보", "authKey");
         server.verify();
     }
 

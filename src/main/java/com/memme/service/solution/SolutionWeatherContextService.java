@@ -3,6 +3,7 @@ package com.memme.service.solution;
 import com.memme.dto.sales.SalesSolutionMetrics.WeatherContext;
 import com.memme.entity.solution.WeatherForecastSummaryEntity;
 import com.memme.entity.store.Store;
+import com.memme.exception.solution.ExternalDataLookupException;
 import com.memme.repository.store.StoreBusinessHoursRepository;
 import com.memme.repository.store.StoreRepository;
 import com.memme.service.solution.external.KmaWeatherAlert;
@@ -125,8 +126,8 @@ public class SolutionWeatherContextService {
         try {
             activeAlerts = alertService.findActiveLandAlerts(storeAddress);
         } catch (RuntimeException exception) {
-            log.warn("Weather alert lookup unavailable for solution context: store={}, targetDate={}, cause={}",
-                    storeId, targetDate, exception.getClass().getSimpleName());
+            log.warn("Weather alert lookup unavailable for solution context: store={}, targetDate={}, reason={}",
+                    storeId, targetDate, safeLookupFailureReason(exception));
             return copyWithAlertContext(forecastWeather, null, forecastWeather.isNotable());
         }
 
@@ -135,6 +136,14 @@ public class SolutionWeatherContextService {
                 .toList()));
         boolean isNotable = alertNames.isEmpty() ? forecastWeather.isNotable() : true;
         return copyWithAlertContext(forecastWeather, alertNames, isNotable);
+    }
+
+    private String safeLookupFailureReason(RuntimeException exception) {
+        if (exception instanceof ExternalDataLookupException lookupException
+                && lookupException.code().matches("KMA_ALERT_[A-Z0-9_]+")) {
+            return lookupException.code();
+        }
+        return exception.getClass().getSimpleName();
     }
 
     private WeatherContext copyWithAlertContext(

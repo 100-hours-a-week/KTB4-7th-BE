@@ -79,10 +79,13 @@ public class RestSalesSolutionAiClient implements SalesSolutionAiClient {
                 requestSpec.header(HttpHeaders.AUTHORIZATION, "Bearer " + internalAiToken);
             }
             SalesSolutionMetrics metrics = request.metrics();
+            var weatherContext = metrics.weatherContext();
+            Integer alertsCount = weatherContext == null || weatherContext.alerts() == null
+                    ? null : weatherContext.alerts().size();
             log.info("Solution AI request metrics: storeId={}, targetDate={}, weatherContextIncluded={}, "
-                            + "isNotable={}, menuRankingsIncluded={}, businessHoursIncluded={}",
+                            + "isNotable={}, alertsCount={}, menuRankingsIncluded={}, businessHoursIncluded={}",
                     request.storeId(), request.targetDate(), metrics.weatherContext() != null,
-                    metrics.weatherContext() == null ? null : metrics.weatherContext().isNotable(),
+                    weatherContext == null ? null : weatherContext.isNotable(), alertsCount,
                     metrics.menuRankings() != null, metrics.businessHours() != null);
             SalesSolutionGenerationResponse response = requestSpec
                     .body(request)
