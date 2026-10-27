@@ -82,7 +82,7 @@ final class KmaWeatherAlertAreaMapper {
             case SEOUL_AREA_CODE -> resolveDistrict(root, rawTokens, SEOUL_DISTRICT_AREAS);
             case BUSAN_AREA_CODE -> resolveDistrict(root, rawTokens, BUSAN_DISTRICT_AREAS);
             case ULSAN_AREA_CODE -> resolveDistrict(root, rawTokens, ULSAN_DISTRICT_AREAS);
-            default -> resolveLocation(root, tokens, rawTokens);
+            default -> resolveLocation(root, tokens);
         };
         return ancestorsOf(location);
     }
@@ -117,17 +117,15 @@ final class KmaWeatherAlertAreaMapper {
         return root;
     }
 
-    private Region resolveLocation(Region root, Set<String> tokens, List<String> rawTokens) {
+    private Region resolveLocation(Region root, Set<String> tokens) {
         List<Region> matchingRegions = regions.values().stream()
                 .filter(region -> !region.code().equals(root.code()))
                 .filter(region -> isDescendantOf(region, root.code()))
                 .filter(region -> tokens.contains(normalizeAdministrativeName(region.name())))
                 .toList();
         if (matchingRegions.isEmpty()) {
-            if (rawTokens.stream().anyMatch(token -> token.endsWith("구") || token.endsWith("군"))) {
-                throw unmappedAddress();
-            }
-            return root;
+            // Never turn an unrecognized local address into a province-wide alert match.
+            throw unmappedAddress();
         }
 
         int deepestLevel = matchingRegions.stream().mapToInt(this::depth).max().orElse(0);

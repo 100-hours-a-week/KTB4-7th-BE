@@ -261,6 +261,18 @@ class KmaWeatherAlertServiceTest {
     }
 
     @Test
+    void 행정구역과_특보구역이_일치하지_않는_제주와_대구_주소를_광역권으로_대체하지_않는다() {
+        KmaWeatherAlertAreaMapper mapper = new KmaWeatherAlertAreaMapper();
+
+        assertThatThrownBy(() -> mapper.applicableAreaCodes("제주특별자치도 제주시 연동"))
+                .isInstanceOf(ExternalDataLookupException.class)
+                .hasMessage("KMA_ALERT_AREA_UNMAPPED");
+        assertThatThrownBy(() -> mapper.applicableAreaCodes("대구광역시 달서구 월배로 123"))
+                .isInstanceOf(ExternalDataLookupException.class)
+                .hasMessage("KMA_ALERT_AREA_UNMAPPED");
+    }
+
+    @Test
     void 알_수_없는_응답_구역_코드를_특보_없음으로_처리하지_않는다() {
         KmaWeatherAlertService service = service("encoded%2Bkey%3D");
         server.expect(request -> {}).andRespond(withSuccess(response(
