@@ -205,6 +205,75 @@ class KmaWeatherAlertServiceTest {
     }
 
     @Test
+    void 부산_해운대구를_부산동부_특보구역으로_매핑한다() {
+        var areaCodes = new KmaWeatherAlertAreaMapper()
+                .applicableAreaCodes("부산광역시 해운대구 해운대로 123");
+
+        assertThat(areaCodes).contains("L1082500", "L1150000", "L1000000");
+    }
+
+    @Test
+    void 부산_강서구를_부산서부_특보구역으로_매핑한다() {
+        var areaCodes = new KmaWeatherAlertAreaMapper()
+                .applicableAreaCodes("부산광역시 강서구 낙동남로 123");
+
+        assertThat(areaCodes).contains("L1082700", "L1150000", "L1000000");
+    }
+
+    @Test
+    void 울산_중구를_울산동부_특보구역으로_매핑한다() {
+        var areaCodes = new KmaWeatherAlertAreaMapper()
+                .applicableAreaCodes("울산광역시 중구 번영로 123");
+
+        assertThat(areaCodes).contains("L1082800", "L1160000", "L1000000");
+    }
+
+    @Test
+    void 울산_울주군을_울산서부_특보구역으로_매핑한다() {
+        var areaCodes = new KmaWeatherAlertAreaMapper()
+                .applicableAreaCodes("울산광역시 울주군 청량읍");
+
+        assertThat(areaCodes).contains("L1082900", "L1160000", "L1000000");
+    }
+
+    @Test
+    void 세분화_특보구역에서_알_수_없는_구군을_광역권으로_대체하지_않는다() {
+        assertThatThrownBy(() -> new KmaWeatherAlertAreaMapper()
+                .applicableAreaCodes("부산광역시 미확인구 중앙대로 123"))
+                .isInstanceOf(ExternalDataLookupException.class)
+                .hasMessage("KMA_ALERT_AREA_UNMAPPED");
+    }
+
+    @Test
+    void 추가_세부_구역이_있는_도시를_도시_전체_구역으로_추정하지_않는다() {
+        assertThatThrownBy(() -> new KmaWeatherAlertAreaMapper()
+                .applicableAreaCodes("경기도 파주시 금촌동"))
+                .isInstanceOf(ExternalDataLookupException.class)
+                .hasMessage("KMA_ALERT_AREA_UNMAPPED");
+    }
+
+    @Test
+    void 주소에_포함된_미등록_구군을_광역권으로_대체하지_않는다() {
+        assertThatThrownBy(() -> new KmaWeatherAlertAreaMapper()
+                .applicableAreaCodes("경기도 미등록구 중앙로 123"))
+                .isInstanceOf(ExternalDataLookupException.class)
+                .hasMessage("KMA_ALERT_AREA_UNMAPPED");
+    }
+
+    @Test
+    void 알_수_없는_응답_구역_코드를_특보_없음으로_처리하지_않는다() {
+        KmaWeatherAlertService service = service("encoded%2Bkey%3D");
+        server.expect(request -> {}).andRespond(withSuccess(response(
+                row("L1100000", "서울", "X1100100", "알수없음",
+                        "호우", "주의", "발표", "202610211200")), TEXT_PLAIN));
+
+        assertThatThrownBy(() -> service.findActiveLandAlerts(SEOUL_SOUTHEAST_ADDRESS))
+                .isInstanceOf(ExternalDataLookupException.class)
+                .hasMessage("KMA_ALERT_INVALID_RESPONSE");
+        server.verify();
+    }
+
+    @Test
     void 송파구를_서울동남권과_적용가능한_상위_권역으로_매핑한다() {
         var areaCodes = new KmaWeatherAlertAreaMapper().applicableAreaCodes(SEOUL_SOUTHEAST_ADDRESS);
 

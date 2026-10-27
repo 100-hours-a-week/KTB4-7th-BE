@@ -73,10 +73,13 @@ public class KmaWeatherAlertService {
         LocalDateTime now = LocalDateTime.now(clock.withZone(KOREA));
         Map<String, KmaWeatherAlert> uniqueAlerts = new LinkedHashMap<>();
         for (AlertRow row : rows) {
-            if (!row.areaCode().startsWith("L")) {
+            if (row.areaCode().startsWith("S")) {
+                if (!areaMapper.isKnownMarineArea(row.areaCode())) {
+                    throw new ExternalDataLookupException("KMA_ALERT_INVALID_RESPONSE");
+                }
                 continue;
             }
-            if (!areaMapper.isKnownLandArea(row.areaCode())) {
+            if (!row.areaCode().startsWith("L") || !areaMapper.isKnownLandArea(row.areaCode())) {
                 throw new ExternalDataLookupException("KMA_ALERT_INVALID_RESPONSE");
             }
             if (!applicableAreaCodes.contains(row.areaCode()) || isPreliminary(row.level())

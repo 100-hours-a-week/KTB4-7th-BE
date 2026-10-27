@@ -32,11 +32,31 @@ final class KmaWeatherAlertAreaMapper {
             Map.entry("중", "L1100400"), Map.entry("은평", "L1100400"),
             Map.entry("서대문", "L1100400"), Map.entry("마포", "L1100400")
     );
+    private static final String BUSAN_AREA_CODE = "L1150000";
+    private static final String ULSAN_AREA_CODE = "L1160000";
+    private static final Map<String, String> BUSAN_DISTRICT_AREAS = Map.ofEntries(
+            Map.entry("기장", "L1082500"), Map.entry("해운대", "L1082500"),
+            Map.entry("수영", "L1082500"), Map.entry("남", "L1082500"),
+            Map.entry("금정", "L1082600"), Map.entry("북", "L1082600"),
+            Map.entry("동래", "L1082600"), Map.entry("연제", "L1082600"),
+            Map.entry("부산진", "L1082600"), Map.entry("사상", "L1082600"),
+            Map.entry("강서", "L1082700"), Map.entry("사하", "L1082700"),
+            Map.entry("영도", "L1082700"), Map.entry("서", "L1082700"),
+            Map.entry("동", "L1082700"), Map.entry("중", "L1082700")
+    );
+    private static final Map<String, String> ULSAN_DISTRICT_AREAS = Map.ofEntries(
+            Map.entry("북", "L1082800"), Map.entry("동", "L1082800"),
+            Map.entry("중", "L1082800"), Map.entry("남", "L1082800"),
+            Map.entry("울주", "L1082900")
+    );
 
     private final Map<String, Region> regions;
+    private final Set<String> marineAreaCodes;
 
     KmaWeatherAlertAreaMapper() {
-        this.regions = loadRegions();
+        RegionCatalog catalog = loadRegions();
+        this.regions = catalog.landAreas();
+        this.marineAreaCodes = catalog.marineAreaCodes();
     }
 
     Set<String> applicableAreaCodes(String address) {
@@ -58,9 +78,12 @@ final class KmaWeatherAlertAreaMapper {
             throw unmappedAddress();
         }
 
-        Region location = root.code().equals(SEOUL_AREA_CODE)
-                ? resolveSeoulDistrict(root, rawTokens)
-                : resolveLocation(root, tokens);
+        Region location = switch (root.code()) {
+            case SEOUL_AREA_CODE -> resolveDistrict(root, rawTokens, SEOUL_DISTRICT_AREAS);
+            case BUSAN_AREA_CODE -> resolveDistrict(root, rawTokens, BUSAN_DISTRICT_AREAS);
+            case ULSAN_AREA_CODE -> resolveDistrict(root, rawTokens, ULSAN_DISTRICT_AREAS);
+            default -> resolveLocation(root, tokens, rawTokens);
+        };
         return ancestorsOf(location);
     }
 
@@ -68,14 +91,17 @@ final class KmaWeatherAlertAreaMapper {
         return regions.containsKey(code) && code.startsWith("L");
     }
 
-    private Region resolveSeoulDistrict(Region root, List<String> rawTokens) {
-        boolean hasDistrictToken = rawTokens.stream().anyMatch(token -> token.endsWith("구"));
+    boolean isKnownMarineArea(String code) {
+        return marineAreaCodes.contains(code);
+    }
+
+    private Region resolveDistrict(Region root, List<String> rawTokens, Map<String, String> districtAreas) {
         for (String token : rawTokens) {
-            if (!token.endsWith("구")) {
+            if (!token.endsWith("구") && !token.endsWith("군")) {
                 continue;
             }
             String district = normalizeAdministrativeName(token);
-            String areaCode = SEOUL_DISTRICT_AREAS.get(district);
+            String areaCode = districtAreas.get(district);
             if (areaCode == null) {
                 throw unmappedAddress();
             }
@@ -85,19 +111,22 @@ final class KmaWeatherAlertAreaMapper {
             }
             return region;
         }
-        if (hasDistrictToken) {
+        if (rawTokens.stream().anyMatch(token -> token.endsWith("구") || token.endsWith("군"))) {
             throw unmappedAddress();
         }
         return root;
     }
 
-    private Region resolveLocation(Region root, Set<String> tokens) {
+    private Region resolveLocation(Region root, Set<String> tokens, List<String> rawTokens) {
         List<Region> matchingRegions = regions.values().stream()
                 .filter(region -> !region.code().equals(root.code()))
                 .filter(region -> isDescendantOf(region, root.code()))
                 .filter(region -> tokens.contains(normalizeAdministrativeName(region.name())))
                 .toList();
         if (matchingRegions.isEmpty()) {
+            if (rawTokens.stream().anyMatch(token -> token.endsWith("구") || token.endsWith("군"))) {
+                throw unmappedAddress();
+            }
             return root;
         }
 
@@ -108,7 +137,13 @@ final class KmaWeatherAlertAreaMapper {
         if (mostSpecific.size() != 1) {
             throw unmappedAddress();
         }
-        return mostSpecific.getFirst();
+        Region location = mostSpecific.getFirst();
+        // A KMA area with child zones cannot be resolved from its parent-city name alone.
+        // Failing closed is safer than treating a city-wide parent as an exact store area.
+        if (regions.values().stream().anyMatch(region -> region.parentCode().equals(location.code()))) {
+            throw unmappedAddress();
+        }
+        return location;
     }
 
     private Region findAdministrativeRoot(List<String> rawTokens) {
@@ -166,8 +201,10 @@ final class KmaWeatherAlertAreaMapper {
         return depth;
     }
 
-    private Map<String, Region> loadRegions() {
+    private RegionCatalog loadRegions() {
         Map<String, Region> loaded = new HashMap<>();
+        Set<String> marineAreas = new HashSet<>();
+        Set<String> allCodes = new HashSet<>();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(
                 new ClassPathResource("solution/kma-weather-alert-regions.csv").getInputStream(),
                 StandardCharsets.UTF_8))) {
@@ -182,12 +219,15 @@ final class KmaWeatherAlertAreaMapper {
                 String code = columns[0].trim();
                 String parentCode = columns[1].trim();
                 String name = columns[2].trim();
-                // The supplied KMA table contains both land (L...) and marine (S...) areas.
-                // This service intentionally maps store addresses to land areas only.
+                if (parentCode.isBlank() || name.isBlank() || !allCodes.add(code)) {
+                    throw new ExternalDataLookupException("KMA_ALERT_AREAS_INVALID");
+                }
+                // Keep marine codes for validating API rows, but never map stores to sea areas.
                 if (code.startsWith("S")) {
+                    marineAreas.add(code);
                     continue;
                 }
-                if (!code.startsWith("L") || parentCode.isBlank() || name.isBlank()
+                if (!code.startsWith("L")
                         || loaded.putIfAbsent(code, new Region(code, parentCode, name)) != null) {
                     throw new ExternalDataLookupException("KMA_ALERT_AREAS_INVALID");
                 }
@@ -199,7 +239,7 @@ final class KmaWeatherAlertAreaMapper {
                 || !loaded.containsKey(SEOUL_AREA_CODE)) {
             throw new ExternalDataLookupException("KMA_ALERT_AREAS_INVALID");
         }
-        return Map.copyOf(loaded);
+        return new RegionCatalog(Map.copyOf(loaded), Set.copyOf(marineAreas));
     }
 
     private String normalizeAdministrativeName(String name) {
@@ -218,5 +258,8 @@ final class KmaWeatherAlertAreaMapper {
     }
 
     private record Region(String code, String parentCode, String name) {
+    }
+
+    private record RegionCatalog(Map<String, Region> landAreas, Set<String> marineAreaCodes) {
     }
 }
