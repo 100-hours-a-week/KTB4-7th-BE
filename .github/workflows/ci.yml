@@ -25,7 +25,20 @@ jobs:
       TEST_REDIS_PASSWORD: redis-integration-test
       TEST_REDIS_CONTROL_USERNAME: control
       TEST_REDIS_CONTROL_PASSWORD: redis-control-integration-test
+      OUTBOX_MYSQL_TEST_URL: "jdbc:mysql://127.0.0.1:3306/outbox_test?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&allowPublicKeyRetrieval=true&useSSL=false"
     services:
+      outbox-mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: outbox_test
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+        ports:
+          - 3306:3306
       redis:
         image: redis:7.4-alpine
         options: >-
