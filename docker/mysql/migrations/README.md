@@ -216,3 +216,9 @@ ORDER BY SEQ_IN_INDEX;
 ## 매출 업로드 Outbox (#556 승인 / #557)
 
 `20261025-add-sales-upload-outbox.sql`은 신규 테이블만 생성한다. 기존 테이블·데이터는 변경하지 않는다. 백업·Outbox 테이블 부재와 참조 PK 타입을 확인한 후 수동 적용한다. `information_schema`에서 stores/sales_uploads/analysis_runs PK의 실제 signedness를 읽어 FK 타입을 맞춘다. 새 DB는 init/12-sales-upload-outbox.sql을 사용한다. 스키마를 먼저 적용하고 `SALES_OUTBOX_ENABLED=false`를 유지한 상태에서 배포한다. Worker 전환은 docs/sales-upload-outbox-operations.md의 드레인·검증 절차를 따른다. 이 파일의 추가는 운영 DB 실행을 의미하지 않는다.
+
+## 20261026-add-sales-calendar.sql
+
+매출 활동 건수와 정오 날씨 저장 모델을 추가한다. `docs/sales-calendar-policy.md`의 2026-10-28 사용자 지시를 따른다.
+기존 signed POS 금액과 주문일을 유지하며, 결제/환불 원장·가짜 결제 시각·커버리지 보정은 추가하지 않는다.
+백업과 앱/Worker 중지 후 한 번 실행한다. 새 DB는 init/02 및 init/13을 사용하며 이 마이그레이션을 중복 실행하지 않는다.
