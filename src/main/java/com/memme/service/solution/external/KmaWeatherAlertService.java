@@ -41,6 +41,8 @@ public class KmaWeatherAlertService {
     private static final DateTimeFormatter KMA_DATE_TIME = DateTimeFormatter.ofPattern("uuuuMMddHHmm")
             .withResolverStyle(ResolverStyle.STRICT);
     private static final int REQUIRED_FIELD_COUNT = 9;
+    private static final String CSV_HEADER_REGEX = "REG_UP\\s*,\\s*REG_UP_KO\\s*,\\s*REG_ID\\s*,\\s*REG_KO"
+            + "\\s*,\\s*TM_FC\\s*,\\s*TM_EF\\s*,\\s*WRN\\s*,\\s*LVL\\s*,\\s*CMD(?:\\s*,.*)?";
 
     private final RestClient restClient;
     private final String authKey;
@@ -150,7 +152,9 @@ public class KmaWeatherAlertService {
         if (normalized.toUpperCase().contains("ERROR")) {
             throw new ExternalDataLookupException("KMA_ALERT_PROVIDER_ERROR");
         }
-        if (!normalized.contains("#START7777") || !normalized.contains("#7777END")) {
+        boolean hasStartMarker = normalized.contains("#START7777");
+        boolean hasEndMarker = normalized.contains("#7777END");
+        if (!hasStartMarker || (!hasEndMarker && !containsCsvHeader(normalized))) {
             throw new ExternalDataLookupException("KMA_ALERT_INVALID_RESPONSE");
         }
 
@@ -176,6 +180,14 @@ public class KmaWeatherAlertService {
             rows.add(new AlertRow(areaCode, effectiveAt, warning, level, command));
         }
         return List.copyOf(rows);
+    }
+
+    private boolean containsCsvHeader(String response) {
+        return response.lines()
+                .map(String::trim)
+                .filter(line -> line.startsWith("#"))
+                .map(line -> line.substring(1).trim())
+                .anyMatch(line -> line.matches(CSV_HEADER_REGEX));
     }
 
     private LocalDateTime parseEffectiveAt(String value) {
