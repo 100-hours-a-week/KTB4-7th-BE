@@ -1,6 +1,10 @@
 package com.memme.service.sales.analysis;
 
 import java.time.Clock;
+import java.time.Duration;
+import com.memme.service.cache.SharedJsonCache;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Isolation;
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -20,16 +24,27 @@ import static com.memme.exception.sales.SalesAnalysisRequestException.Reason.INV
 import static com.memme.exception.sales.SalesAnalysisRequestException.Reason.STORE_OWNER_REQUIRED;
 
 @Service
-@Transactional(readOnly = true)
+@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 public class SalesAnalysisQueryService {
     private final SalesAnalysisService analysisService;
     private final SalesDailySummaryRepository dailySummaryRepository;
     private final StoreOwnershipRepository ownershipRepository;
     private final Clock clock;
+    private final SharedJsonCache cache;
+    private final SalesAnalysisCacheVersion cacheVersion;
 
     public SalesAnalysisQueryService(SalesAnalysisService analysisService,
                                      SalesDailySummaryRepository dailySummaryRepository,
                                      StoreOwnershipRepository ownershipRepository, Clock clock) {
+        this(analysisService, dailySummaryRepository, ownershipRepository, clock, null, null);
+    }
+
+    @Autowired
+    public SalesAnalysisQueryService(SalesAnalysisService analysisService,
+            SalesDailySummaryRepository dailySummaryRepository, StoreOwnershipRepository ownershipRepository,
+            Clock clock, SharedJsonCache cache, SalesAnalysisCacheVersion cacheVersion) {
+        this.cache = cache;
+        this.cacheVersion = cacheVersion;
         this.analysisService = analysisService;
         this.dailySummaryRepository = dailySummaryRepository;
         this.ownershipRepository = ownershipRepository;
@@ -53,7 +68,19 @@ public class SalesAnalysisQueryService {
             throw new SalesAnalysisRequestException(STORE_OWNER_REQUIRED);
         }
         SalesPeriod period = resolvePeriod(periodType, startDate, endDate);
-        return analysisService.analyze(storeId, period.type(), period.startDate(), period.endDate());
+        if (cache == null || !cache.isEnabled()) {
+            return analysisService.analyze(storeId, period.type(), period.startDate(), period.endDate());
+        }
+        String version = cacheVersion.read(storeId, period.startDate(), period.endDate());
+        String key = "sales:analysis:v1:" + storeId + ":" + period.type() + ":"
+                + period.startDate() + ":" + period.endDate() + ":" + version;
+        var hit = cache.get(key, SalesAnalysisResult.Completed.class);
+        if (hit.isPresent() && hit.get().analysis() != null && hit.get().categories() != null) return hit.get();
+        SalesAnalysisResult result = analysisService.analyze(storeId, period.type(), period.startDate(), period.endDate());
+        if (result instanceof SalesAnalysisResult.Completed completed) {
+            cache.put(key, completed, Duration.ofMinutes(5));
+        }
+        return result;
     }
 
     public SalesPeriod resolvePeriod(String type, String startDate, String endDate) {
