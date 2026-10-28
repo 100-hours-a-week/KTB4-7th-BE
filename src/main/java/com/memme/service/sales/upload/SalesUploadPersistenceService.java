@@ -195,6 +195,8 @@ public class SalesUploadPersistenceService {
         Map<LocalDate, Boolean> hasOrderRowsByDate = new HashMap<>();
         workbookData.items().forEach(item -> hasOrderRowsByDate.put(item.orderDate(), true));
         for (SalesOrderEntity order : orders) {
+            MutableDailySummary activity = summaries.get(order.getOrderedAt().toLocalDate());
+            activity.salesActivityCount = Math.incrementExact(activity.salesActivityCount);
             if (order.isValid()) {
                 MutableDailySummary summary = summaries.get(order.getOrderedAt().toLocalDate());
                 summary.orderCount = Math.incrementExact(summary.orderCount);
@@ -231,6 +233,7 @@ public class SalesUploadPersistenceService {
                         values.menuNetAmount,
                         values.orderCount,
                         values.menuQuantity,
+                        values.salesActivityCount,
                         dayStatus
                 );
             } else {
@@ -239,6 +242,7 @@ public class SalesUploadPersistenceService {
                         values.menuNetAmount,
                         values.orderCount,
                         values.menuQuantity,
+                        values.salesActivityCount,
                         dayStatus
                 );
             }
@@ -252,5 +256,6 @@ public class SalesUploadPersistenceService {
         private long menuNetAmount;
         private int orderCount;
         private int menuQuantity;
+        private int salesActivityCount;
     }
 }

@@ -2,12 +2,15 @@ package com.memme.service.solution;
 
 import com.memme.entity.solution.WeatherObservationEntity;
 import com.memme.entity.solution.WeatherStationEntity;
+import com.memme.entity.solution.WeatherCalendarConditionEntity;
 import com.memme.entity.store.Store;
 import com.memme.entity.store.StoreStatus;
+import com.memme.repository.solution.WeatherCalendarConditionRepository;
 import com.memme.repository.solution.WeatherObservationRepository;
 import com.memme.repository.solution.WeatherStationRepository;
 import com.memme.repository.store.StoreRepository;
 import com.memme.service.solution.external.KmaAsosObservationClient;
+import com.memme.service.solution.external.KmaAsosObservationClient.NoonWeather;
 import com.memme.service.solution.external.KmaAsosObservationClient.Station;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -20,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -36,17 +40,27 @@ public class AsosObservationImportService {
     private final StoreRepository stores;
     private final WeatherStationRepository stations;
     private final WeatherObservationRepository observations;
+    private final WeatherCalendarConditionRepository calendarConditions;
     private final KmaAsosObservationClient client;
     private final Clock clock;
 
+    @Autowired
     public AsosObservationImportService(StoreRepository stores, WeatherStationRepository stations,
                                         WeatherObservationRepository observations,
+                                        WeatherCalendarConditionRepository calendarConditions,
                                         KmaAsosObservationClient client, Clock clock) {
         this.stores = stores;
         this.stations = stations;
         this.observations = observations;
+        this.calendarConditions = calendarConditions;
         this.client = client;
         this.clock = clock;
+    }
+
+    public AsosObservationImportService(StoreRepository stores, WeatherStationRepository stations,
+                                        WeatherObservationRepository observations,
+                                        KmaAsosObservationClient client, Clock clock) {
+        this(stores, stations, observations, null, client, clock);
     }
 
     public int importForActiveStores() {
@@ -60,7 +74,7 @@ public class AsosObservationImportService {
             return 0;
         }
 
-        Map<Long, WeatherStationEntity> usedStations = new HashMap<>();
+        Map<Long, ImportTarget> usedStations = new HashMap<>();
         for (Store store : stores.findAllByStatus(StoreStatus.ACTIVE)) {
             if (store.getLatitude() == null || store.getLongitude() == null) {
                 continue;
@@ -88,7 +102,11 @@ public class AsosObservationImportService {
                     store.updateWeatherStationId(station.getId());
                     stores.save(store);
                 }
-                usedStations.put(station.getId(), station);
+                LocalDate calendarStart = store.getCreatedAt() == null
+                        ? start : store.getCreatedAt().toLocalDate();
+                usedStations.merge(station.getId(), new ImportTarget(station, calendarStart),
+                        (existingTarget, incomingTarget) -> incomingTarget.startDate()
+                                .isBefore(existingTarget.startDate()) ? incomingTarget : existingTarget);
             } catch (RuntimeException exception) {
                 log.warn("ASOS station mapping failed for store {}: {}",
                         store.getId(), exception.getClass().getSimpleName());
@@ -96,15 +114,51 @@ public class AsosObservationImportService {
         }
 
         int inserted = 0;
-        for (WeatherStationEntity station : usedStations.values()) {
+        for (ImportTarget target : usedStations.values()) {
             try {
-                inserted += importMissing(station, start, end);
+                inserted += importMissing(target.station(), start, end);
             } catch (RuntimeException exception) {
                 log.warn("ASOS observation import failed for station {}: {}",
-                        station.getStationCode(), exception.getClass().getSimpleName());
+                        target.station().getStationCode(), exception.getClass().getSimpleName());
+            }
+            try {
+                inserted += importMissingNoonConditions(target.station(), target.startDate(), end);
+            } catch (RuntimeException exception) {
+                log.warn("ASOS noon weather import failed for station {}: {}",
+                        target.station().getStationCode(), exception.getClass().getSimpleName());
             }
         }
         return inserted;
+    }
+
+    private int importMissingNoonConditions(WeatherStationEntity station, LocalDate start, LocalDate end) {
+        if (calendarConditions == null || start.isAfter(end)) {
+            return 0;
+        }
+        Set<LocalDate> savedDates = new HashSet<>();
+        for (WeatherCalendarConditionEntity saved : calendarConditions
+                .findAllByStationIdAndObservationDateBetweenOrderByObservationDateAsc(
+                        station.getId(), start, end)) {
+            savedDates.add(saved.getObservationDate());
+        }
+        if (savedDates.size() == java.time.temporal.ChronoUnit.DAYS.between(start, end) + 1) return 0;
+        Map<LocalDate, NoonWeather> noonWeather = client.dailyNoonWeather(
+                station.getStationCode(), start, end);
+        List<WeatherCalendarConditionEntity> fresh = new ArrayList<>();
+        for (Map.Entry<LocalDate, NoonWeather> entry : noonWeather.entrySet()) {
+            if (entry.getKey().isBefore(start) || entry.getKey().isAfter(end)
+                    || savedDates.contains(entry.getKey())) {
+                continue;
+            }
+            NoonWeather observation = entry.getValue();
+            fresh.add(WeatherCalendarConditionEntity.create(
+                    station.getId(), entry.getKey(), observation.condition(), observation.observedAt(),
+                    "KMA_ASOS_HOURLY"));
+        }
+        if (!fresh.isEmpty()) {
+            calendarConditions.saveAll(fresh);
+        }
+        return fresh.size();
     }
 
     private int importMissing(WeatherStationEntity station, LocalDate start, LocalDate end) {
@@ -155,5 +209,8 @@ public class AsosObservationImportService {
         double halfChord = Math.pow(Math.sin(deltaLatitude / 2), 2)
                 + Math.cos(latitude1) * Math.cos(latitude2) * Math.pow(Math.sin(deltaLongitude / 2), 2);
         return 2 * EARTH_RADIUS_KM * Math.atan2(Math.sqrt(halfChord), Math.sqrt(1 - halfChord));
+    }
+
+    private record ImportTarget(WeatherStationEntity station, LocalDate startDate) {
     }
 }

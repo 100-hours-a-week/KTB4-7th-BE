@@ -1,6 +1,7 @@
 package com.memme.service.solution.external;
 
 import com.memme.exception.solution.ExternalDataLookupException;
+import com.memme.entity.solution.WeatherCalendarCondition;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -10,6 +11,7 @@ import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,7 +32,9 @@ public class KmaAsosObservationClient {
 
     private static final String BASE_URL = "https://apis.data.go.kr";
     private static final String PATH = "/1360000/AsosDalyInfoService/getWthrDataList";
+    private static final String HOURLY_PATH = "/1360000/AsosHourlyInfoService/getWthrDataList";
     private static final DateTimeFormatter DATE = DateTimeFormatter.BASIC_ISO_DATE;
+    private static final DateTimeFormatter HOUR = DateTimeFormatter.ofPattern("uuuu-MM-dd HH");
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final int PAGE_SIZE = 100;
     private static final List<Station> STATIONS = loadStations();
@@ -80,6 +84,38 @@ public class KmaAsosObservationClient {
         return Map.copyOf(rain);
     }
 
+    public Map<LocalDate, NoonWeather> dailyNoonWeather(
+            String stationCode,
+            LocalDate from,
+            LocalDate to
+    ) {
+        if (stationCode == null || !stationCode.matches("\\d{2,5}") || from == null || to == null
+                || from.isAfter(to)) {
+            throw new IllegalArgumentException("Invalid ASOS station or date range");
+        }
+        Map<LocalDate, NoonWeather> conditions = new HashMap<>();
+        int page = 1;
+        int totalCount;
+        do {
+            JsonNode body = fetchNoonPage(stationCode, from, to, page);
+            totalCount = body.path("totalCount").asInt(-1);
+            if (totalCount < 0) {
+                throw new ExternalDataLookupException("ASOS_INVALID_RESPONSE");
+            }
+            if (totalCount > 0) {
+                JsonNode items = body.path("items").path("item");
+                if (!items.isArray() || items.isEmpty()) {
+                    throw new ExternalDataLookupException("ASOS_INVALID_RESPONSE");
+                }
+                for (JsonNode item : items) {
+                    addNoonWeather(conditions, item, stationCode, from, to);
+                }
+            }
+            page++;
+        } while ((page - 1) * PAGE_SIZE < totalCount);
+        return Map.copyOf(conditions);
+    }
+
     private JsonNode fetchPage(String stationCode, LocalDate from, LocalDate to, int page) {
         if (serviceKey.isBlank()) {
             throw new ExternalDataLookupException("ASOS_KEY_MISSING");
@@ -90,6 +126,44 @@ public class KmaAsosObservationClient {
                     + "&pageNo=" + page + "&numOfRows=" + PAGE_SIZE
                     + "&dataType=JSON&dataCd=ASOS&dateCd=DAY"
                     + "&startDt=" + from.format(DATE) + "&endDt=" + to.format(DATE)
+                    + "&stnIds=" + stationCode);
+        } catch (IllegalArgumentException exception) {
+            throw new ExternalDataLookupException("ASOS_KEY_INVALID");
+        }
+        String raw;
+        try {
+            raw = restClient.get().uri(uri).retrieve().body(String.class);
+        } catch (RestClientException exception) {
+            throw new ExternalDataLookupException("ASOS_LOOKUP_FAILED");
+        }
+        try {
+            JsonNode response = JSON.readTree(raw).path("response");
+            if (!"00".equals(response.path("header").path("resultCode").asString())) {
+                throw new ExternalDataLookupException("ASOS_PROVIDER_ERROR");
+            }
+            JsonNode body = response.path("body");
+            if (!body.isObject()) {
+                throw new ExternalDataLookupException("ASOS_INVALID_RESPONSE");
+            }
+            return body;
+        } catch (ExternalDataLookupException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new ExternalDataLookupException("ASOS_INVALID_RESPONSE");
+        }
+    }
+
+    private JsonNode fetchNoonPage(String stationCode, LocalDate from, LocalDate to, int page) {
+        if (serviceKey.isBlank()) {
+            throw new ExternalDataLookupException("ASOS_KEY_MISSING");
+        }
+        URI uri;
+        try {
+            uri = URI.create(BASE_URL + HOURLY_PATH + "?ServiceKey=" + serviceKey
+                    + "&pageNo=" + page + "&numOfRows=" + PAGE_SIZE
+                    + "&dataType=JSON&dataCd=ASOS&dateCd=HR"
+                    + "&startDt=" + from.format(DATE) + "&startHh=12"
+                    + "&endDt=" + to.format(DATE) + "&endHh=12"
                     + "&stnIds=" + stationCode);
         } catch (IllegalArgumentException exception) {
             throw new ExternalDataLookupException("ASOS_KEY_INVALID");
@@ -139,6 +213,61 @@ public class KmaAsosObservationClient {
         }
     }
 
+    private static void addNoonWeather(
+            Map<LocalDate, NoonWeather> conditions,
+            JsonNode item,
+            String stationCode,
+            LocalDate from,
+            LocalDate to
+    ) {
+        try {
+            LocalDateTime observedAt = LocalDateTime.parse(item.path("tm").asString().trim(), HOUR);
+            LocalDate date = observedAt.toLocalDate();
+            if (!stationCode.equals(item.path("stnId").asString())
+                    || date.isBefore(from) || date.isAfter(to)) {
+                throw new ExternalDataLookupException("ASOS_INVALID_RESPONSE");
+            }
+
+            // A multi-day hourly request also contains intermediate hours.
+            if (observedAt.getHour() != 12) return;
+            String rainQuality = item.path("rnQcflag").asString().trim();
+            if ("1".equals(rainQuality) || "9".equals(rainQuality)) return;
+            BigDecimal freshSnow = measurement(item.path("hr3Fhsc").asString(), true);
+            BigDecimal rain = measurement(item.path("rn").asString(), true);
+            BigDecimal cloudAmount = measurement(item.path("dc10Tca").asString(), false);
+            WeatherCalendarCondition condition;
+            if (freshSnow != null && freshSnow.signum() > 0) {
+                condition = WeatherCalendarCondition.SNOW;
+            } else if (rain != null && rain.signum() > 0) {
+                condition = WeatherCalendarCondition.RAIN;
+            } else if (cloudAmount != null && cloudAmount.compareTo(BigDecimal.ZERO) >= 0
+                    && cloudAmount.compareTo(BigDecimal.TEN) <= 0) {
+                condition = cloudAmount.compareTo(new BigDecimal("2")) <= 0
+                        ? WeatherCalendarCondition.SUNNY : WeatherCalendarCondition.CLOUDY;
+            } else {
+                return;
+            }
+            conditions.put(date, new NoonWeather(condition, observedAt));
+        } catch (ExternalDataLookupException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new ExternalDataLookupException("ASOS_INVALID_RESPONSE");
+        }
+    }
+
+    private static BigDecimal measurement(String value, boolean emptyMeansZero) {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.isEmpty() || "-".equals(normalized) || "강수없음".equals(normalized)) {
+            return emptyMeansZero ? BigDecimal.ZERO : null;
+        }
+        try {
+            BigDecimal amount = new BigDecimal(normalized);
+            return amount.signum() < 0 ? null : amount;
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
     private static List<Station> loadStations() {
         List<Station> stations = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(
@@ -171,4 +300,6 @@ public class KmaAsosObservationClient {
     }
 
     public record Station(String code, BigDecimal latitude, BigDecimal longitude) {}
+
+    public record NoonWeather(WeatherCalendarCondition condition, LocalDateTime observedAt) {}
 }
