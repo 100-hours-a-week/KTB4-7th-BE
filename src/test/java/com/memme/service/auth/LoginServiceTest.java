@@ -54,7 +54,8 @@ class LoginServiceTest {
         LoginRateLimiter rateLimiter = new LoginRateLimiter(
                 loginRateLimitRepository, loginRateLimitKeyHasher, clock
         );
-        loginService = new LoginService(userRepository, storeRepository, passwordEncoder, rateLimiter);
+        loginService = new LoginService(userRepository, storeRepository,
+                new PasswordHashConcurrencyGate(passwordEncoder, 2, 500), rateLimiter);
     }
 
     @Test
