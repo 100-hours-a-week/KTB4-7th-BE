@@ -81,7 +81,7 @@
 | item_type | VARCHAR(30) | Y | 메뉴·주차·선불카드·배달비 등 항목 분류 |
 | created_at | DATETIME | Y | 생성 시각 |
 
-`item_type` 값은 `MENU`, `PARKING`, `PREPAID_CARD`, `DELIVERY_FEE`, `PLATFORM_PLACEHOLDER`, `EVENT`, `GOODS`다. `standard_category`는 `COFFEE`, `NON_COFFEE`, `TEA`, `ADE`, `SMOOTHIE`, `BOTTLED_DRINK`, `BEER`, `CAKE`, `BAKERY`, `FOOD`, `SEASONAL`, `UNMAPPED`를 사용한다.
+`item_type` 값은 `MENU`, `PARKING`, `PREPAID_CARD`, `DELIVERY_FEE`, `PLATFORM_PLACEHOLDER`, `EVENT`, `GOODS`다. `standard_category`는 메뉴판과 동일한 `MenuCategory`의 `COFFEE`, `TEA`, `BEVERAGE`, `CAKE`, `BAKERY`, `OTHER` 6종만 사용한다. DB의 `ck_sales_item_standard_category` CHECK도 동일한 값만 허용한다. POS 원본 라벨은 `category_raw`에 보존한다. 기존 12종 전환·재분류 절차는 [카테고리 정책](sales-category-policy.md)을 따른다.
 
 ### sales_daily_summaries
 

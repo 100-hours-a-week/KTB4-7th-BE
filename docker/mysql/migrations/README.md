@@ -1,5 +1,15 @@
 # 기존 DB 마이그레이션 안내
 
+## 메뉴판·매출 카테고리 6종 통일 (#598, #600)
+
+`20261027-unify-sales-menu-categories.sql`을 BE·업로드 Worker 중지 및 백업 후 한 번 적용합니다.
+신규 DB의 `02-sales-core.sql`에도 같은 CHECK 제약을 적용했습니다.
+구버전과 신버전은 허용 enum 값이 달라 동시에 실행하면 안 됩니다.
+기존 논커피·에이드·스무디·병음료·맥주는 `BEVERAGE`로 전환하고,
+기존 `UNMAPPED`·시즌·푸드 항목은 원본 라벨과 메뉴명으로 재분류합니다.
+원본 라벨·금액·수량은 보존합니다. 적용 순서, 확인 SQL, 롤백 및 검증 방법은
+[카테고리 정책](../../../docs/sales-category-policy.md)을 확인합니다.
+
 ## Spring Batch 메타데이터 (#549)
 
 기존 QA·운영 DB에는 BE 배포 전에 `20261024-add-spring-batch-metadata.sql`을 한 번 적용합니다.
