@@ -62,7 +62,7 @@ jobs:
           docker exec "$redis_container" redis-cli ACL SETUSER app on '>redis-integration-test' '~memme:prod:v2:*' -@all \
             +exists +hgetall +hset +hmset +expire +expireat +pexpire +pexpireat \
             +del +rename +ping +hello '+client|setname' '+client|setinfo' \
-            +scan +ttl +type '+memory|usage'
+            +scan +ttl +type '+memory|usage' '(+get +set ~memme:prod:v2:cache:*)'
           docker exec "$redis_container" redis-cli ACL SETUSER control on '>redis-control-integration-test' \
             '~memme:prod:v2:pool-control:*' -@all +hset +hgetall +expire +del \
             +ping +hello '+client|setname' '+client|setinfo'
