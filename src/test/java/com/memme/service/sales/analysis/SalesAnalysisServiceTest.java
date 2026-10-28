@@ -13,7 +13,7 @@ import com.memme.entity.sales.SalesForecastEntity;
 import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
 import com.memme.entity.sales.SalesOrderItemType;
-import com.memme.entity.sales.SalesStandardMenuCategory;
+import com.memme.entity.store.MenuCategory;
 import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesDailySummaryRepository;
 import com.memme.repository.sales.SalesForecastRepository;
@@ -82,15 +82,15 @@ class SalesAnalysisServiceTest {
                 )).thenReturn(List.of(morning, afternoon, nextDay));
         SalesOrderItemEntity americano = item(
                 101L, 11L, "americano", "아메리카노", 2, 1_000,
-                SalesStandardMenuCategory.COFFEE
+                MenuCategory.COFFEE
         );
         SalesOrderItemEntity canceledAmericano = item(
                 102L, 12L, "americano", "아메리카노", -1, -200,
-                SalesStandardMenuCategory.COFFEE
+                MenuCategory.COFFEE
         );
         SalesOrderItemEntity earlGrey = item(
                 103L, 13L, "earl-grey", "얼그레이", 1, 500,
-                SalesStandardMenuCategory.TEA
+                MenuCategory.TEA
         );
         when(itemRepository.findAllBySalesOrderIdInOrderBySalesOrderIdAscIdAsc(
                 List.of(11L, 12L, 13L)
@@ -126,7 +126,7 @@ class SalesAnalysisServiceTest {
             assertThat(completed.categories().categories())
                     .extracting(category -> category.categoryName() + ":" + category.netSales()
                             + ":" + category.ratio())
-                    .containsExactly("커피:800:61.5", "티:500:38.5");
+                    .containsExactly("커피:800:61.5", "차:500:38.5");
         });
     }
 
@@ -413,7 +413,7 @@ class SalesAnalysisServiceTest {
             String menuName,
             int quantity,
             long netAmount,
-            SalesStandardMenuCategory category
+            MenuCategory category
     ) {
         SalesOrderItemEntity item = mock(SalesOrderItemEntity.class);
         when(item.getId()).thenReturn(id);

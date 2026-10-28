@@ -1,5 +1,6 @@
 package com.memme.service.sales;
 
+import com.memme.entity.store.MenuCategory;
 import java.time.LocalDate;
 import java.util.Objects;
 
@@ -11,7 +12,7 @@ public record SalesOrderItem(
     String menuName,
     String menuKey,
     String categoryRaw,
-    StandardMenuCategory category,
+    MenuCategory category,
     String optionRaw,
     int quantity,
     long linePrice,

@@ -1,5 +1,6 @@
 package com.memme.entity.sales;
 
+import com.memme.entity.store.MenuCategory;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
@@ -45,7 +46,7 @@ public class SalesOrderItemEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "standard_category", nullable = false, length = 30)
-    private SalesStandardMenuCategory standardCategory;
+    private MenuCategory standardCategory;
 
     @Column(name = "option_raw", length = 500)
     private String optionRaw;
@@ -168,7 +169,7 @@ public class SalesOrderItemEntity {
             String menuName,
             String menuKey,
             String categoryRaw,
-            SalesStandardMenuCategory standardCategory,
+            MenuCategory standardCategory,
             String optionRaw,
             int quantity,
             long linePrice,
@@ -217,7 +218,7 @@ public class SalesOrderItemEntity {
         return categoryRaw;
     }
 
-    public SalesStandardMenuCategory getStandardCategory() {
+    public MenuCategory getStandardCategory() {
         return standardCategory;
     }
 

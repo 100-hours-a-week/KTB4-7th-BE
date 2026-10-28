@@ -1,0 +1,57 @@
+rawCategory,menuName,expected
+COFFEE,상품,COFFEE
+coffee,상품,COFFEE
+커피,상품,COFFEE
+에스프레소,상품,COFFEE
+아이스커피,상품,COFFEE
+커피/에스프레소,상품,COFFEE
+  ESP  ,상품,COFFEE
+TEA,상품,TEA
+차,상품,TEA
+teabag,상품,TEA
+녹차/홍차,상품,TEA
+milk tea,상품,TEA
+밀크티,상품,TEA
+BEVERAGE,상품,BEVERAGE
+음료,상품,BEVERAGE
+non,상품,BEVERAGE
+NON_COFFEE,상품,BEVERAGE
+Non Coffee,상품,BEVERAGE
+non-coffee,상품,BEVERAGE
+논커피,상품,BEVERAGE
+ade,상품,BEVERAGE
+smoothie,상품,BEVERAGE
+BOTTLED_DRINK,상품,BEVERAGE
+beer,상품,BEVERAGE
+CAKE,상품,CAKE
+케이크,상품,CAKE
+BAKERY,상품,BAKERY
+베이커리,상품,BAKERY
+OTHER,상품,OTHER
+기타,상품,OTHER
+디저트,상품,OTHER
+디저트,치즈 케이크,CAKE
+디저트,크루아상,BAKERY
+신메뉴,아메리카노,COFFEE
+루미코르 팝업,얼그레이,TEA
+신메뉴 우베라인업,우베 스콘,BAKERY
+시즌메뉴,레몬 에이드,BEVERAGE
+커피/차,홍차,TEA
+커피/차,상품,OTHER
+food,김밥,OTHER
+food,상품,OTHER
+snack,상품,OTHER
+SEASONAL,상품,OTHER
+UNMAPPED,상품,OTHER
+,아메리카노,COFFEE
+,녹차,TEA
+,초코라떼,BEVERAGE
+,커피 케이크,CAKE
+,녹차 스콘,BAKERY
+,상품,OTHER
+steak,상품,OTHER
+coffeehouse,상품,OTHER
+"non
+coffee",상품,BEVERAGE
+ca💜fe latte,상품,COFFEE
+차 💜,상품,TEA
