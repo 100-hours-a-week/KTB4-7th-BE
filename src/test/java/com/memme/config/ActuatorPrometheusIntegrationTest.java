@@ -41,6 +41,14 @@ class ActuatorPrometheusIntegrationTest {
     }
 
     @Test
+    void 관리_포트에서_liveness_상태를_노출한다() throws Exception {
+        HttpResponse<String> response = get(managementPort, "/actuator/health/liveness");
+
+        assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+        assertThat(response.body()).contains("\"status\":\"UP\"");
+    }
+
+    @Test
     void 서비스_포트에서는_프로메테우스_지표를_노출하지_않는다() throws Exception {
         assertThat(managementPort).isNotEqualTo(serverPort);
         assertThat(get(serverPort, "/actuator/prometheus").statusCode()).isNotEqualTo(200);
