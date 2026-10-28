@@ -13,6 +13,8 @@ import com.memme.service.sales.analysis.*;
 import com.memme.service.sales.upload.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -345,13 +347,302 @@ class SalesOutboxMySqlIntegrationTest {
         Files.writeString(Path.of("build/reports/outbox/mysql-query-plan.txt"), plan.toString());
     }
 
+    @ParameterizedTest(name = "A={0}~{1}, B={2}~{3}")
+    @CsvSource({"1,10,5,15", "1,10,1,10", "1,15,5,10", "5,10,1,15", "1,4,5,10", "1,5,5,10"})
+    void overlappingCoverageKeepsOnlyLaterOrdersAndPreservesOutsideAndOtherStore(
+            int firstStart, int firstEnd, int laterStart, int laterEnd) throws Exception {
+        var baseline = fixture(SalesOverlapWorkbook.daily(1, 18, 500));
+        completeNext(baseline.receipt());
+        var other = fixture(SalesOverlapWorkbook.daily(1, 18, 777));
+        completeNext(other.receipt());
+        var otherBefore = databaseState(other.store());
+        var first = enqueue(baseline, SalesOverlapWorkbook.daily(firstStart, firstEnd, 1000));
+        var later = enqueue(baseline, SalesOverlapWorkbook.daily(laterStart, laterEnd, 2000));
+
+        completeNext(first);
+        assertSnapshot(first, (firstEnd - firstStart + 1) * 1000L, firstEnd - firstStart + 1);
+        completeNext(later);
+
+        var expected = days(baseline.receipt(), 1, 18, 500);
+        replaceExpected(expected, first, firstStart, firstEnd, 1000);
+        replaceExpected(expected, later, laterStart, laterEnd, 2000);
+        assertDailyState(baseline.store(), expected);
+        assertSnapshot(later, (laterEnd - laterStart + 1) * 2000L, laterEnd - laterStart + 1);
+        assertSnapshot(first, (firstEnd - firstStart + 1) * 1000L, firstEnd - firstStart + 1);
+        assertThat(databaseState(other.store())).isEqualTo(otherBefore);
+    }
+
+    @Test void concurrentWorkerCannotPassEarlierAnalysisAndOtherStoreCanFinish() throws Exception {
+        var first = fixture(SalesOverlapWorkbook.daily(1, 10, 1000));
+        var later = enqueue(first, SalesOverlapWorkbook.daily(5, 15, 2000));
+        var other = fixture(SalesOverlapWorkbook.daily(1, 2, 777));
+        var claim = coordinator.claimNext("first-worker").orElseThrow();
+        assertThat(claim.uploadId()).isEqualTo(first.receipt().uploadId());
+        var analyzing = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            analyzing.countDown();
+            if (!release.await(15, TimeUnit.SECONDS)) throw new IllegalStateException("analysis release timeout");
+            return invocation.callRealMethod();
+        }).when(analysis).analyze(eq(first.store()), anyString(), any(), any());
+        var pool = Executors.newSingleThreadExecutor();
+        var running = pool.submit(() -> processor.process(claim, () -> true));
+        try {
+            assertThat(analyzing.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(job(first).getCheckpoint()).isEqualTo(SalesUploadOutboxEntity.Checkpoint.DATA_APPLIED);
+            completeNext(other.receipt());
+            assertThat(coordinator.claimNext("cannot-pass-first")).isEmpty();
+            assertThat(uploads.findById(later.uploadId()).orElseThrow().getStatus()).isEqualTo(SalesUploadStatus.PENDING);
+            assertDailyState(first.store(), days(first.receipt(), 1, 10, 1000));
+        } finally {
+            release.countDown();
+            try {
+                assertThat(running.get(20, TimeUnit.SECONDS)).isEqualTo("DONE");
+            } finally {
+                pool.shutdownNow();
+            }
+        }
+        completeNext(later);
+        var expected = days(first.receipt(), 1, 10, 1000);
+        replaceExpected(expected, later, 5, 15, 2000);
+        assertDailyState(first.store(), expected);
+        assertSnapshot(first.receipt(), 10000, 10);
+        assertSnapshot(later, 22000, 11);
+    }
+
+    @Test void retryAfterDataAppliedBlocksLaterUploadThenPreservesLaterFinalCoverage() throws Exception {
+        var first = fixture(SalesOverlapWorkbook.daily(1, 10, 1000));
+        var later = enqueue(first, SalesOverlapWorkbook.daily(5, 15, 2000));
+        doThrow(new TransientDataAccessResourceException("temporary analysis failure"))
+                .when(analysis).analyze(eq(first.store()), anyString(), any(), any());
+        assertThat(processor.process(coordinator.claimNext("first").orElseThrow(), () -> true)).isEqualTo("READY");
+        assertThat(job(first).getCheckpoint()).isEqualTo(SalesUploadOutboxEntity.Checkpoint.DATA_APPLIED);
+        assertThat(coordinator.claimNext("later-is-blocked")).isEmpty();
+        assertDailyState(first.store(), days(first.receipt(), 1, 10, 1000));
+        doCallRealMethod().when(analysis).analyze(eq(first.store()), anyString(), any(), any());
+        due(job(first).getId());
+        completeNext(first.receipt());
+        verify(persistence, times(1)).replaceCoverage(eq(first.receipt().uploadId()), any(), any());
+        completeNext(later);
+        var expected = days(first.receipt(), 1, 10, 1000);
+        replaceExpected(expected, later, 5, 15, 2000);
+        assertDailyState(first.store(), expected);
+        assertSnapshot(first.receipt(), 10000, 10);
+        assertSnapshot(later, 22000, 11);
+    }
+
+    @Test void leaseTakeoverResumesBeforeLaterUploadAndOldWorkerCannotOverwriteIt() throws Exception {
+        var first = fixture(SalesOverlapWorkbook.daily(1, 10, 1000));
+        var later = enqueue(first, SalesOverlapWorkbook.daily(5, 15, 2000));
+        var old = coordinator.claimNext("old").orElseThrow();
+        var healthy = new java.util.concurrent.atomic.AtomicBoolean(true);
+        doAnswer(invocation -> {
+            Object result = invocation.callRealMethod();
+            healthy.set(false);
+            return result;
+        }).when(analysis).analyze(eq(first.store()), anyString(), any(), any());
+        assertThat(processor.process(old, healthy::get)).isEqualTo("OWNERSHIP_LOST");
+        assertThat(job(first).getCheckpoint()).isEqualTo(SalesUploadOutboxEntity.Checkpoint.DATA_APPLIED);
+        expire(old);
+        doCallRealMethod().when(analysis).analyze(eq(first.store()), anyString(), any(), any());
+        var replacement = coordinator.claimNext("replacement").orElseThrow();
+        assertThat(replacement.uploadId()).isEqualTo(first.receipt().uploadId());
+        assertThat(replacement.token()).isNotEqualTo(old.token());
+        assertThat(processor.process(replacement, () -> true)).isEqualTo("DONE");
+        completeNext(later);
+        var beforeStaleWrite = databaseState(first.store());
+        var oldData = parser.parse(new java.io.ByteArrayInputStream(SalesOverlapWorkbook.daily(1, 10, 1000)));
+        assertThatThrownBy(() -> coordinator.write(old, job -> {
+            persistence.replaceCoverage(old.uploadId(), old.storeId(), oldData);
+            return null;
+        })).isInstanceOf(SalesOutboxOwnershipLostException.class);
+        assertThat(processor.process(old, () -> true)).isEqualTo("OWNERSHIP_LOST");
+        assertThat(databaseState(first.store())).isEqualTo(beforeStaleWrite);
+        verify(persistence, times(1)).replaceCoverage(eq(first.receipt().uploadId()), any(), any());
+        var expected = days(first.receipt(), 1, 10, 1000);
+        replaceExpected(expected, later, 5, 15, 2000);
+        assertDailyState(first.store(), expected);
+        assertSnapshot(first.receipt(), 10000, 10);
+        assertSnapshot(later, 22000, 11);
+    }
+
+    @Test void terminalFailureAfterDataAppliedAllowsLaterUploadWithoutPretendingFullRollback() throws Exception {
+        var first = fixture(SalesOverlapWorkbook.daily(1, 10, 1000));
+        var later = enqueue(first, SalesOverlapWorkbook.daily(5, 15, 2000));
+        doThrow(new IllegalArgumentException("terminal analysis failure"))
+                .when(analysis).analyze(eq(first.store()), anyString(), any(), any());
+        assertThat(processor.process(coordinator.claimNext("first").orElseThrow(), () -> true)).isEqualTo("DEAD");
+        assertThat(job(first).getCheckpoint()).isEqualTo(SalesUploadOutboxEntity.Checkpoint.DATA_APPLIED);
+        assertThat(uploads.findById(first.receipt().uploadId()).orElseThrow().getStatus()).isEqualTo(SalesUploadStatus.FAILED);
+        assertThat(runs.findById(first.receipt().analysisRunId()).orElseThrow().getStatus()).isEqualTo(AnalysisRunStatus.FAILED);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sales_analyses WHERE analysis_run_id=?",
+                Integer.class, first.receipt().analysisRunId())).isZero();
+        assertDailyState(first.store(), days(first.receipt(), 1, 10, 1000));
+        doCallRealMethod().when(analysis).analyze(eq(first.store()), anyString(), any(), any());
+        completeNext(later);
+        var expected = days(first.receipt(), 1, 10, 1000);
+        replaceExpected(expected, later, 5, 15, 2000);
+        assertDailyState(first.store(), expected);
+        assertSnapshot(later, 22000, 11);
+    }
+
+    @Test void replacementRollbackRestoresExistingOrdersItemsSummariesAndCheckpoint() throws Exception {
+        var baseline = fixture(SalesOverlapWorkbook.daily(1, 18, 500));
+        completeNext(baseline.receipt());
+        var later = enqueue(baseline, SalesOverlapWorkbook.daily(5, 15, 2000));
+        var before = databaseState(baseline.store());
+        var claim = coordinator.claimNext("later").orElseThrow();
+        var data = parser.parse(new java.io.ByteArrayInputStream(SalesOverlapWorkbook.daily(5, 15, 2000)));
+        assertThatThrownBy(() -> coordinator.write(claim, job -> {
+            var result = persistence.replaceCoverage(job.getUploadId(), job.getStoreId(), data);
+            job.dataApplied(result.appliedRecordCount(), clock.now());
+            jobs.flush();
+            throw new TransientDataAccessResourceException("fail after replacement flush before commit");
+        })).isInstanceOf(TransientDataAccessResourceException.class);
+        assertThat(databaseState(baseline.store())).isEqualTo(before);
+        assertThat(jobs.findById(claim.id()).orElseThrow().getCheckpoint())
+                .isEqualTo(SalesUploadOutboxEntity.Checkpoint.ACCEPTED);
+        assertSnapshot(baseline.receipt(), 9000, 18);
+        assertThat(processor.process(claim, () -> true)).isEqualTo("DONE");
+        var expected = days(baseline.receipt(), 1, 18, 500);
+        replaceExpected(expected, later, 5, 15, 2000);
+        assertDailyState(baseline.store(), expected);
+    }
+
+    @Test void missingDayInsideLaterCoverageRemovesOldOrdersWithoutClaimingConfirmedZero() throws Exception {
+        var first = fixture(SalesOverlapWorkbook.daily(1, 7, 1000));
+        completeNext(first.receipt());
+        var later = enqueue(first, SalesOverlapWorkbook.coverage(3, 5, java.util.Map.of(3, 2000L, 5, 2000L)));
+        completeNext(later);
+        var expected = days(first.receipt(), 1, 7, 1000);
+        expected.remove(4);
+        replaceExpected(expected, later, 3, 3, 2000);
+        replaceExpected(expected, later, 5, 5, 2000);
+        assertOrders(first.store(), expected);
+        var missing = jdbc.queryForMap("SELECT * FROM sales_daily_summaries WHERE store_id=? AND sales_date=?",
+                first.store(), SalesOverlapWorkbook.date(4));
+        assertThat(((Number) missing.get("total_net_amount")).longValue()).isZero();
+        assertThat(((Number) missing.get("order_count")).intValue()).isZero();
+        assertThat(missing.get("day_status")).isEqualTo("UNKNOWN");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sales_daily_summaries WHERE store_id=?",
+                Integer.class, first.store())).isEqualTo(7);
+        assertSnapshot(later, 4000, 2);
+        assertSnapshot(first.receipt(), 7000, 7);
+    }
+
+    @Test void coverageIncludesLastMicrosecondButPreservesNextMidnightAndOutsideRowIds() throws Exception {
+        var first = fixture(SalesOverlapWorkbook.daily(4, 6, 1000));
+        completeNext(first.receipt());
+        var originalIds = jdbc.queryForList("SELECT id FROM sales_orders WHERE store_id=? ORDER BY ordered_at", Long.class, first.store());
+        long replacedId = originalIds.get(1);
+        setOrderTime(replacedId, SalesOverlapWorkbook.date(5).atTime(23, 59, 59, 999999000));
+        setOrderTime(originalIds.get(2), SalesOverlapWorkbook.date(6).atStartOfDay());
+        var outside = jdbc.queryForList("SELECT id,ordered_at FROM sales_orders WHERE store_id=? AND id<>? ORDER BY id",
+                first.store(), replacedId);
+        var later = enqueue(first, SalesOverlapWorkbook.daily(5, 5, 2000));
+        completeNext(later);
+        var expected = days(first.receipt(), 4, 6, 1000);
+        replaceExpected(expected, later, 5, 5, 2000);
+        assertDailyState(first.store(), expected);
+        assertThat(jdbc.queryForList("SELECT id,ordered_at FROM sales_orders WHERE store_id=? AND sales_upload_id=? ORDER BY id",
+                first.store(), first.receipt().uploadId())).isEqualTo(outside);
+        assertSnapshot(later, 2000, 1);
+    }
+
+    private SalesUploadReceipt enqueue(Fixture fixture, byte[] content) {
+        return receipt.upload(new SalesUploadCommand(fixture.store(), fixture.user(), "overlap.xlsx", content));
+    }
+
+    private void setOrderTime(long id, java.time.LocalDateTime time) {
+        // Match the application's Timestamp binding rather than mixing UTC SQL literals with JVM-local values.
+        jdbc.update(connection -> {
+            var statement = connection.prepareStatement("UPDATE sales_orders SET ordered_at=? WHERE id=?");
+            statement.setTimestamp(1, java.sql.Timestamp.valueOf(time));
+            statement.setLong(2, id);
+            return statement;
+        });
+    }
+
+    private void completeNext(SalesUploadReceipt expected) {
+        var claim = coordinator.claimNext("overlap-worker").orElseThrow();
+        assertThat(claim.uploadId()).isEqualTo(expected.uploadId());
+        assertThat(processor.process(claim, () -> true)).isEqualTo("DONE");
+        assertThat(jobs.findById(claim.id()).orElseThrow().getStatus()).isEqualTo(SalesUploadOutboxEntity.Status.DONE);
+        assertThat(uploads.findById(expected.uploadId()).orElseThrow().getStatus()).isEqualTo(SalesUploadStatus.COMPLETED);
+        assertThat(runs.findById(expected.analysisRunId()).orElseThrow().getStatus()).isEqualTo(AnalysisRunStatus.COMPLETED);
+    }
+
+    private java.util.SortedMap<Integer, ExpectedDay> days(SalesUploadReceipt source, int start, int end, long amount) {
+        var result = new java.util.TreeMap<Integer, ExpectedDay>();
+        replaceExpected(result, source, start, end, amount);
+        return result;
+    }
+
+    private void replaceExpected(java.util.Map<Integer, ExpectedDay> expected, SalesUploadReceipt source,
+                                 int start, int end, long amount) {
+        for (int day = start; day <= end; day++) {
+            expected.put(day, new ExpectedDay(SalesOverlapWorkbook.date(day), source.uploadId(), amount));
+        }
+    }
+
+    private void assertOrders(long store, java.util.SortedMap<Integer, ExpectedDay> expected) {
+        var actual = jdbc.query("""
+                SELECT o.ordered_at,o.sales_upload_id,i.net_amount
+                FROM sales_orders o JOIN sales_order_items i ON i.sales_order_id=o.id
+                WHERE o.store_id=? ORDER BY o.ordered_at,o.id,i.id
+                """, (rs, row) -> new ExpectedDay(rs.getTimestamp("ordered_at").toLocalDateTime().toLocalDate(),
+                        rs.getLong("sales_upload_id"), rs.getLong("net_amount")), store);
+        assertThat(actual).containsExactlyElementsOf(expected.values());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sales_orders WHERE store_id=?", Long.class, store))
+                .isEqualTo((long) expected.size());
+    }
+
+    private void assertDailyState(long store, java.util.SortedMap<Integer, ExpectedDay> expected) {
+        assertOrders(store, expected);
+        var actual = jdbc.query("""
+                SELECT sales_date,total_net_amount,menu_net_amount,order_count,menu_quantity,day_status
+                FROM sales_daily_summaries WHERE store_id=? ORDER BY sales_date
+                """, (rs, row) -> new ExpectedSummary(rs.getDate("sales_date").toLocalDate(),
+                        rs.getLong("total_net_amount"), rs.getLong("menu_net_amount"),
+                        rs.getInt("order_count"), rs.getInt("menu_quantity"), rs.getString("day_status")), store);
+        assertThat(actual).containsExactlyElementsOf(expected.values().stream()
+                .map(day -> new ExpectedSummary(day.date(), day.amount(), day.amount(), 1, 1, "COMPLETE")).toList());
+    }
+
+    private void assertSnapshot(SalesUploadReceipt source, long total, int orderCount) {
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM sales_analyses WHERE analysis_run_id=?",
+                Integer.class, source.analysisRunId())).isEqualTo(1);
+        for (var metric : java.util.Map.of("TOTAL_SALES", total, "ORDER_COUNT", (long) orderCount).entrySet()) {
+            var value = jdbc.queryForObject("""
+                    SELECT m.metric_value FROM analysis_metrics m
+                    JOIN sales_analyses a ON a.id=m.sales_analysis_id
+                    WHERE a.analysis_run_id=? AND m.metric_code=?
+                    """, java.math.BigDecimal.class, source.analysisRunId(), metric.getKey());
+            assertThat(value).isEqualByComparingTo(java.math.BigDecimal.valueOf(metric.getValue()));
+        }
+    }
+
+    private java.util.List<java.util.List<java.util.Map<String, Object>>> databaseState(long store) {
+        return java.util.List.of(
+                jdbc.queryForList("SELECT * FROM sales_orders WHERE store_id=? ORDER BY id", store),
+                jdbc.queryForList("SELECT i.* FROM sales_order_items i JOIN sales_orders o ON o.id=i.sales_order_id WHERE o.store_id=? ORDER BY i.id", store),
+                jdbc.queryForList("SELECT * FROM sales_daily_summaries WHERE store_id=? ORDER BY sales_date", store));
+    }
+
+    private record ExpectedDay(java.time.LocalDate date, long uploadId, long amount) {}
+    private record ExpectedSummary(java.time.LocalDate date, long total, long menu, int orders, int quantity, String status) {}
+
     private Fixture fixture() throws Exception {
+        return fixture(sample());
+    }
+
+    private Fixture fixture(byte[] content) throws Exception {
         long user = IDS.incrementAndGet(), store = IDS.incrementAndGet();
         jdbc.update("INSERT INTO users(id,email,password_hash,phone,created_at,updated_at) VALUES(?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
                 user, user + "@outbox.example", "test-only", String.format("010%08d", user));
         jdbc.update("INSERT INTO stores(id,owner_user_id,business_registration_no,name,postal_code,address,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
                 store, user, String.format("%010d", store), "outbox test", "01234", "test", "ACTIVE");
-        return new Fixture(user, store, receipt.upload(new SalesUploadCommand(store, user, "sales.xlsx", sample())));
+        return new Fixture(user, store, receipt.upload(new SalesUploadCommand(store, user, "sales.xlsx", content)));
     }
     private byte[] sample() {
         try (var input = getClass().getResourceAsStream("/sales/toss-pos/sample-normal.xlsx")) { return input.readAllBytes(); }
