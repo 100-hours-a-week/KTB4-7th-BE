@@ -66,6 +66,11 @@ public class FcmToken {
         this.updatedAt = registeredAt;
     }
 
+    public void refreshFor(User user, String tokenValue, String tokenHash, LocalDateTime registeredAt) {
+        this.user = Objects.requireNonNull(user, "user");
+        refresh(tokenValue, tokenHash, registeredAt);
+    }
+
     public Long getId() {
         return id;
     }
