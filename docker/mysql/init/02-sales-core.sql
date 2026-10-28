@@ -66,6 +66,8 @@ CREATE TABLE sales_order_items (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_sales_order_items_order (sales_order_id),
+  CONSTRAINT ck_sales_item_standard_category CHECK
+    (standard_category IN ('COFFEE','TEA','BEVERAGE','CAKE','BAKERY','OTHER')),
   CONSTRAINT fk_sales_order_items_order FOREIGN KEY (sales_order_id) REFERENCES sales_orders(id)
 ) ENGINE=InnoDB;
 
