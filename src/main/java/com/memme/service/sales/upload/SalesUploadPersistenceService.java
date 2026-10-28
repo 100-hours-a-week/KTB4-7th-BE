@@ -15,7 +15,6 @@ import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
 import com.memme.entity.sales.SalesOrderItemStatus;
 import com.memme.entity.sales.SalesOrderItemType;
-import com.memme.entity.sales.SalesStandardMenuCategory;
 import com.memme.entity.sales.SalesUploadEntity;
 import com.memme.entity.store.StoreBusinessHours;
 import com.memme.repository.sales.SalesDailySummaryRepository;
@@ -131,7 +130,7 @@ public class SalesUploadPersistenceService {
                 item.menuName(),
                 item.menuKey(),
                 item.categoryRaw(),
-                SalesStandardMenuCategory.valueOf(item.category().name()),
+                item.category(),
                 item.optionRaw(),
                 item.quantity(),
                 item.linePrice(),
