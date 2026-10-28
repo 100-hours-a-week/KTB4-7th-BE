@@ -36,6 +36,34 @@ import org.springframework.test.util.ReflectionTestUtils;
 @ExtendWith(MockitoExtension.class)
 class AsosObservationImportServiceTest {
 
+    @Test
+    void 정오_관측을_날짜별로_저장하고_이미_저장된_날짜는_중복_적재하지_않는다() {
+        var conditions = org.mockito.Mockito.mock(com.memme.repository.solution.WeatherCalendarConditionRepository.class);
+        var withNoon = new AsosObservationImportService(stores, stations, observations, conditions, client,
+                Clock.fixed(Instant.parse("2026-10-18T03:00:00Z"), ZoneId.of("Asia/Seoul")));
+        Store store = store(20L, "37.5714", "126.9658");
+        store.updateWeatherStationId(7L);
+        var station = WeatherStationEntity.create("KMA_ASOS", "108", new BigDecimal("37.5714"), new BigDecimal("126.9658"));
+        ReflectionTestUtils.setField(station, "id", 7L);
+        when(stores.findAllByStatus(StoreStatus.ACTIVE)).thenReturn(List.of(store));
+        when(client.stations()).thenReturn(List.of(station("108", "37.5714", "126.9658")));
+        when(stations.findById(7L)).thenReturn(Optional.of(station));
+        when(stations.findBySourceAndStationCode("KMA_ASOS", "108")).thenReturn(Optional.of(station));
+        LocalDate date = LocalDate.of(2026, 10, 17);
+        when(client.dailyNoonWeather(eq("108"), any(), any())).thenReturn(Map.of(date,
+                new KmaAsosObservationClient.NoonWeather(com.memme.entity.solution.WeatherCalendarCondition.RAIN, date.atTime(12, 0))));
+        ArgumentCaptor<List<com.memme.entity.solution.WeatherCalendarConditionEntity>> captor = ArgumentCaptor.forClass(List.class);
+        withNoon.importForActiveStores();
+        verify(conditions).saveAll(captor.capture());
+        var saved = captor.getValue().getFirst();
+        assertThat(saved.getStationId()).isEqualTo(7L);
+        assertThat(saved.getObservedAt()).isEqualTo(date.atTime(12, 0));
+        when(conditions.findAllByStationIdAndObservationDateBetweenOrderByObservationDateAsc(eq(7L), any(), any()))
+                .thenReturn(List.of(saved));
+        withNoon.importForActiveStores();
+        verify(conditions, org.mockito.Mockito.times(1)).saveAll(any());
+    }
+
     @Mock private StoreRepository stores;
     @Mock private WeatherStationRepository stations;
     @Mock private WeatherObservationRepository observations;

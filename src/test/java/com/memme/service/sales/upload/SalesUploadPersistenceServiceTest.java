@@ -76,6 +76,7 @@ class SalesUploadPersistenceServiceTest {
         assertThat(summary.getTotalNetAmount()).isEqualTo(1_000);
         assertThat(summary.getMenuNetAmount()).isEqualTo(1_000);
         assertThat(summary.getOrderCount()).isEqualTo(2);
+        assertThat(summary.getSalesActivityCount()).isEqualTo(3);
         assertThat(summary.getMenuQuantity()).isEqualTo(2);
         assertThat(summary.getDayStatus()).isEqualTo(SalesDailyStatus.COMPLETE);
     }
