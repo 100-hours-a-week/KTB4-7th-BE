@@ -104,6 +104,10 @@ public class Store {
         return id;
     }
 
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
     public String getStoreName() {
         return name;
     }

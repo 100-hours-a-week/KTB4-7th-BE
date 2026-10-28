@@ -78,6 +78,7 @@ CREATE TABLE sales_daily_summaries (
   total_net_amount BIGINT NOT NULL,
   menu_net_amount BIGINT NOT NULL,
   order_count INT NOT NULL,
+  sales_activity_count INT NOT NULL DEFAULT 0,
   menu_quantity INT NOT NULL,
   day_status VARCHAR(20) NOT NULL DEFAULT 'UNKNOWN',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
