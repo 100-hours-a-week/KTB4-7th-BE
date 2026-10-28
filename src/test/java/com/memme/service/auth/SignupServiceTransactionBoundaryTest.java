@@ -117,7 +117,8 @@ class SignupServiceTransactionBoundaryTest {
                 Clock clock,
                 PlatformTransactionManager transactionManager
         ) {
-            return new SignupService(userRepository, signupDraftRepository, passwordEncoder, clock, transactionManager);
+            return new SignupService(userRepository, signupDraftRepository,
+                    new PasswordHashConcurrencyGate(passwordEncoder, 2, 500), clock, transactionManager);
         }
     }
 

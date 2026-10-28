@@ -35,6 +35,9 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
   tomcat:
+    threads:
+      max: 200
+    max-connections: 8192
     mbeanregistry:
       enabled: true
 
@@ -61,6 +64,9 @@ password-reset:
   url: ${PASSWORD_RESET_URL}
 
 app:
+  password-hash:
+    max-concurrency: ${PASSWORD_HASH_MAX_CONCURRENCY:2}
+    wait-timeout-ms: ${PASSWORD_HASH_WAIT_TIMEOUT_MS:500}
   asos-import:
     enabled: ${ASOS_OBSERVATION_IMPORT_ENABLED:false}
   seoul-district-import:

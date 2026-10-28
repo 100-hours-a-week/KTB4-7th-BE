@@ -13,6 +13,7 @@ import com.memme.dto.common.ApiResponse;
 import com.memme.dto.common.FieldError;
 import com.memme.dto.common.FieldErrors;
 import com.memme.exception.auth.DuplicateSignupException;
+import com.memme.exception.auth.PasswordHashCapacityExceededException;
 import com.memme.exception.auth.InvalidCurrentPasswordException;
 import com.memme.exception.auth.InvalidLoginException;
 import com.memme.exception.auth.LoginRateLimitExceededException;
@@ -71,6 +72,21 @@ class GlobalExceptionHandlerTest {
                 .build();
 
         mockMvc.perform(get("/test/db-connection-unavailable"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string(HttpHeaders.RETRY_AFTER, "3"))
+                .andExpect(jsonPath("$.message")
+                        .value("서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요."))
+                .andExpect(jsonPath("$.data").value((Object) null));
+    }
+
+    @Test
+    void 비밀번호_해시_게이트_초과는_503과_Retry_After로_응답한다() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new UnhandledExceptionController())
+                .setControllerAdvice(exceptionHandler)
+                .build();
+
+        mockMvc.perform(get("/test/password-hash-capacity-exceeded"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
                         .string(HttpHeaders.RETRY_AFTER, "3"))
@@ -145,6 +161,11 @@ class GlobalExceptionHandlerTest {
                     "connection acquisition timeout",
                     new SQLTransientConnectionException("Hikari connection acquisition timed out")
             );
+        }
+
+        @GetMapping("/test/password-hash-capacity-exceeded")
+        public void triggerPasswordHashCapacityExceeded() {
+            throw new PasswordHashCapacityExceededException();
         }
 
         @GetMapping("/test/transaction-start-error")
