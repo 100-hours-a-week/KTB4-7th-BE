@@ -16,7 +16,6 @@ import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -32,7 +31,7 @@ public class PasswordResetService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordResetMailSender passwordResetMailSender;
     private final PasswordResetRateLimiter passwordResetRateLimiter;
-    private final PasswordEncoder passwordEncoder;
+    private final PasswordHashConcurrencyGate passwordHashConcurrencyGate;
     private final String passwordResetUrl;
     private final TransactionTemplate nonTransactionalTemplate;
     private final TransactionTemplate transactionTemplate;
@@ -43,7 +42,7 @@ public class PasswordResetService {
             PasswordResetTokenRepository passwordResetTokenRepository,
             PasswordResetMailSender passwordResetMailSender,
             PasswordResetRateLimiter passwordResetRateLimiter,
-            PasswordEncoder passwordEncoder,
+            PasswordHashConcurrencyGate passwordHashConcurrencyGate,
             @Value("${password-reset.url}") String passwordResetUrl,
             PlatformTransactionManager transactionManager
     ) {
@@ -51,7 +50,7 @@ public class PasswordResetService {
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.passwordResetMailSender = passwordResetMailSender;
         this.passwordResetRateLimiter = passwordResetRateLimiter;
-        this.passwordEncoder = passwordEncoder;
+        this.passwordHashConcurrencyGate = passwordHashConcurrencyGate;
         this.passwordResetUrl = passwordResetUrl;
         this.nonTransactionalTemplate = new TransactionTemplate(transactionManager);
         this.nonTransactionalTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
@@ -94,7 +93,7 @@ public class PasswordResetService {
             throw new PasswordResetTokenExpiredException();
         }
 
-        String newPasswordHash = passwordEncoder.encode(request.newPassword());
+        String newPasswordHash = passwordHashConcurrencyGate.encode(request.newPassword());
         transactionTemplate.executeWithoutResult(status -> {
             PasswordResetToken tokenToUpdate = passwordResetTokenRepository.findByIdForUpdate(passwordResetToken.getId())
                     .orElseThrow(PasswordResetTokenExpiredException::new);
