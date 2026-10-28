@@ -472,6 +472,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handlePasswordHashCapacityExceeded(
             PasswordHashCapacityExceededException exception
     ) {
+        log.warn("Password hash capacity exceeded");
         return serviceUnavailable();
     }
 

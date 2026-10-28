@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -36,6 +37,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpHeaders;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
@@ -44,6 +48,7 @@ import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@ExtendWith(OutputCaptureExtension.class)
 class GlobalExceptionHandlerTest {
 
     private final GlobalExceptionHandler exceptionHandler = new GlobalExceptionHandler();
@@ -81,7 +86,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void 비밀번호_해시_게이트_초과는_503과_Retry_After로_응답한다() throws Exception {
+    void 비밀번호_해시_게이트_초과는_503과_Retry_After로_응답한다(CapturedOutput output) throws Exception {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new UnhandledExceptionController())
                 .setControllerAdvice(exceptionHandler)
                 .build();
@@ -93,6 +98,8 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.message")
                         .value("서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요."))
                 .andExpect(jsonPath("$.data").value((Object) null));
+
+        assertTrue(output.getOut().contains("Password hash capacity exceeded"));
     }
 
     @Test
