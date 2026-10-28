@@ -76,6 +76,21 @@ class KmaWeatherAlertServiceTest {
     }
 
     @Test
+    void 종료_표식이_없는_정상_CSV_응답도_특보를_파싱한다() {
+        KmaWeatherAlertService service = service("encoded%2Bkey%3D");
+        String actualApiShape = "#START7777\n"
+                + "# REG_UP, REG_UP_KO, REG_ID, REG_KO, TM_FC, TM_EF, WRN, LVL, CMD, ED_TM\n"
+                + "L1100000, 서울, L1100100, 서울동남권, 202610211100, 202610211200, 호우, 주의, 발표, "
+                + "22일 늦은 오후(15시~18시),=\n";
+        server.expect(request -> {}).andRespond(withSuccess(actualApiShape, TEXT_PLAIN));
+
+        assertThat(service.findActiveLandAlerts(SEOUL_SOUTHEAST_ADDRESS))
+                .extracting(KmaWeatherAlert::name)
+                .containsExactly("호우주의보");
+        server.verify();
+    }
+
+    @Test
     void 응답_문자셋에_따라_특보명을_정상_디코딩한다() {
         KmaWeatherAlertService service = service("encoded%2Bkey%3D");
         Charset eucKr = Charset.forName("EUC-KR");
