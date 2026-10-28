@@ -76,6 +76,13 @@ import org.springframework.web.server.ResponseStatusException;
 @Order(Ordered.LOWEST_PRECEDENCE)
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(com.memme.exception.sales.SalesCalendarInputException.class)
+    public ResponseEntity<ApiResponse<com.memme.dto.common.FieldErrors>> handleSalesCalendarInput(
+            com.memme.exception.sales.SalesCalendarInputException exception) {
+        return ResponseEntity.badRequest().body(new ApiResponse<>(exception.getMessage(),
+                new com.memme.dto.common.FieldErrors(exception.getFieldErrors())));
+    }
+
     private static final String INVALID_REQUEST_FORMAT_MESSAGE = "요청 형식이 올바르지 않습니다.";
     private static final String INTERNAL_SERVER_ERROR_MESSAGE =
             "서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
@@ -500,8 +507,10 @@ public class GlobalExceptionHandler {
             Exception exception, HttpServletRequest request
     ) {
         log.error("Unhandled server exception", exception);
-        String message = "/v2/rankings/growth".equals(request.getRequestURI())
-                ? RANKING_LOAD_ERROR_MESSAGE : INTERNAL_SERVER_ERROR_MESSAGE;
+        String message = request.getRequestURI().startsWith("/v3/sales/calendar")
+                ? "매출 정보를 조회하지 못했습니다."
+                : "/v2/rankings/growth".equals(request.getRequestURI())
+                    ? RANKING_LOAD_ERROR_MESSAGE : INTERNAL_SERVER_ERROR_MESSAGE;
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponse<>(message, null));
     }
