@@ -41,8 +41,8 @@ public class KmaWeatherAlertService {
     private static final DateTimeFormatter KMA_DATE_TIME = DateTimeFormatter.ofPattern("uuuuMMddHHmm")
             .withResolverStyle(ResolverStyle.STRICT);
     private static final int REQUIRED_FIELD_COUNT = 9;
-    private static final String CSV_HEADER_REGEX = "REG_UP\\s*,\\s*REG_UP_KO\\s*,\\s*REG_ID\\s*,\\s*REG_KO"
-            + "\\s*,\\s*TM_FC\\s*,\\s*TM_EF\\s*,\\s*WRN\\s*,\\s*LVL\\s*,\\s*CMD(?:\\s*,.*)?";
+    private static final List<String> REQUIRED_HEADER_COLUMNS = List.of(
+            "REG_UP", "REG_UP_KO", "REG_ID", "REG_KO", "TM_FC", "TM_EF", "WRN", "LVL", "CMD");
 
     private final RestClient restClient;
     private final String authKey;
@@ -187,7 +187,20 @@ public class KmaWeatherAlertService {
                 .map(String::trim)
                 .filter(line -> line.startsWith("#"))
                 .map(line -> line.substring(1).trim())
-                .anyMatch(line -> line.matches(CSV_HEADER_REGEX));
+                .anyMatch(this::matchesCsvHeader);
+    }
+
+    private boolean matchesCsvHeader(String line) {
+        String[] columns = line.split("(?:\\s*,\\s*|\\s+)");
+        if (columns.length < REQUIRED_HEADER_COLUMNS.size()) {
+            return false;
+        }
+        for (int index = 0; index < REQUIRED_HEADER_COLUMNS.size(); index++) {
+            if (!REQUIRED_HEADER_COLUMNS.get(index).equals(columns[index])) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private LocalDateTime parseEffectiveAt(String value) {
