@@ -10,7 +10,7 @@ import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
 import com.memme.entity.sales.SalesOrderItemStatus;
 import com.memme.entity.sales.SalesOrderItemType;
-import com.memme.entity.sales.SalesStandardMenuCategory;
+import com.memme.entity.store.MenuCategory;
 import com.memme.entity.sales.SalesUploadEntity;
 import com.memme.entity.sales.SalesUploadStatus;
 import org.junit.jupiter.api.Test;
@@ -257,7 +257,7 @@ class SalesRepositoryTest {
                 menuName,
                 menuName,
                 "커피",
-                SalesStandardMenuCategory.COFFEE,
+                MenuCategory.COFFEE,
                 null,
                 quantity,
                 linePrice,

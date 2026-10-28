@@ -14,7 +14,7 @@ import com.memme.entity.sales.SalesForecastEntity;
 import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
 import com.memme.entity.sales.SalesOrderItemType;
-import com.memme.entity.sales.SalesStandardMenuCategory;
+import com.memme.entity.store.MenuCategory;
 import com.memme.entity.store.StoreBusinessHours;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesOrderRepository;
@@ -431,7 +431,7 @@ class SalesSolutionMetricsAssemblerTest {
         when(item.getMenuName()).thenReturn(name);
         when(item.getNetAmount()).thenReturn(netAmount);
         when(item.getQuantity()).thenReturn(quantity);
-        when(item.getStandardCategory()).thenReturn(SalesStandardMenuCategory.COFFEE);
+        when(item.getStandardCategory()).thenReturn(MenuCategory.COFFEE);
         return item;
     }
 
