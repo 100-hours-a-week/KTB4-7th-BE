@@ -1,3 +1,4 @@
+-- 로컬 신규 DB 초기화용: init/01-auth-signup.sql의 users.id(BIGINT UNSIGNED)에 맞춘다.
 CREATE TABLE fcm_tokens (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id BIGINT UNSIGNED NOT NULL,
