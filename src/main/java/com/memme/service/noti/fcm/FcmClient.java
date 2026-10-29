@@ -1,4 +1,4 @@
-package com.memme.integration.fcm;
+package com.memme.service.noti.fcm;
 
 import com.memme.dto.noti.FcmPushMessage;
 

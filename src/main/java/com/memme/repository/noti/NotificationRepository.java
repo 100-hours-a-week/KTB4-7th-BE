@@ -18,6 +18,10 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             String notificationKey
     );
 
+    List<Notification> findAllByUserIdInAndNotificationTypeAndNotificationKeyIn(
+            Collection<Long> userIds, NotificationType notificationType, Collection<String> notificationKeys
+    );
+
     @Query("""
             select notification.user.id as userId,
                    notification.notificationKey as notificationKey

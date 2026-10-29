@@ -44,6 +44,7 @@ public class RankingChangeNotificationService {
     private final NotificationPreferenceRepository preferenceRepository;
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final FcmDeliveryEnqueueService fcmDeliveryEnqueueService;
     private final Clock clock;
     private final ZoneId snapshotTimestampZone;
 
@@ -56,6 +57,7 @@ public class RankingChangeNotificationService {
             NotificationPreferenceRepository preferenceRepository,
             NotificationRepository notificationRepository,
             UserRepository userRepository,
+            FcmDeliveryEnqueueService fcmDeliveryEnqueueService,
             Clock clock
     ) {
         this(
@@ -66,6 +68,7 @@ public class RankingChangeNotificationService {
                 preferenceRepository,
                 notificationRepository,
                 userRepository,
+                fcmDeliveryEnqueueService,
                 clock,
                 ZoneId.systemDefault()
         );
@@ -79,6 +82,7 @@ public class RankingChangeNotificationService {
             NotificationPreferenceRepository preferenceRepository,
             NotificationRepository notificationRepository,
             UserRepository userRepository,
+            FcmDeliveryEnqueueService fcmDeliveryEnqueueService,
             Clock clock,
             ZoneId snapshotTimestampZone
     ) {
@@ -89,6 +93,7 @@ public class RankingChangeNotificationService {
         this.preferenceRepository = preferenceRepository;
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
+        this.fcmDeliveryEnqueueService = fcmDeliveryEnqueueService;
         this.clock = clock;
         this.snapshotTimestampZone = snapshotTimestampZone;
     }
@@ -148,6 +153,7 @@ public class RankingChangeNotificationService {
 
         if (!notifications.isEmpty()) {
             notificationRepository.saveAll(notifications);
+            fcmDeliveryEnqueueService.enqueueSaved(notifications);
         }
     }
 

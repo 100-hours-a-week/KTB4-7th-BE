@@ -40,7 +40,8 @@ class SolutionReadyNotificationItemProcessingTest {
     @Test
     void writer는_청크의_알림들을_벌크_저장소에_한번_전달한다() throws Exception {
         NotificationBulkInsertRepository bulkInsertRepository = mock(NotificationBulkInsertRepository.class);
-        SolutionReadyNotificationItemWriter writer = new SolutionReadyNotificationItemWriter(bulkInsertRepository);
+        SolutionReadyNotificationItemWriter writer = new SolutionReadyNotificationItemWriter(
+                bulkInsertRepository, mock(com.memme.service.noti.FcmDeliveryEnqueueService.class));
         NotificationBulkInsertRepository.NotificationRow first = row(1L);
         NotificationBulkInsertRepository.NotificationRow second = row(2L);
 
@@ -52,7 +53,8 @@ class SolutionReadyNotificationItemProcessingTest {
     @Test
     void 빈_청크는_저장소를_호출하지_않는다() throws Exception {
         NotificationBulkInsertRepository bulkInsertRepository = mock(NotificationBulkInsertRepository.class);
-        SolutionReadyNotificationItemWriter writer = new SolutionReadyNotificationItemWriter(bulkInsertRepository);
+        SolutionReadyNotificationItemWriter writer = new SolutionReadyNotificationItemWriter(
+                bulkInsertRepository, mock(com.memme.service.noti.FcmDeliveryEnqueueService.class));
 
         writer.write(new Chunk<>());
 

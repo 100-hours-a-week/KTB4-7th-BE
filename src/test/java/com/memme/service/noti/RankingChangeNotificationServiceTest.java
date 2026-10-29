@@ -73,6 +73,7 @@ class RankingChangeNotificationServiceTest {
                 preferenceRepository,
                 notificationRepository,
                 userRepository,
+                mock(FcmDeliveryEnqueueService.class),
                 FIXED_CLOCK,
                 SNAPSHOT_STORAGE_ZONE
         );

@@ -11,6 +11,7 @@ import com.memme.repository.noti.NotificationRepository;
 import com.memme.repository.store.StoreRepository;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ public class SolutionReadyNotificationService {
     private final NotificationPreferenceRepository preferenceRepository;
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final FcmDeliveryEnqueueService fcmDeliveryEnqueueService;
     private final Clock clock;
 
     public SolutionReadyNotificationService(
@@ -32,12 +34,14 @@ public class SolutionReadyNotificationService {
             NotificationPreferenceRepository preferenceRepository,
             NotificationRepository notificationRepository,
             UserRepository userRepository,
+            FcmDeliveryEnqueueService fcmDeliveryEnqueueService,
             Clock clock
     ) {
         this.storeRepository = storeRepository;
         this.preferenceRepository = preferenceRepository;
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
+        this.fcmDeliveryEnqueueService = fcmDeliveryEnqueueService;
         this.clock = clock;
     }
 
@@ -66,7 +70,7 @@ public class SolutionReadyNotificationService {
 
         LocalDateTime now = LocalDateTime.now(clock);
         User user = userRepository.getReferenceById(ownerUserId);
-        notificationRepository.save(Notification.create(
+        Notification notification = Notification.create(
                 user,
                 NotificationType.SOLUTION_READY,
                 notificationKey,
@@ -76,6 +80,8 @@ public class SolutionReadyNotificationService {
                 bundleId,
                 now,
                 now
-        ));
+        );
+        notificationRepository.save(notification);
+        fcmDeliveryEnqueueService.enqueueSaved(List.of(notification));
     }
 }
