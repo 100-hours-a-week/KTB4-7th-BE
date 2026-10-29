@@ -1,4 +1,4 @@
-package com.memme.integration.fcm;
+package com.memme.service.noti.fcm;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
