@@ -66,6 +66,8 @@ jobs:
           docker exec "$redis_container" redis-cli ACL SETUSER control on '>redis-control-integration-test' \
             '~memme:prod:v2:pool-control:*' -@all +hset +hgetall +expire +del \
             +ping +hello '+client|setname' '+client|setinfo'
+      - name: Verify sales category migrations on MySQL 8.4
+        run: python3 scripts/verify-sales-category-migration.py
       - name: Run tests
         run: ./gradlew test --no-daemon
       - name: Build application
