@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -30,6 +31,7 @@ import com.memme.entity.store.StoreBusinessHours;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesOrderRepository;
 import com.memme.repository.store.StoreBusinessHoursRepository;
+import com.memme.service.sales.insight.DistrictBenchmarkService;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,17 +48,20 @@ public class SalesSolutionMetricsAssembler {
     private final SalesOrderItemRepository itemRepository;
     private final StoreBusinessHoursRepository businessHoursRepository;
     private final ConditionPatternsService conditionPatternsService;
+    private final DistrictBenchmarkService districtBenchmarkService;
 
     public SalesSolutionMetricsAssembler(
             SalesOrderRepository orderRepository,
             SalesOrderItemRepository itemRepository,
             StoreBusinessHoursRepository businessHoursRepository,
-            ConditionPatternsService conditionPatternsService
+            ConditionPatternsService conditionPatternsService,
+            DistrictBenchmarkService districtBenchmarkService
     ) {
         this.orderRepository = orderRepository;
         this.itemRepository = itemRepository;
         this.businessHoursRepository = businessHoursRepository;
         this.conditionPatternsService = conditionPatternsService;
+        this.districtBenchmarkService = districtBenchmarkService;
     }
 
     public SalesSolutionMetrics assemble(
@@ -94,7 +99,9 @@ public class SalesSolutionMetricsAssembler {
                 null,
                 menuRankings(current, previous, currentNetSales, previousNetSales, days),
                 businessHours(storeId),
-                conditionPatternsService.resolve(storeId, forecast.getTargetDate())
+                conditionPatternsService.resolve(storeId, forecast.getTargetDate()),
+                districtBenchmarkService.findForInsight(storeId, YearMonth.from(forecast.getTargetDate()))
+                        .orElse(null)
         );
     }
 

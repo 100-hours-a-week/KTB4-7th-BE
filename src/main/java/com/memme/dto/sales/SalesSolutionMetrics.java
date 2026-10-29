@@ -27,8 +27,24 @@ public record SalesSolutionMetrics(
         @JsonInclude(JsonInclude.Include.NON_NULL) @Valid WeatherContext weatherContext,
         @JsonInclude(JsonInclude.Include.NON_NULL) @Size(max = 10) @Valid List<MenuRankingMetric> menuRankings,
         @JsonInclude(JsonInclude.Include.NON_NULL) @Valid BusinessHours businessHours,
-        @JsonInclude(JsonInclude.Include.NON_NULL) @Valid List<ConditionPattern> conditionPatterns
+        @JsonInclude(JsonInclude.Include.NON_NULL) @Valid List<ConditionPattern> conditionPatterns,
+        @JsonInclude(JsonInclude.Include.NON_NULL) @Valid DistrictBenchmarkMetric districtBenchmark
 ) {
+
+    public SalesSolutionMetrics(
+            SalesSummary salesSummary,
+            List<HourlyPoint> hourlyProfile,
+            List<CategoryPoint> categoryBreakdown,
+            Long predictedSalesToday,
+            Map<String, Object> reviewSummary,
+            WeatherContext weatherContext,
+            List<MenuRankingMetric> menuRankings,
+            BusinessHours businessHours,
+            List<ConditionPattern> conditionPatterns
+    ) {
+        this(salesSummary, hourlyProfile, categoryBreakdown, predictedSalesToday, reviewSummary,
+                weatherContext, menuRankings, businessHours, conditionPatterns, null);
+    }
 
     public SalesSolutionMetrics(
             SalesSummary salesSummary,

@@ -4,10 +4,13 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.YearMonth;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.IntStream;
 
 import com.memme.dto.sales.MenuRankingMetric;
+import com.memme.dto.sales.DistrictBenchmarkMetric;
 import com.memme.dto.sales.SalesSolutionMetrics;
 import com.memme.entity.sales.AnalysisRunEntity;
 import com.memme.entity.sales.SalesForecastEntity;
@@ -19,6 +22,7 @@ import com.memme.entity.store.StoreBusinessHours;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesOrderRepository;
 import com.memme.repository.store.StoreBusinessHoursRepository;
+import com.memme.service.sales.insight.DistrictBenchmarkService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import tools.jackson.databind.json.JsonMapper;
@@ -32,6 +36,35 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class SalesSolutionMetricsAssemblerTest {
+
+    @Test
+    void includesDistrictBenchmarkForForecastTargetMonth() {
+        SalesOrderRepository orderRepository = mock(SalesOrderRepository.class);
+        SalesOrderItemRepository itemRepository = mock(SalesOrderItemRepository.class);
+        StoreBusinessHoursRepository businessHoursRepository = mock(StoreBusinessHoursRepository.class);
+        DistrictBenchmarkService benchmarkService = mock(DistrictBenchmarkService.class);
+        AnalysisRunEntity analysisRun = mock(AnalysisRunEntity.class);
+        SalesForecastEntity forecast = mock(SalesForecastEntity.class);
+        when(analysisRun.getPeriodStart()).thenReturn(LocalDate.of(2026, 9, 1));
+        when(analysisRun.getPeriodEnd()).thenReturn(LocalDate.of(2026, 9, 30));
+        when(forecast.getTargetDate()).thenReturn(LocalDate.of(2026, 10, 21));
+        DistrictBenchmarkMetric benchmark = new DistrictBenchmarkMetric(
+                "2026Q2", 16_887_880, 159, "11-14", "17-21");
+        when(benchmarkService.findForInsight(10L, YearMonth.of(2026, 10)))
+                .thenReturn(Optional.of(benchmark));
+        when(orderRepository.findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
+                eq(10L), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+        when(businessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(List.of());
+
+        SalesSolutionMetrics metrics = new SalesSolutionMetricsAssembler(
+                orderRepository, itemRepository, businessHoursRepository,
+                mock(ConditionPatternsService.class), benchmarkService)
+                .assemble(10L, analysisRun, forecast);
+
+        assertThat(metrics.districtBenchmark()).isEqualTo(benchmark);
+        verify(benchmarkService).findForInsight(10L, YearMonth.of(2026, 10));
+    }
 
     @Test
     void includesConditionPatternsResolvedForTheForecastTargetDate() {
@@ -57,10 +90,12 @@ class SalesSolutionMetricsAssemblerTest {
         when(conditionPatternsService.resolve(10L, targetDate)).thenReturn(List.of(conditionPattern));
 
         SalesSolutionMetrics metrics = new SalesSolutionMetricsAssembler(
-                orderRepository, itemRepository, businessHoursRepository, conditionPatternsService)
+                orderRepository, itemRepository, businessHoursRepository, conditionPatternsService,
+                mock(DistrictBenchmarkService.class))
                 .assemble(10L, analysisRun, forecast);
 
         assertThat(metrics.conditionPatterns()).containsExactly(conditionPattern);
+        assertThat(metrics.districtBenchmark()).isNull();
         verify(conditionPatternsService).resolve(10L, targetDate);
     }
 
@@ -414,7 +449,8 @@ class SalesSolutionMetricsAssemblerTest {
                 orderRepository,
                 itemRepository,
                 businessHoursRepository,
-                mock(ConditionPatternsService.class)
+                mock(ConditionPatternsService.class),
+                mock(DistrictBenchmarkService.class)
         );
     }
 
