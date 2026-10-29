@@ -1,8 +1,9 @@
 -- #610: FCM 토큰과 알림별 발송 상태 테이블 추가
 -- 기존 DB는 백업 후 한 번 적용한다. 신규 DB는 init/14-fcm-notifications.sql을 사용한다.
+-- 운영 DB의 users.id가 signed BIGINT이므로 fcm_tokens.user_id도 signed BIGINT로 정의한다.
 CREATE TABLE fcm_tokens (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  user_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT NOT NULL,
   token_value VARCHAR(4096) NOT NULL,
   token_hash CHAR(64) NOT NULL,
   last_registered_at DATETIME NOT NULL,
