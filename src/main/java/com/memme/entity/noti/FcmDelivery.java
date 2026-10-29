@@ -14,6 +14,8 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
 import java.util.Objects;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 @Entity
 @Table(
@@ -42,6 +44,7 @@ public class FcmDelivery {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "fcm_token_id")
+    @OnDelete(action = OnDeleteAction.SET_NULL)
     private FcmToken fcmToken;
 
     @Column(name = "token_hash", nullable = false, length = 64, updatable = false)

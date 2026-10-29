@@ -13,6 +13,8 @@ public interface FcmTokenRepository extends JpaRepository<FcmToken, Long> {
 
     List<FcmToken> findAllByUserId(Long userId);
 
+    List<FcmToken> findAllByUserIdIn(List<Long> userIds);
+
     Optional<FcmToken> findByTokenHash(String tokenHash);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
