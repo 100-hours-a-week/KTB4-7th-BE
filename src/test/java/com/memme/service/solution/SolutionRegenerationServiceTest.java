@@ -14,6 +14,7 @@ import com.memme.dto.sales.SalesSolutionGenerationRequest;
 import com.memme.dto.sales.SalesSolutionGenerationResponse;
 import com.memme.dto.sales.SalesSolutionGenerationStatus;
 import com.memme.dto.sales.SalesSolutionMetrics;
+import com.memme.dto.sales.DistrictBenchmarkMetric;
 import com.memme.config.AiCallConcurrencyGate;
 import com.memme.entity.sales.AnalysisRunEntity;
 import com.memme.entity.sales.SalesAnalysisEntity;
@@ -49,7 +50,9 @@ class SolutionRegenerationServiceTest {
         var fixture = new Fixture();
         var pattern = new SalesSolutionMetrics.ConditionPattern("RAIN", 12, 1.0, 9, 38,
                 0.67, 0.71, List.of());
-        fixture.prepare(List.of(pattern));
+        DistrictBenchmarkMetric benchmark = new DistrictBenchmarkMetric(
+                "2026Q2", 16_887_880, 159, "11-14", "17-21");
+        fixture.prepare(List.of(pattern), benchmark);
         var reservation = SolutionRegenerationReservation.acquired(8L, 1, LocalDateTime.now(fixture.clock));
         when(fixture.fingerprints.of(any(), any(), any())).thenReturn("b".repeat(64));
         when(fixture.persistence.reserve(eq(1L), eq(DATE), eq(10L), eq("b".repeat(64)), any()))
@@ -62,6 +65,9 @@ class SolutionRegenerationServiceTest {
                         data, null));
 
         assertThat(fixture.service.regenerate(1L, DATE)).isEqualTo(SolutionRegenerationOutcome.COMPLETED);
+        var request = org.mockito.ArgumentCaptor.forClass(SalesSolutionGenerationRequest.class);
+        verify(fixture.client).generate(request.capture());
+        assertThat(request.getValue().metrics().districtBenchmark()).isEqualTo(benchmark);
         verify(fixture.persistence).complete(eq(1L), eq(DATE), eq(10L), eq(11L),
                 eq(reservation), eq(data), any());
     }
@@ -171,6 +177,11 @@ class SolutionRegenerationServiceTest {
                 bundles, contexts, client, weather, persistence, fingerprints, aiCallConcurrencyGate, clock);
 
         private void prepare(List<SalesSolutionMetrics.ConditionPattern> patterns) {
+            prepare(patterns, null);
+        }
+
+        private void prepare(List<SalesSolutionMetrics.ConditionPattern> patterns,
+                             DistrictBenchmarkMetric benchmark) {
             var bundle = mock(SolutionBundleEntity.class);
             when(bundle.getStatus()).thenReturn(SolutionBundleStatus.COMPLETED);
             when(bundle.getSalesAnalysisId()).thenReturn(10L);
@@ -178,7 +189,7 @@ class SolutionRegenerationServiceTest {
             var analysis = mock(SalesAnalysisEntity.class);
             when(analysis.getId()).thenReturn(11L);
             var metrics = new SalesSolutionMetrics(new SalesSolutionMetrics.SalesSummary(100L, null),
-                    List.of(), List.of(), null, null, null, null, null, patterns);
+                    List.of(), List.of(), null, null, null, null, null, patterns, benchmark);
             var context = new SalesSolutionGenerationContext(mock(AnalysisRunEntity.class), analysis, metrics);
             when(contexts.resolve(1L, DATE)).thenReturn(new SalesSolutionGenerationContextResolver.Resolution(
                     SalesSolutionGenerationContextResolver.Availability.READY, context));

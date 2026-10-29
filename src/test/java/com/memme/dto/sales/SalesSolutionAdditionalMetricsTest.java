@@ -53,6 +53,23 @@ class SalesSolutionAdditionalMetricsTest {
         assertThat(json.has("businessHours")).isFalse();
         assertThat(json.has("conditionPatterns")).isFalse();
         assertThat(json.has("weatherContext")).isTrue();
+        assertThat(json.has("districtBenchmark")).isFalse();
+    }
+
+    @Test
+    void serializesExistingDistrictBenchmarkContractForAiSolution() {
+        var benchmark = new DistrictBenchmarkMetric("2026Q2", 16_887_880, 159, "11-14", "17-21");
+        var metrics = new SalesSolutionMetrics(new SalesSolutionMetrics.SalesSummary(1_000_000, null),
+                List.of(), List.of(), null, null, null, null, null, null, benchmark);
+
+        var json = mapper.readTree(mapper.writeValueAsString(metrics));
+
+        assertThat(json.path("districtBenchmark").path("basisQuarter").asString()).isEqualTo("2026Q2");
+        assertThat(json.path("districtBenchmark").path("districtAvgMonthlySalesPerCafe").asInt())
+                .isEqualTo(16_887_880);
+        assertThat(json.path("districtBenchmark").path("cafeStoreCount").asInt()).isEqualTo(159);
+        assertThat(json.path("districtBenchmark").path("peakSalesHourBand").asString()).isEqualTo("11-14");
+        assertThat(json.path("districtBenchmark").path("peakFootTrafficHourBand").asString()).isEqualTo("17-21");
     }
 
     @Test

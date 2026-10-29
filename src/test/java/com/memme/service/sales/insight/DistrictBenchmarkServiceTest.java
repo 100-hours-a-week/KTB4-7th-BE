@@ -142,6 +142,22 @@ class DistrictBenchmarkServiceTest {
         verify(benchmarkRepository, never()).findByImportedIdAndAdministrativeDongCode(1L, DONG_CODE);
     }
 
+    @Test
+    void omitsBenchmarkWhenDistrictHasFewerThanThreeCafes() {
+        Store store = storeWithCode(DONG_CODE);
+        when(storeRepository.findById(1L)).thenReturn(Optional.of(store));
+        SeoulDistrictQuarterImportEntity imported = imported("2026Q2", 2L);
+        when(importRepository.findByIndustryCodeAndStatusAndBasisQuarterLessThanEqualOrderByBasisQuarterDesc(
+                "CS100010", SeoulDistrictQuarterImportStatus.COMPLETED, "2026Q4"))
+                .thenReturn(List.of(imported));
+        SeoulDistrictQuarterBenchmarkEntity benchmark = benchmark(imported);
+        when(benchmark.getCafeStoreCount()).thenReturn(2);
+        when(benchmarkRepository.findByImportedIdAndAdministrativeDongCode(2L, DONG_CODE))
+                .thenReturn(Optional.of(benchmark));
+
+        assertThat(service.findForInsight(1L, YearMonth.of(2026, 10))).isEmpty();
+    }
+
     private Store storeWithCode(String code) {
         Store store = storeWithNoLocation();
         store.updateAdministrativeDongCode(code);
