@@ -80,8 +80,13 @@ public record SalesSolutionMetrics(
     public record CategoryPoint(
             @NotBlank String name,
             double share,
-            Double vsPrevPeriod
-    ) {}
+            Double vsPrevPeriod,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Double previousShare
+    ) {
+        public CategoryPoint(String name, double share, Double vsPrevPeriod) {
+            this(name, share, vsPrevPeriod, null);
+        }
+    }
 
     public record WeatherContext(
             @NotBlank String basisDateTime,
@@ -136,8 +141,18 @@ public record SalesSolutionMetrics(
             @Min(5) int baselineDays,
             @DecimalMin("0.0") @DecimalMax("1.0") double sampleWeekdayRatio,
             @DecimalMin("0.0") @DecimalMax("1.0") double baselineWeekdayRatio,
-            @NotNull @Size(max = 3) @Valid List<ConditionMenu> menus
-    ) {}
+            @NotNull @Size(max = 3) @Valid List<ConditionMenu> menus,
+            @PositiveOrZero long avgNetSales,
+            @PositiveOrZero long baselineAvgNetSales
+    ) {
+        public ConditionPattern(
+                String condition, int basisWeeks, double thresholdMm, int sampleDays, int baselineDays,
+                double sampleWeekdayRatio, double baselineWeekdayRatio, List<ConditionMenu> menus
+        ) {
+            this(condition, basisWeeks, thresholdMm, sampleDays, baselineDays,
+                    sampleWeekdayRatio, baselineWeekdayRatio, menus, 0, 0);
+        }
+    }
 
     public record ConditionMenu(
             @NotBlank String menuName,
