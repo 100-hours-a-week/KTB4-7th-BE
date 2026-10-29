@@ -1,4 +1,4 @@
-package com.memme.integration.fcm;
+package com.memme.service.noti.fcm;
 
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
