@@ -2,7 +2,17 @@
 
 ## 메뉴판·매출 카테고리 6종 통일 (#598, #600)
 
-`20261027-unify-sales-menu-categories.sql`을 BE·업로드 Worker 중지 및 백업 후 한 번 적용합니다.
+운영의 구 12종 native ENUM에는 `BEVERAGE`·`OTHER`가 없어 분류 SQL만 적용하면 1265 오류가 발생합니다 (#630).
+BE·Worker 유입 차단·드레인·중지 → 스키마·데이터 백업 → 아래 순서로 한 번씩 적용합니다.
+
+1. `20261029-prepare-sales-category-varchar.sql`: 기존 문자열을 보존하며 `VARCHAR(30) NOT NULL`로 전환.
+2. `20261026-add-sales-calendar.sql`: 달력 미적용 DB에서 활동 건수 컬럼·백필과 날씨 테이블 추가.
+3. `20261027-unify-sales-menu-categories.sql`: 분류 전환과 6종 CHECK 추가.
+4. 스키마·데이터 보존 검증 → CI 성공한 정확한 SHA/digest의 신버전 BE·Worker 기동·스모크 테스트.
+
+**파일명 날짜순으로 실행하지 않습니다.** 이미 적용된 달력·분류 SQL은 재실행하지 않습니다.
+DDL은 암묵적 커밋이므로 실패 시 후속 작업을 중지하고 백업에서 복원합니다.
+분류 복원 시 CHECK 제거 → VARCHAR에서 원래 값 복원 → 원래 ENUM 정의 복원 순서를 지킵니다.
 신규 DB의 `02-sales-core.sql`에도 같은 CHECK 제약을 적용했습니다.
 구버전과 신버전은 허용 enum 값이 달라 동시에 실행하면 안 됩니다.
 기존 논커피·에이드·스무디·병음료·맥주는 `BEVERAGE`로 전환하고,

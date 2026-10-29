@@ -37,5 +37,9 @@ Notion 원문은 이번 작업에서 수정하지 않았으며, 아래 내용이
 
 `20261026-add-sales-calendar.sql`은 기존 DB용이다. 새 DB는 init SQL을 사용한다.
 기존 주문 그룹에서 활동 건수만 백필하며 과거 day_status를 COMPLETE로 바꾸지 않는다.
-애플리케이션을 내리고 백업 후 DDL/백필을 적용한 뒤 신규 버전을 시작한다.
+분류 통일과 함께 배포할 때는 BE·Worker 드레인·중지 → 백업 →
+`20261029-prepare-sales-category-varchar.sql` → `20261026-add-sales-calendar.sql` →
+`20261027-unify-sales-menu-categories.sql` → 스키마·데이터 보존 확인 → 신버전 기동 순서다.
+날짜순으로 실행하지 않으며 이미 적용된 SQL을 재실행하지 않는다.
+정확한 배포 SHA/digest 기록, 단계별 검증과 복원 절차는 [카테고리 정책](sales-category-policy.md)을 따른다.
 운영 DB에는 이번 작업에서 적용하지 않았다.
