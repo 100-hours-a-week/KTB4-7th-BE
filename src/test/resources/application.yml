@@ -34,6 +34,10 @@ password-reset:
   url: http://localhost:5173/password-reset
 
 app:
+  signup-rate-limit:
+    max-requests: 20
+    window-seconds: 60
+    max-tracked-ips: 10000
   password-hash:
     max-concurrency: 2
     wait-timeout-ms: 500
