@@ -72,6 +72,10 @@ app:
     enabled: ${FCM_ENABLED:false}
     project-id: ${FCM_PROJECT_ID:}
     service-account-json: ${FCM_SERVICE_ACCOUNT_JSON:}
+  signup-rate-limit:
+    max-requests: ${SIGNUP_RATE_LIMIT_MAX_REQUESTS:20}
+    window-seconds: ${SIGNUP_RATE_LIMIT_WINDOW_SECONDS:60}
+    max-tracked-ips: ${SIGNUP_RATE_LIMIT_MAX_TRACKED_IPS:10000}
   password-hash:
     max-concurrency: ${PASSWORD_HASH_MAX_CONCURRENCY:2}
     wait-timeout-ms: ${PASSWORD_HASH_WAIT_TIMEOUT_MS:500}

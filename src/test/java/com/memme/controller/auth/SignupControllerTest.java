@@ -3,6 +3,7 @@ package com.memme.controller.auth;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -15,7 +16,11 @@ import com.memme.dto.auth.SignupBusinessResponse;
 import com.memme.dto.common.ApiResponse;
 import com.memme.exception.GlobalExceptionHandler;
 import com.memme.service.auth.SignupBusinessService;
+import com.memme.service.auth.SignupRateLimiter;
 import com.memme.service.auth.SignupService;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.DayOfWeek;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -23,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -36,7 +42,7 @@ class SignupControllerTest {
         SignupBusinessService signupBusinessService = mock(SignupBusinessService.class);
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new SignupController(signupService, signupBusinessService))
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller(signupService, signupBusinessService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
                 .build();
@@ -67,7 +73,7 @@ class SignupControllerTest {
     void 회원가입_2단계_요청을_처리하고_201_응답을_반환한다() {
         SignupService signupService = mock(SignupService.class);
         SignupBusinessService signupBusinessService = mock(SignupBusinessService.class);
-        SignupController signupController = new SignupController(signupService, signupBusinessService);
+        SignupController signupController = controller(signupService, signupBusinessService);
         SignupBusinessRequest request = validBusinessRequest();
         SignupBusinessResponse serviceResponse = new SignupBusinessResponse(
                 new SignupBusinessResponse.User(1L, "owner@memme.com"),
@@ -92,7 +98,7 @@ class SignupControllerTest {
         SignupBusinessService signupBusinessService = mock(SignupBusinessService.class);
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new SignupController(signupService, signupBusinessService))
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller(signupService, signupBusinessService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
                 .build();
@@ -129,7 +135,7 @@ class SignupControllerTest {
     void 회원가입_1단계_요청을_처리하고_201_응답을_반환한다() {
         SignupService signupService = mock(SignupService.class);
         SignupBusinessService signupBusinessService = mock(SignupBusinessService.class);
-        SignupController signupController = new SignupController(signupService, signupBusinessService);
+        SignupController signupController = controller(signupService, signupBusinessService);
         SignupAccountRequest request = new SignupAccountRequest(
                 "owner@memme.com",
                 "Password1!",
@@ -142,12 +148,58 @@ class SignupControllerTest {
         );
         when(signupService.signupAccount(request)).thenReturn(serviceResponse);
 
-        ResponseEntity<ApiResponse<SignupAccountResponse>> response = signupController.signupAccount(request);
+        ResponseEntity<ApiResponse<SignupAccountResponse>> response = signupController.signupAccount(request, new MockHttpServletRequest());
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertEquals("가입 정보가 임시 저장되었습니다.", response.getBody().message());
         assertEquals(serviceResponse, response.getBody().data());
         verify(signupService).signupAccount(request);
+    }
+
+    @Test
+    void 같은_IP의_가입_1단계_요청이_한도를_넘으면_429와_Retry_After를_반환하고_서비스를_호출하지_않는다() throws Exception {
+        SignupService signupService = mock(SignupService.class);
+        SignupBusinessService signupBusinessService = mock(SignupBusinessService.class);
+        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+        validator.afterPropertiesSet();
+        SignupRateLimiter limiter = new SignupRateLimiter(1, 60, 100,
+                Clock.fixed(Instant.parse("2026-10-30T00:00:00Z"), ZoneOffset.UTC));
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new SignupController(
+                        signupService, signupBusinessService, limiter, new ClientIpResolver(false)))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .setValidator(validator)
+                .build();
+        String body = """
+                {
+                  "email": "owner@memme.com",
+                  "password": "Password1!",
+                  "passwordConfirm": "Password1!",
+                  "phone": "01012345678",
+                  "agreements": {
+                    "termsOfService": true,
+                    "termsOfServiceVersion": "2026-09",
+                    "privacyPolicy": true,
+                    "privacyPolicyVersion": "2026-09"
+                  }
+                }
+                """;
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/v1/auth/signup/account")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated());
+        mockMvc.perform(MockMvcRequestBuilders.post("/v1/auth/signup/account")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "60"))
+                .andExpect(jsonPath("$.message").value("요청이 너무 많습니다. 잠시 후 다시 시도해주세요."))
+                .andExpect(jsonPath("$.retryAfterSeconds").value(60));
+
+        verify(signupService, org.mockito.Mockito.times(1)).signupAccount(org.mockito.ArgumentMatchers.any());
+    }
+
+    private SignupController controller(SignupService signupService, SignupBusinessService signupBusinessService) {
+        SignupRateLimiter limiter = new SignupRateLimiter(1000, 60, 100, Clock.systemUTC());
+        return new SignupController(signupService, signupBusinessService, limiter, new ClientIpResolver(false));
     }
 
     private SignupBusinessRequest validBusinessRequest() {
