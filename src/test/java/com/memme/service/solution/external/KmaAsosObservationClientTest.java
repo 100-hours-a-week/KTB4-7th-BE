@@ -7,6 +7,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -20,12 +21,12 @@ class KmaAsosObservationClientTest {
                         .contains("dateCd=HR", "startHh=12", "endHh=12"))
                 .andRespond(withSuccess("""
                     {"response":{"header":{"resultCode":"00"},"body":{"totalCount":6,"items":{"item":[
-                      {"tm":"2026-10-01 12","stnId":"108","hr3Fhsc":"0.2","rn":"1","dc10Tca":"10"},
-                      {"tm":"2026-10-01 13","stnId":"108","rn":"1","dc10Tca":"10"},
-                      {"tm":"2026-10-02 12","stnId":"108","rn":"1","dc10Tca":"10"},
-                      {"tm":"2026-10-03 12","stnId":"108","rn":"0","dc10Tca":"2"},
-                      {"tm":"2026-10-04 12","stnId":"108","rn":"0","dc10Tca":"3"},
-                      {"tm":"2026-10-05 12","stnId":"108","rn":"0","dc10Tca":"0","rnQcflag":"9"}
+                      {"tm":"2026-10-01 12:00","stnId":"108","hr3Fhsc":"0.2","rn":"1","dc10Tca":"10"},
+                      {"tm":"2026-10-01 13:00","stnId":"108","rn":"1","dc10Tca":"10"},
+                      {"tm":"2026-10-02 12:00","stnId":"108","rn":"1","dc10Tca":"10"},
+                      {"tm":"2026-10-03 12:00","stnId":"108","rn":"0","dc10Tca":"2"},
+                      {"tm":"2026-10-04 12:00","stnId":"108","rn":"0","dc10Tca":"3"},
+                      {"tm":"2026-10-05 12:00","stnId":"108","rn":"0","dc10Tca":"0","rnQcflag":"9"}
                     ]}}}}
                     """, APPLICATION_JSON));
         var result = client.dailyNoonWeather("108", LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 5));
@@ -35,6 +36,23 @@ class KmaAsosObservationClientTest {
         assertThat(result.get(LocalDate.of(2026, 10, 3)).condition().name()).isEqualTo("SUNNY");
         assertThat(result.get(LocalDate.of(2026, 10, 4)).condition().name()).isEqualTo("CLOUDY");
         assertThat(result.get(LocalDate.of(2026, 10, 1)).observedAt().getHour()).isEqualTo(12);
+        server.verify();
+    }
+
+    @Test
+    void 실제_정오_응답의_빈_강수와_적설_및_누락된_품질_플래그를_처리한다() {
+        server.expect(request -> {}).andRespond(withSuccess("""
+                {"response":{"header":{"resultCode":"00"},"body":{"totalCount":1,"items":{"item":[
+                  {"tm":"2026-10-28 12:00","stnId":"108","rn":"","dc10Tca":"0","hr3Fhsc":""}
+                ]}}}}
+                """, APPLICATION_JSON));
+
+        var result = client.dailyNoonWeather("108", LocalDate.of(2026, 10, 28), LocalDate.of(2026, 10, 28));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(LocalDate.of(2026, 10, 28)).condition().name()).isEqualTo("SUNNY");
+        assertThat(result.get(LocalDate.of(2026, 10, 28)).observedAt())
+                .isEqualTo(LocalDateTime.of(2026, 10, 28, 12, 0));
         server.verify();
     }
 
