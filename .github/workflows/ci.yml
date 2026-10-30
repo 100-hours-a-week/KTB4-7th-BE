@@ -26,6 +26,7 @@ jobs:
       TEST_REDIS_CONTROL_USERNAME: control
       TEST_REDIS_CONTROL_PASSWORD: redis-control-integration-test
       OUTBOX_MYSQL_TEST_URL: "jdbc:mysql://127.0.0.1:3306/outbox_test?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&allowPublicKeyRetrieval=true&useSSL=false"
+      WEATHER_CALENDAR_MYSQL_TEST_URL: "jdbc:mysql://127.0.0.1:3306/weather_calendar_test?allowPublicKeyRetrieval=true&useSSL=false"
     services:
       outbox-mysql:
         image: mysql:8.4
