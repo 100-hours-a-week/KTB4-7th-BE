@@ -34,7 +34,7 @@ public class KmaAsosObservationClient {
     private static final String PATH = "/1360000/AsosDalyInfoService/getWthrDataList";
     private static final String HOURLY_PATH = "/1360000/AsosHourlyInfoService/getWthrDataList";
     private static final DateTimeFormatter DATE = DateTimeFormatter.BASIC_ISO_DATE;
-    private static final DateTimeFormatter HOUR = DateTimeFormatter.ofPattern("uuuu-MM-dd HH");
+    private static final DateTimeFormatter HOUR = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm");
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final int PAGE_SIZE = 100;
     private static final List<Station> STATIONS = loadStations();
