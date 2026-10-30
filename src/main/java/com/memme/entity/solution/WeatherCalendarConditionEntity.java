@@ -31,7 +31,7 @@ public class WeatherCalendarConditionEntity {
     private LocalDate observationDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "condition", nullable = false, length = 10)
+    @Column(name = "`condition`", nullable = false, length = 10)
     private WeatherCalendarCondition condition;
 
     @Column(name = "observed_at", nullable = false)
