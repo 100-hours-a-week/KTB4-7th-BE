@@ -13,6 +13,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -20,6 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.doAnswer;
 
+@ExtendWith(OutputCaptureExtension.class)
 class RankingSnapshotRecalculationServiceTest {
 
     private RankingSnapshotPersistenceService persistenceService;
@@ -112,6 +116,32 @@ class RankingSnapshotRecalculationServiceTest {
         assertThat(unrelated).isEqualTo(RankingSnapshotRecalculationService.Result.SKIPPED_NOT_AFFECTED);
         assertThat(relevant).isEqualTo(RankingSnapshotRecalculationService.Result.COMPLETED);
         verify(persistenceService, org.mockito.Mockito.times(1)).calculate(any());
+    }
+
+    @Test
+    void logsMonthlySchedulerStartAndCompletion(CapturedOutput output) {
+        service.recalculateCurrentPeriod();
+
+        assertThat(output).contains("Ranking recalculation started: source=MONTHLY_SCHEDULER")
+                .contains("executor=")
+                .contains("periodStart=2026-09-01, periodEnd=2026-09-30")
+                .contains("startedAt=2026-10-10T03:00:00Z")
+                .contains("Ranking recalculation finished: source=MONTHLY_SCHEDULER")
+                .contains("finishedAt=2026-10-10T03:00:00Z")
+                .contains("result=COMPLETED");
+    }
+
+    @Test
+    void logsSalesUploadFailure(CapturedOutput output) {
+        org.mockito.Mockito.doThrow(new IllegalStateException("calculation failed"))
+                .when(persistenceService).calculate(any());
+
+        service.recalculateIfAffected(LocalDate.of(2026, 9, 12), LocalDate.of(2026, 9, 12));
+
+        assertThat(output).contains("Ranking recalculation started: source=SALES_UPLOAD")
+                .contains("Ranking recalculation failed: source=SALES_UPLOAD")
+                .contains("Ranking recalculation finished: source=SALES_UPLOAD")
+                .contains("result=FAILED");
     }
 
 }
