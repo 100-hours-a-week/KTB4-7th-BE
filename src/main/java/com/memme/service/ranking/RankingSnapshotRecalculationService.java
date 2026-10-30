@@ -1,6 +1,7 @@
 package com.memme.service.ranking;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Objects;
 
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 public class RankingSnapshotRecalculationService {
 
     private static final Logger log = LoggerFactory.getLogger(RankingSnapshotRecalculationService.class);
+    private static final String EXECUTOR = executorId();
     private final RankingSnapshotPersistenceService persistenceService;
     private final Clock clock;
 
@@ -32,7 +34,7 @@ public class RankingSnapshotRecalculationService {
     }
 
     public Result recalculateCurrentPeriod() {
-        return recalculate(RankingPeriodCalculator.current(clock));
+        return recalculate(RankingPeriodCalculator.current(clock), "MONTHLY_SCHEDULER");
     }
 
     public Result recalculateIfAffected(LocalDate changedStart, LocalDate changedEnd) {
@@ -47,24 +49,39 @@ public class RankingSnapshotRecalculationService {
                 && !overlaps(changedStart, changedEnd, period.comparisonStart(), period.comparisonEnd())) {
             return Result.SKIPPED_NOT_AFFECTED;
         }
-        return recalculate(period);
+        return recalculate(period, "SALES_UPLOAD");
     }
 
-    private synchronized Result recalculate(RankingPeriodCalculator.PeriodPair period) {
+    private synchronized Result recalculate(RankingPeriodCalculator.PeriodPair period, String source) {
+        Instant startedAt = clock.instant();
+        long startedNanos = System.nanoTime();
+        log.info("Ranking recalculation started: source={}, executor={}, periodStart={}, periodEnd={}, comparisonStart={}, comparisonEnd={}, startedAt={}",
+                source, EXECUTOR, period.periodStart(), period.periodEnd(), period.comparisonStart(),
+                period.comparisonEnd(), startedAt);
+        Result result;
         try {
             persistenceService.calculate(period);
-            return Result.COMPLETED;
+            result = Result.COMPLETED;
         } catch (RuntimeException exception) {
-            log.error("Growth ranking snapshot calculation failed for period {}-{}", period.periodStart(),
-                    period.periodEnd(), exception);
+            log.error("Ranking recalculation failed: source={}, executor={}, periodStart={}, periodEnd={}",
+                    source, EXECUTOR, period.periodStart(), period.periodEnd(), exception);
             try {
                 persistenceService.recordFailed(period);
             } catch (RuntimeException recordException) {
                 exception.addSuppressed(recordException);
                 log.error("Could not persist failed growth ranking snapshot", recordException);
             }
-            return Result.FAILED;
+            result = Result.FAILED;
         }
+        log.info("Ranking recalculation finished: source={}, executor={}, periodStart={}, periodEnd={}, startedAt={}, finishedAt={}, durationMs={}, result={}",
+                source, EXECUTOR, period.periodStart(), period.periodEnd(), startedAt, clock.instant(),
+                java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos), result);
+        return result;
+    }
+
+    private static String executorId() {
+        String hostname = System.getenv("HOSTNAME");
+        return (hostname == null || hostname.isBlank() ? "unknown" : hostname) + ":" + ProcessHandle.current().pid();
     }
 
     private boolean overlaps(LocalDate firstStart, LocalDate firstEnd, LocalDate secondStart, LocalDate secondEnd) {
