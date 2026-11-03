@@ -3,6 +3,8 @@ package com.memme.service.sales.calendar;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import com.memme.dto.sales.SalesAnalysisMonthOptionsResponse;
+import com.memme.service.sales.analysis.SalesAnalysisMonthOptionService;
 import com.memme.entity.sales.SalesDailyStatus;
 import com.memme.entity.sales.SalesDailySummaryEntity;
 import com.memme.entity.solution.WeatherCalendarCondition;
@@ -25,6 +27,7 @@ class SalesCalendarQueryServiceTest {
     private final StoreRepository stores = mock(StoreRepository.class);
     private final SalesDailySummaryRepository summaries = mock(SalesDailySummaryRepository.class);
     private final WeatherCalendarConditionRepository weather = mock(WeatherCalendarConditionRepository.class);
+    private final SalesAnalysisMonthOptionService monthOptions = mock(SalesAnalysisMonthOptionService.class);
     private final Store store = mock(Store.class);
     private SalesCalendarQueryService service;
 
@@ -36,8 +39,9 @@ class SalesCalendarQueryServiceTest {
         when(stores.findByOwnerId(7L)).thenReturn(Optional.of(store));
         when(summaries.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(anyLong(), any(), any()))
                 .thenReturn(List.of());
+        when(monthOptions.get(7L, 301L)).thenReturn(new SalesAnalysisMonthOptionsResponse(List.of()));
         service = new SalesCalendarQueryService(stores, summaries, weather,
-                Clock.fixed(Instant.parse("2026-10-27T15:01:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-10-27T15:01:00Z"), ZoneOffset.UTC), monthOptions);
     }
 
     @Test
@@ -107,6 +111,53 @@ class SalesCalendarQueryServiceTest {
     }
 
     @Test
+    void includesUploadedSalesBeforeStoreRegistrationAndKeepsTheirAmounts() {
+        when(store.getCreatedAt()).thenReturn(LocalDateTime.of(2026, 10, 15, 0, 0));
+        when(monthOptions.get(7L, 301L)).thenReturn(new SalesAnalysisMonthOptionsResponse(List.of(
+                monthOption("2026-09"), monthOption("2026-07"))));
+        when(summaries.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                301L, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31)))
+                .thenReturn(List.of(SalesDailySummaryEntity.create(301L, LocalDate.of(2026, 7, 3),
+                        15000, 15000, 2, 2, 2, SalesDailyStatus.COMPLETE)));
+
+        var response = service.query(7L, "2026-07", null);
+
+        assertThat(response.availableRange().firstMonth()).isEqualTo("2026-07");
+        assertThat(response.availableRange().lastMonth()).isEqualTo("2026-10");
+        assertThat(response.days().get(2).salesAmount()).isEqualTo(15000);
+        assertThat(response.monthSummary().totalSalesAmount()).isEqualTo(15000);
+        assertThat(service.queryDay(7L, "2026-07-03").salesAmount()).isEqualTo(15000);
+        assertThat(service.query(7L, "2026-09", null).month()).isEqualTo("2026-09");
+        assertThatThrownBy(() -> service.query(7L, "2026-06", null))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        exception -> assertThat(exception.getStatusCode().value()).isEqualTo(416));
+    }
+
+    @Test
+    void preservesRegistrationRangeWhenUploadsAreLaterOrAbsent() {
+        when(monthOptions.get(7L, 301L)).thenReturn(new SalesAnalysisMonthOptionsResponse(List.of(
+                monthOption("2026-09"))));
+        assertThat(service.query(7L, "2024-02", null).availableRange().firstMonth()).isEqualTo("2024-02");
+        when(monthOptions.get(7L, 301L)).thenReturn(new SalesAnalysisMonthOptionsResponse(List.of()));
+        assertThat(service.query(7L, "2024-02", null).availableRange().firstMonth()).isEqualTo("2024-02");
+    }
+
+    @Test
+    void uploadedFutureMonthDoesNotExtendCurrentMonthLimit() {
+        when(monthOptions.get(7L, 301L)).thenReturn(new SalesAnalysisMonthOptionsResponse(List.of(
+                monthOption("2026-11"))));
+        assertThat(service.query(7L, null, null).availableRange().lastMonth()).isEqualTo("2026-10");
+        assertThatThrownBy(() -> service.query(7L, "2026-11", null))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        exception -> assertThat(exception.getStatusCode().value()).isEqualTo(416));
+    }
+
+    private SalesAnalysisMonthOptionsResponse.MonthOption monthOption(String month) {
+        return new SalesAnalysisMonthOptionsResponse.MonthOption(month, 1L, "sales.xlsx",
+                OffsetDateTime.parse("2026-10-20T00:00:00+09:00"));
+    }
+
+    @Test
     void leapMonthDefaultsToFirstDay() {
         var response = service.query(7L, "2024-02", null);
         assertThat(response.days()).hasSize(29);
@@ -140,7 +191,7 @@ class SalesCalendarQueryServiceTest {
     void cannotUseAnotherUsersStore() {
         when(stores.findByOwnerId(8L)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.query(8L, null, null)).isInstanceOf(StoreProfileNotFoundException.class);
-        verifyNoInteractions(summaries, weather);
+        verifyNoInteractions(summaries, weather, monthOptions);
     }
 
     private SalesDailySummaryEntity day(int day, long amount, int orders, int activity, SalesDailyStatus status) {
