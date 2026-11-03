@@ -1,6 +1,7 @@
 package com.memme.service.sales.calendar;
 
 import com.memme.dto.sales.SalesCalendarResponse;
+import com.memme.service.sales.analysis.SalesAnalysisMonthOptionService;
 import com.memme.dto.common.FieldError;
 import com.memme.exception.sales.SalesCalendarInputException;
 import com.memme.entity.sales.SalesDailyStatus;
@@ -46,17 +47,20 @@ public class SalesCalendarQueryService {
     private final SalesDailySummaryRepository summaryRepository;
     private final WeatherCalendarConditionRepository weatherRepository;
     private final Clock clock;
+    private final SalesAnalysisMonthOptionService monthOptionService;
 
     public SalesCalendarQueryService(
             StoreRepository storeRepository,
             SalesDailySummaryRepository summaryRepository,
             WeatherCalendarConditionRepository weatherRepository,
-            Clock clock
+            Clock clock,
+            SalesAnalysisMonthOptionService monthOptionService
     ) {
         this.storeRepository = storeRepository;
         this.summaryRepository = summaryRepository;
         this.weatherRepository = weatherRepository;
         this.clock = clock;
+        this.monthOptionService = monthOptionService;
     }
 
     @Transactional(readOnly = true)
@@ -65,7 +69,6 @@ public class SalesCalendarQueryService {
         Long storeId = store.getId();
         LocalDate today = LocalDate.now(clock.withZone(SEOUL));
         YearMonth currentMonth = YearMonth.from(today);
-        YearMonth firstMonth = YearMonth.from(store.getCreatedAt());
         List<FieldError> errors = new ArrayList<>();
         YearMonth month = currentMonth;
         LocalDate requestedDate = null;
@@ -80,6 +83,13 @@ public class SalesCalendarQueryService {
             errors.add(new FieldError("selectedDate", "선택 날짜는 YYYY-MM-DD 형식의 유효한 날짜여야 합니다."));
         }
         if (!errors.isEmpty()) throw new SalesCalendarInputException(errors);
+
+        YearMonth firstMonth = monthOptionService.get(userId, storeId).months().stream()
+                .map(option -> YearMonth.parse(option.targetMonth()))
+                .filter(uploadMonth -> !uploadMonth.isAfter(currentMonth))
+                .min(YearMonth::compareTo)
+                .filter(uploadMonth -> uploadMonth.isBefore(YearMonth.from(store.getCreatedAt())))
+                .orElse(YearMonth.from(store.getCreatedAt()));
 
         if (month.isBefore(firstMonth) || month.isAfter(currentMonth)) {
             throw new ResponseStatusException(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE, INVALID_RANGE_MESSAGE);
