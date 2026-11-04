@@ -1,5 +1,7 @@
 package com.memme.service.solution;
 
+import com.memme.entity.sales.SalesUploadStatus;
+import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.entity.solution.WeatherObservationEntity;
 import com.memme.entity.solution.WeatherStationEntity;
 import com.memme.entity.solution.WeatherCalendarConditionEntity;
@@ -43,24 +45,27 @@ public class AsosObservationImportService {
     private final WeatherCalendarConditionRepository calendarConditions;
     private final KmaAsosObservationClient client;
     private final Clock clock;
+    private final SalesUploadRepository uploads;
 
     @Autowired
     public AsosObservationImportService(StoreRepository stores, WeatherStationRepository stations,
                                         WeatherObservationRepository observations,
                                         WeatherCalendarConditionRepository calendarConditions,
-                                        KmaAsosObservationClient client, Clock clock) {
+                                        KmaAsosObservationClient client, Clock clock,
+                                        SalesUploadRepository uploads) {
         this.stores = stores;
         this.stations = stations;
         this.observations = observations;
         this.calendarConditions = calendarConditions;
         this.client = client;
         this.clock = clock;
+        this.uploads = uploads;
     }
 
     public AsosObservationImportService(StoreRepository stores, WeatherStationRepository stations,
                                         WeatherObservationRepository observations,
                                         KmaAsosObservationClient client, Clock clock) {
-        this(stores, stations, observations, null, client, clock);
+        this(stores, stations, observations, null, client, clock, null);
     }
 
     public int importForActiveStores() {
@@ -104,6 +109,18 @@ public class AsosObservationImportService {
                 }
                 LocalDate calendarStart = store.getCreatedAt() == null
                         ? start : store.getCreatedAt().toLocalDate();
+                if (calendarConditions != null && uploads != null) {
+                    LocalDate firstUploadedDate = uploads
+                            .findAllByStoreIdAndStatusOrderByUploadedAtDescIdDesc(store.getId(), SalesUploadStatus.COMPLETED)
+                            .stream()
+                            .map(upload -> upload.getPeriodStart())
+                            .filter(java.util.Objects::nonNull)
+                            .min(LocalDate::compareTo)
+                            .orElse(calendarStart);
+                    if (firstUploadedDate.isBefore(calendarStart)) {
+                        calendarStart = firstUploadedDate.withDayOfMonth(1);
+                    }
+                }
                 usedStations.merge(station.getId(), new ImportTarget(station, calendarStart),
                         (existingTarget, incomingTarget) -> incomingTarget.startDate()
                                 .isBefore(existingTarget.startDate()) ? incomingTarget : existingTarget);
