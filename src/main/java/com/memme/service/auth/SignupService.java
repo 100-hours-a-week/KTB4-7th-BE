@@ -19,7 +19,6 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -29,7 +28,7 @@ public class SignupService {
 
     private final UserRepository userRepository;
     private final SignupDraftRepository signupDraftRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final PasswordHashConcurrencyGate passwordHashConcurrencyGate;
     private final Clock clock;
     private final TransactionTemplate transactionTemplate;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -37,13 +36,13 @@ public class SignupService {
     public SignupService(
             UserRepository userRepository,
             SignupDraftRepository signupDraftRepository,
-            PasswordEncoder passwordEncoder,
+            PasswordHashConcurrencyGate passwordHashConcurrencyGate,
             Clock clock,
             PlatformTransactionManager transactionManager
     ) {
         this.userRepository = userRepository;
         this.signupDraftRepository = signupDraftRepository;
-        this.passwordEncoder = passwordEncoder;
+        this.passwordHashConcurrencyGate = passwordHashConcurrencyGate;
         this.clock = clock;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
@@ -60,7 +59,7 @@ public class SignupService {
         OffsetDateTime now = OffsetDateTime.now(clock);
         OffsetDateTime expiresAt = now.plusHours(1);
         String signupToken = generateSignupToken();
-        String passwordHash = passwordEncoder.encode(request.password());
+        String passwordHash = passwordHashConcurrencyGate.encode(request.password());
 
         SignupAccountRequest.Agreements agreements = request.agreements();
         SignupDraft signupDraft = SignupDraft.create(

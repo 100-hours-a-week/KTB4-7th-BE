@@ -45,6 +45,9 @@ public class SalesDailySummaryEntity {
     @Column(name = "order_count", nullable = false)
     private int orderCount;
 
+    @Column(name = "sales_activity_count", nullable = false)
+    private int salesActivityCount;
+
     @Column(name = "menu_quantity", nullable = false)
     private int menuQuantity;
 
@@ -69,7 +72,7 @@ public class SalesDailySummaryEntity {
     ) {
         this.storeId = Objects.requireNonNull(storeId, "storeId");
         this.salesDate = Objects.requireNonNull(salesDate, "salesDate");
-        update(totalNetAmount, menuNetAmount, orderCount, menuQuantity, dayStatus);
+        update(totalNetAmount, menuNetAmount, orderCount, menuQuantity, 0, dayStatus);
     }
 
     public static SalesDailySummaryEntity create(
@@ -104,13 +107,36 @@ public class SalesDailySummaryEntity {
         );
     }
 
+    public static SalesDailySummaryEntity create(
+            Long storeId,
+            LocalDate salesDate,
+            long totalNetAmount,
+            long menuNetAmount,
+            int orderCount,
+            int menuQuantity,
+            int salesActivityCount,
+            SalesDailyStatus dayStatus
+    ) {
+        SalesDailySummaryEntity summary = new SalesDailySummaryEntity(
+                storeId,
+                salesDate,
+                totalNetAmount,
+                menuNetAmount,
+                orderCount,
+                menuQuantity,
+                dayStatus
+        );
+        summary.setSalesActivityCount(salesActivityCount);
+        return summary;
+    }
+
     public void update(
             long totalNetAmount,
             long menuNetAmount,
             int orderCount,
             int menuQuantity
     ) {
-        update(totalNetAmount, menuNetAmount, orderCount, menuQuantity, dayStatus);
+        update(totalNetAmount, menuNetAmount, orderCount, menuQuantity, 0, dayStatus);
     }
 
     public void update(
@@ -120,14 +146,33 @@ public class SalesDailySummaryEntity {
             int menuQuantity,
             SalesDailyStatus dayStatus
     ) {
+        update(totalNetAmount, menuNetAmount, orderCount, menuQuantity, 0, dayStatus);
+    }
+
+    public void update(
+            long totalNetAmount,
+            long menuNetAmount,
+            int orderCount,
+            int menuQuantity,
+            int salesActivityCount,
+            SalesDailyStatus dayStatus
+    ) {
         if (orderCount < 0) {
             throw new IllegalArgumentException("orderCount must not be negative");
         }
+        setSalesActivityCount(salesActivityCount);
         this.dayStatus = Objects.requireNonNull(dayStatus, "dayStatus");
         this.totalNetAmount = totalNetAmount;
         this.menuNetAmount = menuNetAmount;
         this.orderCount = orderCount;
         this.menuQuantity = menuQuantity;
+    }
+
+    private void setSalesActivityCount(int salesActivityCount) {
+        if (salesActivityCount < 0) {
+            throw new IllegalArgumentException("salesActivityCount must not be negative");
+        }
+        this.salesActivityCount = salesActivityCount;
     }
 
     @PrePersist
@@ -158,6 +203,10 @@ public class SalesDailySummaryEntity {
 
     public int getOrderCount() {
         return orderCount;
+    }
+
+    public int getSalesActivityCount() {
+        return salesActivityCount;
     }
 
     public int getMenuQuantity() {

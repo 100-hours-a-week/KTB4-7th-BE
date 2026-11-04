@@ -30,7 +30,7 @@ import com.memme.entity.sales.SalesDailyStatus;
 import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
 import com.memme.entity.sales.SalesOrderItemType;
-import com.memme.entity.sales.SalesStandardMenuCategory;
+import com.memme.entity.store.MenuCategory;
 import com.memme.repository.sales.SalesDailySummaryRepository;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesOrderRepository;
@@ -250,10 +250,10 @@ public class SalesInsightMetricsAssembler {
             MonthData previous,
             long totalMenuSales
     ) {
-        Map<SalesStandardMenuCategory, Long> currentTotals = categoryTotals(current.items());
-        Map<SalesStandardMenuCategory, Long> previousTotals = categoryTotals(previous.items());
+        Map<MenuCategory, Long> currentTotals = categoryTotals(current.items());
+        Map<MenuCategory, Long> previousTotals = categoryTotals(previous.items());
         return currentTotals.entrySet().stream()
-                .sorted(Map.Entry.<SalesStandardMenuCategory, Long>comparingByValue().reversed()
+                .sorted(Map.Entry.<MenuCategory, Long>comparingByValue().reversed()
                         .thenComparing(entry -> entry.getKey().name()))
                 .map(entry -> new CategorySalesMetric(
                         categoryName(entry.getKey()),
@@ -264,8 +264,8 @@ public class SalesInsightMetricsAssembler {
                 .toList();
     }
 
-    private Map<SalesStandardMenuCategory, Long> categoryTotals(List<SalesOrderItemEntity> items) {
-        Map<SalesStandardMenuCategory, Long> totals = new EnumMap<>(SalesStandardMenuCategory.class);
+    private Map<MenuCategory, Long> categoryTotals(List<SalesOrderItemEntity> items) {
+        Map<MenuCategory, Long> totals = new EnumMap<>(MenuCategory.class);
         for (SalesOrderItemEntity item : items) {
             if (item.getItemType() == SalesOrderItemType.MENU) {
                 totals.merge(item.getStandardCategory(), item.getNetAmount(), Math::addExact);
@@ -355,21 +355,8 @@ public class SalesInsightMetricsAssembler {
                 : SalesInsightDayType.WEEKDAY;
     }
 
-    private String categoryName(SalesStandardMenuCategory category) {
-        return switch (category) {
-            case COFFEE -> "커피";
-            case NON_COFFEE -> "논커피";
-            case TEA -> "티";
-            case ADE -> "에이드";
-            case SMOOTHIE -> "스무디";
-            case BOTTLED_DRINK -> "병음료";
-            case BEER -> "맥주";
-            case CAKE -> "케이크";
-            case BAKERY -> "베이커리";
-            case FOOD -> "푸드";
-            case SEASONAL -> "시즌 메뉴";
-            case UNMAPPED -> "미분류";
-        };
+    private String categoryName(MenuCategory category) {
+        return category.displayName();
     }
 
     public record Result(

@@ -1,5 +1,25 @@
 # 기존 DB 마이그레이션 안내
 
+## 메뉴판·매출 카테고리 6종 통일 (#598, #600)
+
+운영의 구 12종 native ENUM에는 `BEVERAGE`·`OTHER`가 없어 분류 SQL만 적용하면 1265 오류가 발생합니다 (#630).
+BE·Worker 유입 차단·드레인·중지 → 스키마·데이터 백업 → 아래 순서로 한 번씩 적용합니다.
+
+1. `20261029-prepare-sales-category-varchar.sql`: 기존 문자열을 보존하며 `VARCHAR(30) NOT NULL`로 전환.
+2. `20261026-add-sales-calendar.sql`: 달력 미적용 DB에서 활동 건수 컬럼·백필과 날씨 테이블 추가.
+3. `20261027-unify-sales-menu-categories.sql`: 분류 전환과 6종 CHECK 추가.
+4. 스키마·데이터 보존 검증 → CI 성공한 정확한 SHA/digest의 신버전 BE·Worker 기동·스모크 테스트.
+
+**파일명 날짜순으로 실행하지 않습니다.** 이미 적용된 달력·분류 SQL은 재실행하지 않습니다.
+DDL은 암묵적 커밋이므로 실패 시 후속 작업을 중지하고 백업에서 복원합니다.
+분류 복원 시 CHECK 제거 → VARCHAR에서 원래 값 복원 → 원래 ENUM 정의 복원 순서를 지킵니다.
+신규 DB의 `02-sales-core.sql`에도 같은 CHECK 제약을 적용했습니다.
+구버전과 신버전은 허용 enum 값이 달라 동시에 실행하면 안 됩니다.
+기존 논커피·에이드·스무디·병음료·맥주는 `BEVERAGE`로 전환하고,
+기존 `UNMAPPED`·시즌·푸드 항목은 원본 라벨과 메뉴명으로 재분류합니다.
+원본 라벨·금액·수량은 보존합니다. 적용 순서, 확인 SQL, 롤백 및 검증 방법은
+[카테고리 정책](../../../docs/sales-category-policy.md)을 확인합니다.
+
 ## Spring Batch 메타데이터 (#549)
 
 기존 QA·운영 DB에는 BE 배포 전에 `20261024-add-spring-batch-metadata.sql`을 한 번 적용합니다.
@@ -216,3 +236,9 @@ ORDER BY SEQ_IN_INDEX;
 ## 매출 업로드 Outbox (#556 승인 / #557)
 
 `20261025-add-sales-upload-outbox.sql`은 신규 테이블만 생성한다. 기존 테이블·데이터는 변경하지 않는다. 백업·Outbox 테이블 부재와 참조 PK 타입을 확인한 후 수동 적용한다. `information_schema`에서 stores/sales_uploads/analysis_runs PK의 실제 signedness를 읽어 FK 타입을 맞춘다. 새 DB는 init/12-sales-upload-outbox.sql을 사용한다. 스키마를 먼저 적용하고 `SALES_OUTBOX_ENABLED=false`를 유지한 상태에서 배포한다. Worker 전환은 docs/sales-upload-outbox-operations.md의 드레인·검증 절차를 따른다. 이 파일의 추가는 운영 DB 실행을 의미하지 않는다.
+
+## 20261026-add-sales-calendar.sql
+
+매출 활동 건수와 정오 날씨 저장 모델을 추가한다. `docs/sales-calendar-policy.md`의 2026-10-28 사용자 지시를 따른다.
+기존 signed POS 금액과 주문일을 유지하며, 결제/환불 원장·가짜 결제 시각·커버리지 보정은 추가하지 않는다.
+백업과 앱/Worker 중지 후 한 번 실행한다. 새 DB는 init/02 및 init/13을 사용하며 이 마이그레이션을 중복 실행하지 않는다.

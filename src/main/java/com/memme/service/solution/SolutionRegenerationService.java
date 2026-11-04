@@ -154,7 +154,8 @@ public class SolutionRegenerationService {
         var forecast = weather.resolve(storeId, date).orElse(null);
         var metrics = new SalesSolutionMetrics(base.salesSummary(), base.hourlyProfile(),
                 base.categoryBreakdown(), base.predictedSalesToday(), base.reviewSummary(),
-                forecast, base.menuRankings(), base.businessHours(), base.conditionPatterns());
+                forecast, base.menuRankings(), base.businessHours(), base.conditionPatterns(),
+                base.districtBenchmark());
         return new Source(analysisId, metrics, fingerprints.of(analysisId, date, metrics));
     }
 

@@ -15,7 +15,6 @@ import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
 import com.memme.entity.sales.SalesOrderItemStatus;
 import com.memme.entity.sales.SalesOrderItemType;
-import com.memme.entity.sales.SalesStandardMenuCategory;
 import com.memme.entity.sales.SalesUploadEntity;
 import com.memme.entity.store.StoreBusinessHours;
 import com.memme.repository.sales.SalesDailySummaryRepository;
@@ -131,7 +130,7 @@ public class SalesUploadPersistenceService {
                 item.menuName(),
                 item.menuKey(),
                 item.categoryRaw(),
-                SalesStandardMenuCategory.valueOf(item.category().name()),
+                item.category(),
                 item.optionRaw(),
                 item.quantity(),
                 item.linePrice(),
@@ -195,6 +194,8 @@ public class SalesUploadPersistenceService {
         Map<LocalDate, Boolean> hasOrderRowsByDate = new HashMap<>();
         workbookData.items().forEach(item -> hasOrderRowsByDate.put(item.orderDate(), true));
         for (SalesOrderEntity order : orders) {
+            MutableDailySummary activity = summaries.get(order.getOrderedAt().toLocalDate());
+            activity.salesActivityCount = Math.incrementExact(activity.salesActivityCount);
             if (order.isValid()) {
                 MutableDailySummary summary = summaries.get(order.getOrderedAt().toLocalDate());
                 summary.orderCount = Math.incrementExact(summary.orderCount);
@@ -231,6 +232,7 @@ public class SalesUploadPersistenceService {
                         values.menuNetAmount,
                         values.orderCount,
                         values.menuQuantity,
+                        values.salesActivityCount,
                         dayStatus
                 );
             } else {
@@ -239,6 +241,7 @@ public class SalesUploadPersistenceService {
                         values.menuNetAmount,
                         values.orderCount,
                         values.menuQuantity,
+                        values.salesActivityCount,
                         dayStatus
                 );
             }
@@ -252,5 +255,6 @@ public class SalesUploadPersistenceService {
         private long menuNetAmount;
         private int orderCount;
         private int menuQuantity;
+        private int salesActivityCount;
     }
 }

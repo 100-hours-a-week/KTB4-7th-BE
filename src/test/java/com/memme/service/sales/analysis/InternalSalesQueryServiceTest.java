@@ -21,7 +21,7 @@ import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
 import com.memme.entity.sales.SalesOrderItemStatus;
 import com.memme.entity.sales.SalesOrderItemType;
-import com.memme.entity.sales.SalesStandardMenuCategory;
+import com.memme.entity.store.MenuCategory;
 import com.memme.dto.sales.InternalSalesHourlyProfilesResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -249,7 +249,7 @@ class InternalSalesQueryServiceTest {
                 "아메리카노",
                 "americano",
                 "커피",
-                SalesStandardMenuCategory.COFFEE,
+                MenuCategory.COFFEE,
                 null,
                 1,
                 netAmount,

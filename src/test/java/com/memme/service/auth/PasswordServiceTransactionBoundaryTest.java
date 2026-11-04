@@ -221,7 +221,7 @@ class PasswordServiceTransactionBoundaryTest {
                     passwordResetTokenRepository,
                     passwordResetMailSender,
                     passwordResetRateLimiter,
-                    passwordEncoder,
+                    new PasswordHashConcurrencyGate(passwordEncoder, 2, 500),
                     "http://localhost:5173/password-reset",
                     transactionManager
             );
@@ -233,7 +233,8 @@ class PasswordServiceTransactionBoundaryTest {
                 PasswordEncoder passwordEncoder,
                 PlatformTransactionManager transactionManager
         ) {
-            return new PasswordChangeService(userRepository, passwordEncoder, transactionManager);
+            return new PasswordChangeService(userRepository,
+                    new PasswordHashConcurrencyGate(passwordEncoder, 2, 500), transactionManager);
         }
     }
 

@@ -4,21 +4,25 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.YearMonth;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.IntStream;
 
 import com.memme.dto.sales.MenuRankingMetric;
+import com.memme.dto.sales.DistrictBenchmarkMetric;
 import com.memme.dto.sales.SalesSolutionMetrics;
 import com.memme.entity.sales.AnalysisRunEntity;
 import com.memme.entity.sales.SalesForecastEntity;
 import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
 import com.memme.entity.sales.SalesOrderItemType;
-import com.memme.entity.sales.SalesStandardMenuCategory;
+import com.memme.entity.store.MenuCategory;
 import com.memme.entity.store.StoreBusinessHours;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesOrderRepository;
 import com.memme.repository.store.StoreBusinessHoursRepository;
+import com.memme.service.sales.insight.DistrictBenchmarkService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import tools.jackson.databind.json.JsonMapper;
@@ -32,6 +36,35 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class SalesSolutionMetricsAssemblerTest {
+
+    @Test
+    void includesDistrictBenchmarkForForecastTargetMonth() {
+        SalesOrderRepository orderRepository = mock(SalesOrderRepository.class);
+        SalesOrderItemRepository itemRepository = mock(SalesOrderItemRepository.class);
+        StoreBusinessHoursRepository businessHoursRepository = mock(StoreBusinessHoursRepository.class);
+        DistrictBenchmarkService benchmarkService = mock(DistrictBenchmarkService.class);
+        AnalysisRunEntity analysisRun = mock(AnalysisRunEntity.class);
+        SalesForecastEntity forecast = mock(SalesForecastEntity.class);
+        when(analysisRun.getPeriodStart()).thenReturn(LocalDate.of(2026, 9, 1));
+        when(analysisRun.getPeriodEnd()).thenReturn(LocalDate.of(2026, 9, 30));
+        when(forecast.getTargetDate()).thenReturn(LocalDate.of(2026, 10, 21));
+        DistrictBenchmarkMetric benchmark = new DistrictBenchmarkMetric(
+                "2026Q2", 16_887_880, 159, "11-14", "17-21");
+        when(benchmarkService.findForInsight(10L, YearMonth.of(2026, 10)))
+                .thenReturn(Optional.of(benchmark));
+        when(orderRepository.findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
+                eq(10L), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+        when(businessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(List.of());
+
+        SalesSolutionMetrics metrics = new SalesSolutionMetricsAssembler(
+                orderRepository, itemRepository, businessHoursRepository,
+                mock(ConditionPatternsService.class), benchmarkService)
+                .assemble(10L, analysisRun, forecast);
+
+        assertThat(metrics.districtBenchmark()).isEqualTo(benchmark);
+        verify(benchmarkService).findForInsight(10L, YearMonth.of(2026, 10));
+    }
 
     @Test
     void includesConditionPatternsResolvedForTheForecastTargetDate() {
@@ -57,10 +90,12 @@ class SalesSolutionMetricsAssemblerTest {
         when(conditionPatternsService.resolve(10L, targetDate)).thenReturn(List.of(conditionPattern));
 
         SalesSolutionMetrics metrics = new SalesSolutionMetricsAssembler(
-                orderRepository, itemRepository, businessHoursRepository, conditionPatternsService)
+                orderRepository, itemRepository, businessHoursRepository, conditionPatternsService,
+                mock(DistrictBenchmarkService.class))
                 .assemble(10L, analysisRun, forecast);
 
         assertThat(metrics.conditionPatterns()).containsExactly(conditionPattern);
+        assertThat(metrics.districtBenchmark()).isNull();
         verify(conditionPatternsService).resolve(10L, targetDate);
     }
 
@@ -121,15 +156,15 @@ class SalesSolutionMetricsAssemblerTest {
                 .isEqualTo("2026-10-01~2026-10-03");
         assertThat(metrics.menuRankings()).containsExactly(
                 new MenuRankingMetric(1, "아메리카노", BigDecimal.valueOf(600), 6L,
-                        new BigDecimal("0.2857"), new BigDecimal("1.0000")),
+                        new BigDecimal("0.2857"), new BigDecimal("1.0000"), new BigDecimal("0.1304")),
                 new MenuRankingMetric(2, "카페라떼", BigDecimal.valueOf(500), 5L,
-                        new BigDecimal("0.2381"), new BigDecimal("-0.5000")),
+                        new BigDecimal("0.2381"), new BigDecimal("-0.5000"), new BigDecimal("0.4348")),
                 new MenuRankingMetric(3, "홍차", BigDecimal.valueOf(400), 4L,
-                        new BigDecimal("0.1905"), new BigDecimal("0.0000")),
+                        new BigDecimal("0.1905"), new BigDecimal("0.0000"), new BigDecimal("0.1739")),
                 new MenuRankingMetric(4, "레몬에이드", BigDecimal.valueOf(300), 3L,
-                        new BigDecimal("0.1429"), new BigDecimal("0.0000")),
+                        new BigDecimal("0.1429"), new BigDecimal("0.0000"), new BigDecimal("0.1304")),
                 new MenuRankingMetric(5, "치즈케이크", BigDecimal.valueOf(200), 2L,
-                        new BigDecimal("0.0952"), new BigDecimal("1.0000")));
+                        new BigDecimal("0.0952"), new BigDecimal("1.0000"), new BigDecimal("0.0435")));
         assertThat(metrics.businessHours()).isEqualTo(new SalesSolutionMetrics.BusinessHours(
                 new SalesSolutionMetrics.BusinessHourBand("08:00", "22:00"),
                 new SalesSolutionMetrics.BusinessHourBand("09:00", "21:00"),
@@ -241,7 +276,30 @@ class SalesSolutionMetricsAssemblerTest {
                     assertThat(menu.rank()).isEqualTo(13);
                     assertThat(menu.ratio()).isEqualByComparingTo("0.0000");
                     assertThat(menu.vsPrevPeriod()).isEqualByComparingTo("-1.0000");
+                    assertThat(menu.previousRatio()).isPositive();
                 });
+    }
+
+    @Test
+    void includesPreviousOnlyCategoryWithBothPeriodShares() {
+        SalesOrderItemEntity currentCoffee = item(1L, "coffee", "커피", 900, 9);
+        SalesOrderItemEntity previousCoffee = item(2L, "coffee", "커피", 500, 9);
+        SalesOrderItemEntity previousTea = item(2L, "tea", "차", 500, 9);
+        when(previousTea.getStandardCategory()).thenReturn(MenuCategory.TEA);
+
+        SalesSolutionMetrics metrics = assembleMenuRankings(
+                List.of(currentCoffee), List.of(previousCoffee, previousTea));
+
+        assertThat(metrics.categoryBreakdown()).containsExactly(
+                new SalesSolutionMetrics.CategoryPoint("커피", 1.0, 0.8, 0.5),
+                new SalesSolutionMetrics.CategoryPoint("차", 0.0, -1.0, 0.5));
+        assertThat(metrics.menuRankings()).filteredOn(menu -> menu.menuName().equals("차"))
+                .singleElement().satisfies(menu ->
+                        assertThat(menu.previousRatio()).isEqualByComparingTo("0.5000"));
+        var mapper = JsonMapper.builder().build();
+        var json = mapper.readTree(mapper.writeValueAsString(metrics));
+        assertThat(json.path("categoryBreakdown").get(1).path("previousShare").asDouble())
+                .isEqualTo(0.5);
     }
 
     @Test
@@ -391,7 +449,8 @@ class SalesSolutionMetricsAssemblerTest {
                 orderRepository,
                 itemRepository,
                 businessHoursRepository,
-                mock(ConditionPatternsService.class)
+                mock(ConditionPatternsService.class),
+                mock(DistrictBenchmarkService.class)
         );
     }
 
@@ -431,7 +490,7 @@ class SalesSolutionMetricsAssemblerTest {
         when(item.getMenuName()).thenReturn(name);
         when(item.getNetAmount()).thenReturn(netAmount);
         when(item.getQuantity()).thenReturn(quantity);
-        when(item.getStandardCategory()).thenReturn(SalesStandardMenuCategory.COFFEE);
+        when(item.getStandardCategory()).thenReturn(MenuCategory.COFFEE);
         return item;
     }
 

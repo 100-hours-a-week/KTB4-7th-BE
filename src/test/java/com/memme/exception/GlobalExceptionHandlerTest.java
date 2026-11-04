@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -13,6 +14,7 @@ import com.memme.dto.common.ApiResponse;
 import com.memme.dto.common.FieldError;
 import com.memme.dto.common.FieldErrors;
 import com.memme.exception.auth.DuplicateSignupException;
+import com.memme.exception.auth.PasswordHashCapacityExceededException;
 import com.memme.exception.auth.InvalidCurrentPasswordException;
 import com.memme.exception.auth.InvalidLoginException;
 import com.memme.exception.auth.LoginRateLimitExceededException;
@@ -35,6 +37,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpHeaders;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
@@ -43,6 +48,7 @@ import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@ExtendWith(OutputCaptureExtension.class)
 class GlobalExceptionHandlerTest {
 
     private final GlobalExceptionHandler exceptionHandler = new GlobalExceptionHandler();
@@ -77,6 +83,23 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.message")
                         .value("서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요."))
                 .andExpect(jsonPath("$.data").value((Object) null));
+    }
+
+    @Test
+    void 비밀번호_해시_게이트_초과는_503과_Retry_After로_응답한다(CapturedOutput output) throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new UnhandledExceptionController())
+                .setControllerAdvice(exceptionHandler)
+                .build();
+
+        mockMvc.perform(get("/test/password-hash-capacity-exceeded"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string(HttpHeaders.RETRY_AFTER, "3"))
+                .andExpect(jsonPath("$.message")
+                        .value("서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요."))
+                .andExpect(jsonPath("$.data").value((Object) null));
+
+        assertTrue(output.getOut().contains("Password hash capacity exceeded"));
     }
 
     @Test
@@ -145,6 +168,11 @@ class GlobalExceptionHandlerTest {
                     "connection acquisition timeout",
                     new SQLTransientConnectionException("Hikari connection acquisition timed out")
             );
+        }
+
+        @GetMapping("/test/password-hash-capacity-exceeded")
+        public void triggerPasswordHashCapacityExceeded() {
+            throw new PasswordHashCapacityExceededException();
         }
 
         @GetMapping("/test/transaction-start-error")

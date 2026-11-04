@@ -6,7 +6,9 @@ import com.memme.dto.auth.SignupBusinessRequest;
 import com.memme.dto.auth.SignupBusinessResponse;
 import com.memme.dto.common.ApiResponse;
 import com.memme.service.auth.SignupBusinessService;
+import com.memme.service.auth.SignupRateLimiter;
 import com.memme.service.auth.SignupService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,16 +24,27 @@ public class SignupController {
 
     private final SignupService signupService;
     private final SignupBusinessService signupBusinessService;
+    private final SignupRateLimiter signupRateLimiter;
+    private final ClientIpResolver clientIpResolver;
 
-    public SignupController(SignupService signupService, SignupBusinessService signupBusinessService) {
+    public SignupController(
+            SignupService signupService,
+            SignupBusinessService signupBusinessService,
+            SignupRateLimiter signupRateLimiter,
+            ClientIpResolver clientIpResolver
+    ) {
         this.signupService = signupService;
         this.signupBusinessService = signupBusinessService;
+        this.signupRateLimiter = signupRateLimiter;
+        this.clientIpResolver = clientIpResolver;
     }
 
     @PostMapping("/account")
     public ResponseEntity<ApiResponse<SignupAccountResponse>> signupAccount(
-            @Valid @RequestBody SignupAccountRequest request
+            @Valid @RequestBody SignupAccountRequest request,
+            HttpServletRequest servletRequest
     ) {
+        signupRateLimiter.checkAllowed(clientIpResolver.resolve(servletRequest));
         SignupAccountResponse response = signupService.signupAccount(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new ApiResponse<>("가입 정보가 임시 저장되었습니다.", response));

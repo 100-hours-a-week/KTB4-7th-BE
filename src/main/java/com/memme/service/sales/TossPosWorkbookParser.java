@@ -223,7 +223,8 @@ public final class TossPosWorkbookParser {
         SalesOrderKey orderKey = new SalesOrderKey(channel, posOrderNo, orderedAt);
         return new SalesOrderItem(
             orderKey, orderDate, status, menuNameRaw, menuName, menuKey, categoryRaw,
-            standardCategory(categoryRaw), optionRaw, quantity, linePrice, linePrice / quantity,
+            SalesMenuCategoryClassifier.classify(categoryRaw, menuName),
+            optionRaw, quantity, linePrice, linePrice / quantity,
             optionPrice, itemDiscountName, itemDiscountAmount, orderDiscountName,
             orderDiscountAmount, netAmount, taxable, vatAmount, itemTypeRules.classify(menuKey)
         );
@@ -440,23 +441,6 @@ public final class TossPosWorkbookParser {
             case "과세" -> true;
             case "면세" -> false;
             default -> throw rowValidation(sheetName, row, "과세여부는 과세 또는 면세여야 합니다.");
-        };
-    }
-
-    private StandardMenuCategory standardCategory(String rawCategory) {
-        return switch (TossPosTextNormalizer.category(rawCategory)) {
-            case "esp" -> StandardMenuCategory.COFFEE;
-            case "non" -> StandardMenuCategory.NON_COFFEE;
-            case "teabag" -> StandardMenuCategory.TEA;
-            case "ade" -> StandardMenuCategory.ADE;
-            case "smoothie" -> StandardMenuCategory.SMOOTHIE;
-            case "beverage" -> StandardMenuCategory.BOTTLED_DRINK;
-            case "beer" -> StandardMenuCategory.BEER;
-            case "cake" -> StandardMenuCategory.CAKE;
-            case "bakery" -> StandardMenuCategory.BAKERY;
-            case "food", "snack" -> StandardMenuCategory.FOOD;
-            case "루미코르 팝업", "신메뉴 라인업", "신메뉴 우베라인업" -> StandardMenuCategory.SEASONAL;
-            default -> StandardMenuCategory.UNMAPPED;
         };
     }
 

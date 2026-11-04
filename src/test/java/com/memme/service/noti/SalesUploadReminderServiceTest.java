@@ -113,6 +113,7 @@ class SalesUploadReminderServiceTest {
                 preferenceRepository,
                 notificationRepository,
                 userRepository,
+                mock(FcmDeliveryEnqueueService.class),
                 clock
         );
     }

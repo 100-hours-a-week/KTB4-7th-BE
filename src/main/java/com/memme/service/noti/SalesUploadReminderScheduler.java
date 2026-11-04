@@ -1,9 +1,11 @@
 package com.memme.service.noti;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
+@Profile({"notification-batch", "local", "default"})
 public class SalesUploadReminderScheduler {
 
     private final SalesUploadReminderService reminderService;

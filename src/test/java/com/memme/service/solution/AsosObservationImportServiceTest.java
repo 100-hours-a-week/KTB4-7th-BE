@@ -36,6 +36,74 @@ import org.springframework.test.util.ReflectionTestUtils;
 @ExtendWith(MockitoExtension.class)
 class AsosObservationImportServiceTest {
 
+    @Test
+    void 정오_관측을_날짜별로_저장하고_이미_저장된_날짜는_중복_적재하지_않는다() {
+        var conditions = org.mockito.Mockito.mock(com.memme.repository.solution.WeatherCalendarConditionRepository.class);
+        var withNoon = new AsosObservationImportService(stores, stations, observations, conditions, client,
+                Clock.fixed(Instant.parse("2026-10-18T03:00:00Z"), ZoneId.of("Asia/Seoul")), null);
+        Store store = store(20L, "37.5714", "126.9658");
+        store.updateWeatherStationId(7L);
+        var station = WeatherStationEntity.create("KMA_ASOS", "108", new BigDecimal("37.5714"), new BigDecimal("126.9658"));
+        ReflectionTestUtils.setField(station, "id", 7L);
+        when(stores.findAllByStatus(StoreStatus.ACTIVE)).thenReturn(List.of(store));
+        when(client.stations()).thenReturn(List.of(station("108", "37.5714", "126.9658")));
+        when(stations.findById(7L)).thenReturn(Optional.of(station));
+        when(stations.findBySourceAndStationCode("KMA_ASOS", "108")).thenReturn(Optional.of(station));
+        LocalDate date = LocalDate.of(2026, 10, 17);
+        when(client.dailyNoonWeather(eq("108"), any(), any())).thenReturn(Map.of(date,
+                new KmaAsosObservationClient.NoonWeather(com.memme.entity.solution.WeatherCalendarCondition.RAIN, date.atTime(12, 0))));
+        ArgumentCaptor<List<com.memme.entity.solution.WeatherCalendarConditionEntity>> captor = ArgumentCaptor.forClass(List.class);
+        withNoon.importForActiveStores();
+        verify(conditions).saveAll(captor.capture());
+        var saved = captor.getValue().getFirst();
+        assertThat(saved.getStationId()).isEqualTo(7L);
+        assertThat(saved.getObservedAt()).isEqualTo(date.atTime(12, 0));
+        when(conditions.findAllByStationIdAndObservationDateBetweenOrderByObservationDateAsc(eq(7L), any(), any()))
+                .thenReturn(List.of(saved));
+        withNoon.importForActiveStores();
+        verify(conditions, org.mockito.Mockito.times(1)).saveAll(any());
+    }
+
+
+    @Test
+    void 등록_이전_업로드_기간의_월초부터_정오_날씨를_수집한다() {
+        verifyCalendarWeatherStart(LocalDate.of(2026, 7, 15), LocalDate.of(2026, 7, 1));
+    }
+
+    @Test
+    void 등록_이후_업로드는_기존_날씨_수집_시작일을_줄이지_않는다() {
+        verifyCalendarWeatherStart(LocalDate.of(2026, 10, 17), LocalDate.of(2026, 10, 10));
+    }
+
+    @Test
+    void 업로드_기간이_없으면_등록일부터_날씨를_수집한다() {
+        verifyCalendarWeatherStart(null, LocalDate.of(2026, 10, 10));
+    }
+
+    private void verifyCalendarWeatherStart(LocalDate uploadStart, LocalDate expectedStart) {
+        var conditions = org.mockito.Mockito.mock(com.memme.repository.solution.WeatherCalendarConditionRepository.class);
+        var uploads = org.mockito.Mockito.mock(com.memme.repository.sales.SalesUploadRepository.class);
+        var upload = org.mockito.Mockito.mock(com.memme.entity.sales.SalesUploadEntity.class);
+        when(upload.getPeriodStart()).thenReturn(uploadStart);
+        when(uploads.findAllByStoreIdAndStatusOrderByUploadedAtDescIdDesc(
+                20L, com.memme.entity.sales.SalesUploadStatus.COMPLETED)).thenReturn(List.of(upload));
+        var withNoon = new AsosObservationImportService(stores, stations, observations, conditions, client,
+                Clock.fixed(Instant.parse("2026-10-18T03:00:00Z"), ZoneId.of("Asia/Seoul")), uploads);
+        Store store = store(20L, "37.5714", "126.9658");
+        ReflectionTestUtils.setField(store, "createdAt", LocalDateTime.of(2026, 10, 10, 0, 0));
+        store.updateWeatherStationId(7L);
+        var station = WeatherStationEntity.create("KMA_ASOS", "108", new BigDecimal("37.5714"), new BigDecimal("126.9658"));
+        ReflectionTestUtils.setField(station, "id", 7L);
+        when(stores.findAllByStatus(StoreStatus.ACTIVE)).thenReturn(List.of(store));
+        when(client.stations()).thenReturn(List.of(station("108", "37.5714", "126.9658")));
+        when(stations.findById(7L)).thenReturn(Optional.of(station));
+        when(stations.findBySourceAndStationCode("KMA_ASOS", "108")).thenReturn(Optional.of(station));
+
+        withNoon.importForActiveStores();
+
+        verify(client).dailyNoonWeather("108", expectedStart, LocalDate.of(2026, 10, 17));
+    }
+
     @Mock private StoreRepository stores;
     @Mock private WeatherStationRepository stations;
     @Mock private WeatherObservationRepository observations;

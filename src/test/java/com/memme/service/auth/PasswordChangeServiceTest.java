@@ -30,7 +30,8 @@ class PasswordChangeServiceTest {
 
     @BeforeEach
     void setUp() {
-        passwordChangeService = new PasswordChangeService(userRepository, passwordEncoder, new TestTransactionManager());
+        passwordChangeService = new PasswordChangeService(userRepository,
+                new PasswordHashConcurrencyGate(passwordEncoder, 2, 500), new TestTransactionManager());
     }
 
     @Test

@@ -3,10 +3,12 @@ package com.memme.service.noti;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
+@Profile({"notification-batch", "local", "default"})
 public class RankingChangeNotificationScheduler {
 
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");

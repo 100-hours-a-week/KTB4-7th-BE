@@ -90,7 +90,7 @@ public class SalesSolutionGenerationService {
                                 new SalesSolutionMetrics(base.salesSummary(), base.hourlyProfile(),
                                         base.categoryBreakdown(), base.predictedSalesToday(),
                                         base.reviewSummary(), weatherContext, base.menuRankings(),
-                                        base.businessHours(), base.conditionPatterns())
+                                        base.businessHours(), base.conditionPatterns(), base.districtBenchmark())
                         )
                 );
                 if (!targetDate.equals(response.data().targetDate())) {

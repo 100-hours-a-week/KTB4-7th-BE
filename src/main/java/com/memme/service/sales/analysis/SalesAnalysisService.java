@@ -27,7 +27,7 @@ import com.memme.entity.sales.SalesForecastEntity;
 import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
 import com.memme.entity.sales.SalesOrderItemType;
-import com.memme.entity.sales.SalesStandardMenuCategory;
+import com.memme.entity.store.MenuCategory;
 import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesDailySummaryRepository;
 import com.memme.repository.sales.SalesForecastRepository;
@@ -356,8 +356,8 @@ public class SalesAnalysisService {
     }
 
     private SalesCategoriesResponse categories(List<SalesOrderItemEntity> items) {
-        Map<SalesStandardMenuCategory, Long> categoryTotals = new EnumMap<>(
-                SalesStandardMenuCategory.class
+        Map<MenuCategory, Long> categoryTotals = new EnumMap<>(
+                MenuCategory.class
         );
         long menuSales = 0;
         for (SalesOrderItemEntity item : items) {
@@ -374,7 +374,7 @@ public class SalesAnalysisService {
 
         long totalMenuSales = menuSales;
         List<SalesCategoriesResponse.Category> categories = categoryTotals.entrySet().stream()
-                .sorted(Map.Entry.<SalesStandardMenuCategory, Long>comparingByValue().reversed()
+                .sorted(Map.Entry.<MenuCategory, Long>comparingByValue().reversed()
                         .thenComparing(entry -> entry.getKey().name()))
                 .map(entry -> new SalesCategoriesResponse.Category(
                         categoryName(entry.getKey()),
@@ -460,21 +460,8 @@ public class SalesAnalysisService {
         return BigDecimal.valueOf(amount);
     }
 
-    private String categoryName(SalesStandardMenuCategory category) {
-        return switch (category) {
-            case COFFEE -> "커피";
-            case NON_COFFEE -> "논커피";
-            case TEA -> "티";
-            case ADE -> "에이드";
-            case SMOOTHIE -> "스무디";
-            case BOTTLED_DRINK -> "병음료";
-            case BEER -> "맥주";
-            case CAKE -> "케이크";
-            case BAKERY -> "베이커리";
-            case FOOD -> "푸드";
-            case SEASONAL -> "시즌 메뉴";
-            case UNMAPPED -> "미분류";
-        };
+    private String categoryName(MenuCategory category) {
+        return category.displayName();
     }
 
     private void validatePeriod(LocalDate start, LocalDate end) {

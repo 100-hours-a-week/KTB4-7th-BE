@@ -62,7 +62,7 @@ class SignupServiceTest {
         signupService = new SignupService(
                 userRepository,
                 signupDraftRepository,
-                new BCryptPasswordEncoder(),
+                new PasswordHashConcurrencyGate(new BCryptPasswordEncoder(), 2, 500),
                 clock,
                 transactionManager
         );

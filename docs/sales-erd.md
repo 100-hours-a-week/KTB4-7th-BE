@@ -81,7 +81,7 @@
 | item_type | VARCHAR(30) | Y | 메뉴·주차·선불카드·배달비 등 항목 분류 |
 | created_at | DATETIME | Y | 생성 시각 |
 
-`item_type` 값은 `MENU`, `PARKING`, `PREPAID_CARD`, `DELIVERY_FEE`, `PLATFORM_PLACEHOLDER`, `EVENT`, `GOODS`다. `standard_category`는 `COFFEE`, `NON_COFFEE`, `TEA`, `ADE`, `SMOOTHIE`, `BOTTLED_DRINK`, `BEER`, `CAKE`, `BAKERY`, `FOOD`, `SEASONAL`, `UNMAPPED`를 사용한다.
+`item_type` 값은 `MENU`, `PARKING`, `PREPAID_CARD`, `DELIVERY_FEE`, `PLATFORM_PLACEHOLDER`, `EVENT`, `GOODS`다. `standard_category`는 메뉴판과 동일한 `MenuCategory`의 `COFFEE`, `TEA`, `BEVERAGE`, `CAKE`, `BAKERY`, `OTHER` 6종만 사용한다. DB의 `ck_sales_item_standard_category` CHECK도 동일한 값만 허용한다. POS 원본 라벨은 `category_raw`에 보존한다. 기존 12종 전환·재분류 절차는 [카테고리 정책](sales-category-policy.md)을 따른다.
 
 ### sales_daily_summaries
 
@@ -189,3 +189,11 @@ MySQL 신규 환경에는 `docker/mysql/init/04-sales-analysis-insights.sql`을 
 
 2026-10-25 사용자 승인 정책에 따른 `sales_upload_outbox`를 추가한다. 기존 공개 API 변경은 없다.
 전체 필드·관계·정책은 [승인 명세](sales-upload-outbox.md)를 기준으로 한다. store/upload/analysis_run 식별자만 저장하며 JPA 양방향 연관관계는 만들지 않는다. 물리 FK와 CHECK는 init/12-sales-upload-outbox.sql 및 기존 DB 마이그레이션에서 정의한다. 기존 DB 참조 PK signedness는 실제 information_schema에서 읽어 FK 타입을 일치시킨다.
+
+## 매출 달력 — 2026-10-28 기존 분석 정책 재사용
+
+사용자 지시에 따라 주문일·부호 있는 POS 순매출을 재사용한다. 결제/환불 별도 원장은 추가하지 않는다.
+`sales_daily_summaries.sales_activity_count INT NOT NULL DEFAULT 0`은 취소를 포함한 원천 주문 그룹 수다.
+`weather_calendar_conditions`는 `station_id`, `observation_date`, `condition`, `observed_at`, `source`, `created_at`을 저장한다.
+`UNIQUE(station_id, observation_date)`이며 condition은 SUNNY/CLOUDY/RAIN/SNOW다.
+자세한 날짜·빈 상태·집계 정책과 과거 달력 명세 대체 범위는 `docs/sales-calendar-policy.md`를 따른다.

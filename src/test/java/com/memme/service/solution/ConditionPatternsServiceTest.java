@@ -93,7 +93,8 @@ class ConditionPatternsServiceTest {
         observedSalesDates.addAll(dryDates);
         when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
                 STORE_ID, WINDOW_START, WINDOW_END)).thenReturn(observedSalesDates.stream()
-                .map(this::completeDay)
+                .map(date -> SalesDailySummaryEntity.create(STORE_ID, date, 0,
+                        rainDates.contains(date) ? 3_000 : 5_000, 0, 0, SalesDailyStatus.COMPLETE))
                 .toList());
 
         List<SalesOrderEntity> orders = new ArrayList<>();
@@ -125,7 +126,9 @@ class ConditionPatternsServiceTest {
                 0.6,
                 0.8,
                 List.of(new SalesSolutionMetrics.ConditionMenu(
-                        "아이스 아메리카노", 4, 8, -0.5, 1_000, 2_000))
+                        "아이스 아메리카노", 4, 8, -0.5, 1_000, 2_000)),
+                3_000,
+                5_000
         ));
     }
 

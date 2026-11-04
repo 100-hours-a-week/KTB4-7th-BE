@@ -50,7 +50,7 @@ class PasswordResetServiceTest {
                 passwordResetTokenRepository,
                 passwordResetMailSender,
                 passwordResetRateLimiter,
-                passwordEncoder,
+                new PasswordHashConcurrencyGate(passwordEncoder, 2, 500),
                 FRONTEND_RESET_URL,
                 new TestTransactionManager()
         );

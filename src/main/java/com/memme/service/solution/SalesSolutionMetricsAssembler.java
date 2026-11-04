@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -25,11 +26,12 @@ import com.memme.entity.sales.SalesForecastEntity;
 import com.memme.entity.sales.SalesOrderEntity;
 import com.memme.entity.sales.SalesOrderItemEntity;
 import com.memme.entity.sales.SalesOrderItemType;
-import com.memme.entity.sales.SalesStandardMenuCategory;
+import com.memme.entity.store.MenuCategory;
 import com.memme.entity.store.StoreBusinessHours;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesOrderRepository;
 import com.memme.repository.store.StoreBusinessHoursRepository;
+import com.memme.service.sales.insight.DistrictBenchmarkService;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,17 +48,20 @@ public class SalesSolutionMetricsAssembler {
     private final SalesOrderItemRepository itemRepository;
     private final StoreBusinessHoursRepository businessHoursRepository;
     private final ConditionPatternsService conditionPatternsService;
+    private final DistrictBenchmarkService districtBenchmarkService;
 
     public SalesSolutionMetricsAssembler(
             SalesOrderRepository orderRepository,
             SalesOrderItemRepository itemRepository,
             StoreBusinessHoursRepository businessHoursRepository,
-            ConditionPatternsService conditionPatternsService
+            ConditionPatternsService conditionPatternsService,
+            DistrictBenchmarkService districtBenchmarkService
     ) {
         this.orderRepository = orderRepository;
         this.itemRepository = itemRepository;
         this.businessHoursRepository = businessHoursRepository;
         this.conditionPatternsService = conditionPatternsService;
+        this.districtBenchmarkService = districtBenchmarkService;
     }
 
     public SalesSolutionMetrics assemble(
@@ -88,13 +93,15 @@ public class SalesSolutionMetricsAssembler {
                         start + "~" + end
                 ),
                 hourlyProfile(current),
-                categoryBreakdown(current, previous, currentNetSales),
+                categoryBreakdown(current, previous, currentNetSales, previousNetSales),
                 forecast.getPredictedSalesAmount(),
                 null,
                 null,
-                menuRankings(current, previous, currentNetSales, days),
+                menuRankings(current, previous, currentNetSales, previousNetSales, days),
                 businessHours(storeId),
-                conditionPatternsService.resolve(storeId, forecast.getTargetDate())
+                conditionPatternsService.resolve(storeId, forecast.getTargetDate()),
+                districtBenchmarkService.findForInsight(storeId, YearMonth.from(forecast.getTargetDate()))
+                        .orElse(null)
         );
     }
 
@@ -102,6 +109,7 @@ public class SalesSolutionMetricsAssembler {
             PeriodItems current,
             PeriodItems previous,
             long currentNetSales,
+            long previousNetSales,
             long comparisonDays
     ) {
         if (currentNetSales <= 0 || current.menuItems().isEmpty()) {
@@ -169,7 +177,10 @@ public class SalesSolutionMetricsAssembler {
                     BigDecimal.valueOf(menu.amount),
                     menu.quantity,
                     ratio(menu.amount, currentNetSales),
-                    decimalChangeRate(menu.amount, previousMenu == null ? 0 : previousMenu.amount)
+                    decimalChangeRate(menu.amount, previousMenu == null ? 0 : previousMenu.amount),
+                    previousNetSales > 0
+                            ? ratio(previousMenu == null ? 0 : previousMenu.amount, previousNetSales)
+                            : null
             ));
         }
         return List.copyOf(result);
@@ -306,24 +317,31 @@ public class SalesSolutionMetricsAssembler {
     private List<SalesSolutionMetrics.CategoryPoint> categoryBreakdown(
             PeriodItems current,
             PeriodItems previous,
-            long currentNetSales
+            long currentNetSales,
+            long previousNetSales
     ) {
-        Map<SalesStandardMenuCategory, Long> currentTotals = categoryTotals(current.menuItems());
-        Map<SalesStandardMenuCategory, Long> previousTotals = categoryTotals(previous.menuItems());
+        Map<MenuCategory, Long> currentTotals = categoryTotals(current.menuItems());
+        Map<MenuCategory, Long> previousTotals = categoryTotals(previous.menuItems());
         List<SalesSolutionMetrics.CategoryPoint> result = new ArrayList<>();
-        currentTotals.entrySet().stream()
-                .sorted(Map.Entry.<SalesStandardMenuCategory, Long>comparingByValue().reversed()
-                        .thenComparing(entry -> entry.getKey().name()))
-                .forEach(entry -> result.add(new SalesSolutionMetrics.CategoryPoint(
-                        categoryName(entry.getKey()),
-                        share(entry.getValue(), currentNetSales),
-                        changeRate(entry.getValue(), previousTotals.getOrDefault(entry.getKey(), 0L))
+        Set<MenuCategory> categories = new java.util.HashSet<>(currentTotals.keySet());
+        categories.addAll(previousTotals.keySet());
+        categories.stream()
+                .sorted(Comparator.comparingLong((MenuCategory category) ->
+                                currentTotals.getOrDefault(category, 0L)).reversed()
+                        .thenComparing(MenuCategory::name))
+                .forEach(category -> result.add(new SalesSolutionMetrics.CategoryPoint(
+                        categoryName(category),
+                        share(currentTotals.getOrDefault(category, 0L), currentNetSales),
+                        changeRate(currentTotals.getOrDefault(category, 0L), previousTotals.getOrDefault(category, 0L)),
+                        previousNetSales > 0
+                                ? share(previousTotals.getOrDefault(category, 0L), previousNetSales)
+                                : null
                 )));
         return List.copyOf(result);
     }
 
-    private Map<SalesStandardMenuCategory, Long> categoryTotals(List<SalesOrderItemEntity> items) {
-        Map<SalesStandardMenuCategory, Long> totals = new EnumMap<>(SalesStandardMenuCategory.class);
+    private Map<MenuCategory, Long> categoryTotals(List<SalesOrderItemEntity> items) {
+        Map<MenuCategory, Long> totals = new EnumMap<>(MenuCategory.class);
         for (SalesOrderItemEntity item : items) {
             totals.merge(item.getStandardCategory(), item.getNetAmount(), Math::addExact);
         }
@@ -407,21 +425,8 @@ public class SalesSolutionMetricsAssembler {
                 : "WEEKDAY";
     }
 
-    private String categoryName(SalesStandardMenuCategory category) {
-        return switch (category) {
-            case COFFEE -> "커피";
-            case NON_COFFEE -> "논커피";
-            case TEA -> "티";
-            case ADE -> "에이드";
-            case SMOOTHIE -> "스무디";
-            case BOTTLED_DRINK -> "병음료";
-            case BEER -> "맥주";
-            case CAKE -> "케이크";
-            case BAKERY -> "베이커리";
-            case FOOD -> "푸드";
-            case SEASONAL -> "시즌 메뉴";
-            case UNMAPPED -> "미분류";
-        };
+    private String categoryName(MenuCategory category) {
+        return category.displayName();
     }
 
     private record PeriodItems(

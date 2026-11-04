@@ -17,6 +17,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,7 @@ public class SalesUploadReminderService {
     private final NotificationPreferenceRepository preferenceRepository;
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final FcmDeliveryEnqueueService fcmDeliveryEnqueueService;
     private final Clock clock;
 
     public SalesUploadReminderService(
@@ -48,6 +50,7 @@ public class SalesUploadReminderService {
             NotificationPreferenceRepository preferenceRepository,
             NotificationRepository notificationRepository,
             UserRepository userRepository,
+            FcmDeliveryEnqueueService fcmDeliveryEnqueueService,
             Clock clock
     ) {
         this.storeRepository = storeRepository;
@@ -56,6 +59,7 @@ public class SalesUploadReminderService {
         this.preferenceRepository = preferenceRepository;
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
+        this.fcmDeliveryEnqueueService = fcmDeliveryEnqueueService;
         this.clock = clock;
     }
 
@@ -147,7 +151,7 @@ public class SalesUploadReminderService {
         }
 
         User user = userRepository.getReferenceById(ownerUserId);
-        notificationRepository.save(Notification.create(
+        Notification notification = Notification.create(
                 user,
                 NotificationType.SALES_UPLOAD_REMINDER,
                 notificationKey,
@@ -157,7 +161,9 @@ public class SalesUploadReminderService {
                 uploadId,
                 sentAt,
                 sentAt
-        ));
+        );
+        notificationRepository.save(notification);
+        fcmDeliveryEnqueueService.enqueueSaved(List.of(notification));
     }
 
     private record ReminderMessage(String title, String content) {

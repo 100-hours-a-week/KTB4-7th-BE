@@ -145,9 +145,19 @@ public class ConditionPatternsService {
                 classifiedDays.dryDays().size(),
                 weekdayRatio(classifiedDays.rainDays()),
                 weekdayRatio(classifiedDays.dryDays()),
-                menus
+                menus,
+                averageNetSales(salesDays, classifiedDays.rainDays()),
+                averageNetSales(salesDays, classifiedDays.dryDays())
         );
         return List.of(pattern);
+    }
+
+    private long averageNetSales(Map<LocalDate, SalesDailySummaryEntity> salesDays, List<LocalDate> dates) {
+        long total = dates.stream()
+                .map(salesDays::get)
+                .mapToLong(SalesDailySummaryEntity::getMenuNetAmount)
+                .reduce(0L, Math::addExact);
+        return averageAsLong(total, dates.size());
     }
 
     private DateRange latestCompleteWeeks(LocalDate targetDate) {

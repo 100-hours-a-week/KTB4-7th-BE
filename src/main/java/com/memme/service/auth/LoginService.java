@@ -6,7 +6,6 @@ import com.memme.entity.store.Store;
 import com.memme.exception.auth.InvalidLoginException;
 import com.memme.repository.auth.UserRepository;
 import com.memme.repository.store.StoreRepository;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -14,18 +13,18 @@ public class LoginService {
 
     private final UserRepository userRepository;
     private final StoreRepository storeRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final PasswordHashConcurrencyGate passwordHashConcurrencyGate;
     private final LoginRateLimiter loginRateLimiter;
 
     public LoginService(
             UserRepository userRepository,
             StoreRepository storeRepository,
-            PasswordEncoder passwordEncoder,
+            PasswordHashConcurrencyGate passwordHashConcurrencyGate,
             LoginRateLimiter loginRateLimiter
     ) {
         this.userRepository = userRepository;
         this.storeRepository = storeRepository;
-        this.passwordEncoder = passwordEncoder;
+        this.passwordHashConcurrencyGate = passwordHashConcurrencyGate;
         this.loginRateLimiter = loginRateLimiter;
     }
 
@@ -35,7 +34,7 @@ public class LoginService {
         if (user == null) {
             return rejectLogin(request.email(), ipAddress);
         }
-        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+        if (!passwordHashConcurrencyGate.matches(request.password(), user.getPasswordHash())) {
             return rejectLogin(request.email(), ipAddress);
         }
         Store store = storeRepository.findByOwnerId(user.getId()).orElse(null);

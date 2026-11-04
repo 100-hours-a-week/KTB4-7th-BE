@@ -18,7 +18,7 @@ import com.memme.service.sales.SalesOrder;
 import com.memme.service.sales.SalesOrderItem;
 import com.memme.service.sales.SalesOrderKey;
 import com.memme.service.sales.SalesOrderStatus;
-import com.memme.service.sales.StandardMenuCategory;
+import com.memme.entity.store.MenuCategory;
 import com.memme.service.sales.TossPosWorkbookData;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -76,6 +76,7 @@ class SalesUploadPersistenceServiceTest {
         assertThat(summary.getTotalNetAmount()).isEqualTo(1_000);
         assertThat(summary.getMenuNetAmount()).isEqualTo(1_000);
         assertThat(summary.getOrderCount()).isEqualTo(2);
+        assertThat(summary.getSalesActivityCount()).isEqualTo(3);
         assertThat(summary.getMenuQuantity()).isEqualTo(2);
         assertThat(summary.getDayStatus()).isEqualTo(SalesDailyStatus.COMPLETE);
     }
@@ -165,7 +166,7 @@ class SalesUploadPersistenceServiceTest {
                 menuName,
                 menuName,
                 "커피",
-                StandardMenuCategory.COFFEE,
+                MenuCategory.COFFEE,
                 "",
                 quantity,
                 linePrice,

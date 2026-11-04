@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.memme.dto.sales.MenuRankingMetric;
+import com.memme.dto.sales.DistrictBenchmarkMetric;
 import com.memme.dto.sales.SalesSolutionGenerationRequest;
 import com.memme.dto.sales.SalesSolutionGenerationResponse;
 import com.memme.dto.sales.SalesSolutionMetrics;
@@ -98,10 +99,12 @@ class SalesSolutionGenerationServiceTest {
                 new SalesSolutionMetrics.BusinessHourBand("08:00", "22:00"),
                 new SalesSolutionMetrics.BusinessHourBand("09:00", "21:00"),
                 List.of("MON"));
+        DistrictBenchmarkMetric benchmark = new DistrictBenchmarkMetric(
+                "2026Q2", 16_887_880, 159, "11-14", "17-21");
         givenGenerationContext(targetDate, new SalesSolutionMetrics(
                 new SalesSolutionMetrics.SalesSummary(1_000_000, null),
                 List.of(), List.of(), 1_100_000L, null, null,
-                List.of(ranking), businessHours, null));
+                List.of(ranking), businessHours, null, benchmark));
         when(contextResolver.latestSalesAnalysisId(1L)).thenReturn(Optional.of(56L));
         when(aiClient.generate(any())).thenReturn(response(targetDate));
 
@@ -112,6 +115,7 @@ class SalesSolutionGenerationServiceTest {
         verify(aiClient).generate(request.capture());
         assertThat(request.getValue().metrics().menuRankings()).containsExactly(ranking);
         assertThat(request.getValue().metrics().businessHours()).isEqualTo(businessHours);
+        assertThat(request.getValue().metrics().districtBenchmark()).isEqualTo(benchmark);
     }
 
     @Test

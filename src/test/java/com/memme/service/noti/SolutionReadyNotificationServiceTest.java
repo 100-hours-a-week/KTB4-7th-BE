@@ -39,7 +39,8 @@ class SolutionReadyNotificationServiceTest {
         userRepository = mock(UserRepository.class);
         Clock clock = Clock.fixed(Instant.parse("2026-09-26T00:00:00Z"), ZoneOffset.UTC);
         service = new SolutionReadyNotificationService(
-                storeRepository, preferenceRepository, notificationRepository, userRepository, clock);
+                storeRepository, preferenceRepository, notificationRepository, userRepository,
+                mock(FcmDeliveryEnqueueService.class), clock);
     }
 
     @Test

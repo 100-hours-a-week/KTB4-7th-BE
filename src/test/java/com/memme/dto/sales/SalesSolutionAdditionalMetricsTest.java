@@ -17,23 +17,29 @@ class SalesSolutionAdditionalMetricsTest {
     void serializesAiContractForOptionalMetrics() {
         var metrics = metrics(
                 List.of(new MenuRankingMetric(1, "아이스 아메리카노", new BigDecimal("3104200"),
-                        912L, new BigDecimal("0.261"), new BigDecimal("0.031"))),
+                        912L, new BigDecimal("0.261"), new BigDecimal("0.031"), new BigDecimal("0.205"))),
                 new SalesSolutionMetrics.BusinessHours(
                         new SalesSolutionMetrics.BusinessHourBand("08:00", "22:00"),
                         new SalesSolutionMetrics.BusinessHourBand("09:00", "21:00"), List.of("MON")),
                 List.of(new SalesSolutionMetrics.ConditionPattern("RAIN", 12, 1.0, 9, 38, 0.67, 0.71,
                         List.of(new SalesSolutionMetrics.ConditionMenu(
-                                "아이스 아메리카노", 84, 112, -0.25, 294_000L, 392_000L)))));
+                                "아이스 아메리카노", 84, 112, -0.25, 294_000L, 392_000L)),
+                        1_294_000L, 1_392_000L)));
         var json = mapper.readTree(mapper.writeValueAsString(metrics));
 
         assertThat(json.path("menuRankings").get(0).path("menuSales").asLong()).isEqualTo(3_104_200L);
         assertThat(json.path("menuRankings").get(0).path("ratio").asDouble()).isEqualTo(0.261);
+        assertThat(json.path("menuRankings").get(0).path("previousRatio").asDouble()).isEqualTo(0.205);
         assertThat(json.path("businessHours").path("WEEKDAY").path("opensAt").asString()).isEqualTo("08:00");
         assertThat(json.path("businessHours").path("WEEKEND").path("closesAt").asString()).isEqualTo("21:00");
         assertThat(json.path("businessHours").path("closedDaysOfWeek").get(0).asString()).isEqualTo("MON");
         assertThat(json.path("conditionPatterns").get(0).path("sampleWeekdayRatio").asDouble()).isEqualTo(0.67);
         assertThat(json.path("conditionPatterns").get(0).path("menus").get(0).path("avgSales").asLong())
                 .isEqualTo(294_000L);
+        assertThat(json.path("conditionPatterns").get(0).path("avgNetSales").asLong())
+                .isEqualTo(1_294_000L);
+        assertThat(json.path("conditionPatterns").get(0).path("baselineAvgNetSales").asLong())
+                .isEqualTo(1_392_000L);
     }
 
     @Test
@@ -47,6 +53,23 @@ class SalesSolutionAdditionalMetricsTest {
         assertThat(json.has("businessHours")).isFalse();
         assertThat(json.has("conditionPatterns")).isFalse();
         assertThat(json.has("weatherContext")).isTrue();
+        assertThat(json.has("districtBenchmark")).isFalse();
+    }
+
+    @Test
+    void serializesExistingDistrictBenchmarkContractForAiSolution() {
+        var benchmark = new DistrictBenchmarkMetric("2026Q2", 16_887_880, 159, "11-14", "17-21");
+        var metrics = new SalesSolutionMetrics(new SalesSolutionMetrics.SalesSummary(1_000_000, null),
+                List.of(), List.of(), null, null, null, null, null, null, benchmark);
+
+        var json = mapper.readTree(mapper.writeValueAsString(metrics));
+
+        assertThat(json.path("districtBenchmark").path("basisQuarter").asString()).isEqualTo("2026Q2");
+        assertThat(json.path("districtBenchmark").path("districtAvgMonthlySalesPerCafe").asInt())
+                .isEqualTo(16_887_880);
+        assertThat(json.path("districtBenchmark").path("cafeStoreCount").asInt()).isEqualTo(159);
+        assertThat(json.path("districtBenchmark").path("peakSalesHourBand").asString()).isEqualTo("11-14");
+        assertThat(json.path("districtBenchmark").path("peakFootTrafficHourBand").asString()).isEqualTo("17-21");
     }
 
     @Test

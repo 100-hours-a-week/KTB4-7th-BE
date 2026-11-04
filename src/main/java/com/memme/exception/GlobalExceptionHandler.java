@@ -3,6 +3,7 @@ package com.memme.exception;
 import com.memme.dto.auth.PasswordResetEmailRequest;
 import com.memme.dto.auth.PasswordResetRateLimitErrorResponse;
 import com.memme.dto.auth.LoginRateLimitErrorResponse;
+import com.memme.dto.auth.SignupRateLimitErrorResponse;
 import com.memme.dto.common.ApiResponse;
 import com.memme.dto.common.FieldError;
 import com.memme.dto.common.FieldErrors;
@@ -18,11 +19,13 @@ import com.memme.exception.auth.DuplicateSignupException;
 import com.memme.exception.auth.InvalidCurrentPasswordException;
 import com.memme.exception.auth.InvalidLoginException;
 import com.memme.exception.auth.LoginRateLimitExceededException;
+import com.memme.exception.auth.SignupRateLimitExceededException;
 import com.memme.exception.auth.InvalidPasswordChangeRequestException;
 import com.memme.exception.auth.InvalidPasswordResetRequestException;
 import com.memme.exception.auth.InvalidSignupRequestException;
 import com.memme.exception.auth.PasswordResetTokenExpiredException;
 import com.memme.exception.auth.PasswordResetRateLimitExceededException;
+import com.memme.exception.auth.PasswordHashCapacityExceededException;
 import com.memme.exception.auth.SignupCompletionExpiredException;
 import com.memme.exception.chat.ChatInsufficientDataException;
 import com.memme.exception.chat.ChatRequestException;
@@ -76,14 +79,21 @@ import org.springframework.web.server.ResponseStatusException;
 @Order(Ordered.LOWEST_PRECEDENCE)
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(com.memme.exception.sales.SalesCalendarInputException.class)
+    public ResponseEntity<ApiResponse<com.memme.dto.common.FieldErrors>> handleSalesCalendarInput(
+            com.memme.exception.sales.SalesCalendarInputException exception) {
+        return ResponseEntity.badRequest().body(new ApiResponse<>(exception.getMessage(),
+                new com.memme.dto.common.FieldErrors(exception.getFieldErrors())));
+    }
+
     private static final String INVALID_REQUEST_FORMAT_MESSAGE = "요청 형식이 올바르지 않습니다.";
     private static final String INTERNAL_SERVER_ERROR_MESSAGE =
             "서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
     private static final String RANKING_LOAD_ERROR_MESSAGE =
             "성장 랭킹을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.";
-    private static final String DATABASE_CONNECTION_UNAVAILABLE_MESSAGE =
+    private static final String SERVICE_UNAVAILABLE_MESSAGE =
             "서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요.";
-    private static final String DATABASE_CONNECTION_RETRY_AFTER_SECONDS = "3";
+    private static final String SERVICE_UNAVAILABLE_RETRY_AFTER_SECONDS = "3";
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final Pattern COST_ITEM_FIELD = Pattern.compile("items\\[(\\d+)]\\.(.+)");
 
@@ -299,6 +309,17 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse<>(exception.getMessage(), null));
     }
 
+    @ExceptionHandler(SignupRateLimitExceededException.class)
+    public ResponseEntity<SignupRateLimitErrorResponse> handleSignupRateLimitExceeded(
+            SignupRateLimitExceededException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(exception.getRetryAfterSeconds()))
+                .body(new SignupRateLimitErrorResponse(
+                        exception.getMessage(), null, exception.getRetryAfterSeconds()
+                ));
+    }
+
     @ExceptionHandler(LoginRateLimitExceededException.class)
     public ResponseEntity<LoginRateLimitErrorResponse> handleLoginRateLimitExceeded(
             LoginRateLimitExceededException exception
@@ -460,6 +481,14 @@ public class GlobalExceptionHandler {
         return handleDatabaseConnectionFailure(exception, request);
     }
 
+    @ExceptionHandler(PasswordHashCapacityExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handlePasswordHashCapacityExceeded(
+            PasswordHashCapacityExceededException exception
+    ) {
+        log.warn("Password hash capacity exceeded");
+        return serviceUnavailable();
+    }
+
     @ExceptionHandler(DataAccessResourceFailureException.class)
     public ResponseEntity<ApiResponse<Void>> handleDataAccessResourceFailure(
             DataAccessResourceFailureException exception,
@@ -477,10 +506,14 @@ public class GlobalExceptionHandler {
         }
 
         log.warn("Database connection unavailable", exception);
+        return serviceUnavailable();
+    }
+
+    private ResponseEntity<ApiResponse<Void>> serviceUnavailable() {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                .header(HttpHeaders.RETRY_AFTER, DATABASE_CONNECTION_RETRY_AFTER_SECONDS)
+                .header(HttpHeaders.RETRY_AFTER, SERVICE_UNAVAILABLE_RETRY_AFTER_SECONDS)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new ApiResponse<>(DATABASE_CONNECTION_UNAVAILABLE_MESSAGE, null));
+                .body(new ApiResponse<>(SERVICE_UNAVAILABLE_MESSAGE, null));
     }
 
     private boolean hasConnectionAcquisitionFailure(Throwable exception) {
@@ -500,8 +533,10 @@ public class GlobalExceptionHandler {
             Exception exception, HttpServletRequest request
     ) {
         log.error("Unhandled server exception", exception);
-        String message = "/v2/rankings/growth".equals(request.getRequestURI())
-                ? RANKING_LOAD_ERROR_MESSAGE : INTERNAL_SERVER_ERROR_MESSAGE;
+        String message = request.getRequestURI().startsWith("/v3/sales/calendar")
+                ? "매출 정보를 조회하지 못했습니다."
+                : "/v2/rankings/growth".equals(request.getRequestURI())
+                    ? RANKING_LOAD_ERROR_MESSAGE : INTERNAL_SERVER_ERROR_MESSAGE;
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponse<>(message, null));
     }

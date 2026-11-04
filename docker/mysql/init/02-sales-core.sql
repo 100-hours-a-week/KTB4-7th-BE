@@ -66,6 +66,8 @@ CREATE TABLE sales_order_items (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_sales_order_items_order (sales_order_id),
+  CONSTRAINT ck_sales_item_standard_category CHECK
+    (standard_category IN ('COFFEE','TEA','BEVERAGE','CAKE','BAKERY','OTHER')),
   CONSTRAINT fk_sales_order_items_order FOREIGN KEY (sales_order_id) REFERENCES sales_orders(id)
 ) ENGINE=InnoDB;
 
@@ -76,6 +78,7 @@ CREATE TABLE sales_daily_summaries (
   total_net_amount BIGINT NOT NULL,
   menu_net_amount BIGINT NOT NULL,
   order_count INT NOT NULL,
+  sales_activity_count INT NOT NULL DEFAULT 0,
   menu_quantity INT NOT NULL,
   day_status VARCHAR(20) NOT NULL DEFAULT 'UNKNOWN',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

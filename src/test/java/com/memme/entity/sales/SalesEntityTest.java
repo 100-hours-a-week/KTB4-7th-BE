@@ -1,5 +1,6 @@
 package com.memme.entity.sales;
 
+import com.memme.entity.store.MenuCategory;
 import java.time.LocalDate;
 
 import jakarta.persistence.Table;
@@ -133,7 +134,7 @@ class SalesEntityTest {
                 "아메리카노",
                 "아메리카노",
                 "커피",
-                SalesStandardMenuCategory.COFFEE,
+                MenuCategory.COFFEE,
                 "",
                 quantity,
                 linePrice,
