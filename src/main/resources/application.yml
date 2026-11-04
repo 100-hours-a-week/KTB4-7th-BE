@@ -68,6 +68,9 @@ password-reset:
   url: ${PASSWORD_RESET_URL}
 
 app:
+  cache:
+    enabled: ${APP_CACHE_ENABLED:false}
+    namespace: ${APP_CACHE_NAMESPACE:memme:local:cache:v1}
   fcm:
     enabled: ${FCM_ENABLED:false}
     project-id: ${FCM_PROJECT_ID:}

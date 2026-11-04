@@ -11,6 +11,9 @@ import org.springframework.data.repository.query.Param;
 
 public interface SalesOrderRepository extends JpaRepository<SalesOrderEntity, Long> {
 
+    @Query("select max(o.id) from SalesOrderEntity o where o.storeId = :storeId")
+    java.util.Optional<Long> findMaximumIdByStoreId(@Param("storeId") Long storeId);
+
     boolean existsByStoreIdAndChannelAndPosOrderNoAndOrderedAt(
             Long storeId,
             SalesOrderChannel channel,

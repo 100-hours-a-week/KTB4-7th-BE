@@ -4,6 +4,7 @@ import com.memme.dto.solution.external.KmaVillageForecastResponse;
 import com.memme.exception.solution.ExternalDataLookupException;
 import com.memme.service.store.StoreCoordinates;
 import java.net.URI;
+import com.memme.service.cache.SharedJsonCache;
 import java.net.SocketTimeoutException;
 import java.net.http.HttpClient;
 import java.net.http.HttpTimeoutException;
@@ -43,13 +44,19 @@ public class KmaVillageForecastService {
     private final RestClient restClient;
     private final String serviceKey;
     private final Clock clock;
+    private final SharedJsonCache cache;
 
     @Autowired
-    public KmaVillageForecastService(@Value("${DATA_GO_KR_SERVICE_KEY:}") String serviceKey) {
-        this(productionBuilder(), serviceKey, Clock.system(KOREA));
+    public KmaVillageForecastService(@Value("${DATA_GO_KR_SERVICE_KEY:}") String serviceKey, SharedJsonCache cache) {
+        this(productionBuilder(), serviceKey, Clock.system(KOREA), cache);
     }
 
     KmaVillageForecastService(RestClient.Builder builder, String serviceKey, Clock clock) {
+        this(builder, serviceKey, clock, null);
+    }
+
+    KmaVillageForecastService(RestClient.Builder builder, String serviceKey, Clock clock, SharedJsonCache cache) {
+        this.cache = cache;
         this.restClient = builder.baseUrl(BASE_URL).build();
         this.serviceKey = serviceKey == null ? "" : serviceKey.trim();
         this.clock = clock;
@@ -88,6 +95,25 @@ public class KmaVillageForecastService {
             LocalDateTime issue
     ) {
         KmaGrid grid = KmaGrid.from(coordinates);
+        String cacheKey = "weather:forecast:v1:" + grid.x() + ":" + grid.y() + ":"
+                + issue.toLocalDate().format(DATE) + ":" + issue.toLocalTime().format(TIME);
+        if (cache != null) {
+            var hit = cache.get(cacheKey, KmaVillageForecastResponse.class);
+            if (hit.isPresent() && hasForecastItems(hit.get())) return hit;
+        }
+        Optional<KmaVillageForecastResponse> result = fetchUncachedForIssue(issue, grid);
+        if (cache != null) result.ifPresent(value -> cache.put(cacheKey, value, Duration.ofHours(3)));
+        return result;
+    }
+
+    private boolean hasForecastItems(KmaVillageForecastResponse value) {
+        return value.response() != null && value.response().header() != null
+                && "00".equals(value.response().header().resultCode()) && value.response().body() != null
+                && value.response().body().items() != null && value.response().body().items().item() != null
+                && !value.response().body().items().item().isEmpty();
+    }
+
+    private Optional<KmaVillageForecastResponse> fetchUncachedForIssue(LocalDateTime issue, KmaGrid grid) {
         KmaVillageForecastResponse payload = fetchPage(issue, grid, 1);
         KmaVillageForecastResponse.Body body = payload.response().body();
         if (body == null || body.items() == null || body.items().item() == null
