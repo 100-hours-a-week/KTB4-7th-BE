@@ -80,10 +80,16 @@ public record SalesSolutionMetrics(
     public record SalesSummary(
             long netSales,
             Double vsPrevPeriod,
-            @JsonInclude(JsonInclude.Include.NON_NULL) String period
+            @JsonInclude(JsonInclude.Include.NON_NULL) String period,
+            @JsonInclude(JsonInclude.Include.NON_NULL) @PositiveOrZero Long dailyAvgNetSales,
+            @JsonInclude(JsonInclude.Include.NON_NULL) @PositiveOrZero Integer sellingDays
     ) {
+        public SalesSummary(long netSales, Double vsPrevPeriod, String period) {
+            this(netSales, vsPrevPeriod, period, null, null);
+        }
+
         public SalesSummary(long netSales, Double vsPrevPeriod) {
-            this(netSales, vsPrevPeriod, null);
+            this(netSales, vsPrevPeriod, null, null, null);
         }
     }
 
