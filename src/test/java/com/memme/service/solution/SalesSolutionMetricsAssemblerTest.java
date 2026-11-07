@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.YearMonth;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
@@ -32,6 +33,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -97,6 +99,87 @@ class SalesSolutionMetricsAssemblerTest {
         assertThat(metrics.conditionPatterns()).containsExactly(conditionPattern);
         assertThat(metrics.districtBenchmark()).isNull();
         verify(conditionPatternsService).resolve(10L, targetDate);
+    }
+
+    @Test
+    void calculatesDailyAverageFromDistinctValidMenuSalesDaysWithinTheAnalysisPeriod() {
+        SalesOrderRepository orderRepository = mock(SalesOrderRepository.class);
+        SalesOrderItemRepository itemRepository = mock(SalesOrderItemRepository.class);
+        StoreBusinessHoursRepository businessHoursRepository = mock(StoreBusinessHoursRepository.class);
+        AnalysisRunEntity analysisRun = mock(AnalysisRunEntity.class);
+        SalesForecastEntity forecast = mock(SalesForecastEntity.class);
+        when(analysisRun.getPeriodStart()).thenReturn(LocalDate.of(2026, 10, 1));
+        when(analysisRun.getPeriodEnd()).thenReturn(LocalDate.of(2026, 10, 6));
+        when(forecast.getTargetDate()).thenReturn(LocalDate.of(2026, 10, 5));
+        when(forecast.getPredictedSalesAmount()).thenReturn(1_250_000L);
+
+        SalesOrderEntity firstOrder = order(1L, LocalDateTime.of(2026, 10, 1, 9, 0));
+        SalesOrderEntity secondOrderSameDay = order(2L, LocalDateTime.of(2026, 10, 1, 13, 0));
+        SalesOrderEntity lastDayOrder = order(3L, LocalDateTime.of(2026, 10, 4, 15, 0));
+        SalesOrderEntity nonMenuOnlyOrder = order(4L, LocalDateTime.of(2026, 10, 2, 10, 0));
+        SalesOrderEntity invalidOrder = order(5L, LocalDateTime.of(2026, 10, 3, 10, 0));
+        when(invalidOrder.isValid()).thenReturn(false);
+        when(orderRepository.findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
+                eq(10L), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(firstOrder, secondOrderSameDay, lastDayOrder, nonMenuOnlyOrder, invalidOrder))
+                .thenReturn(List.of());
+
+        SalesOrderItemEntity nonMenuItem = item(4L, "delivery", "배달비", 9_000, 1);
+        when(nonMenuItem.getItemType()).thenReturn(SalesOrderItemType.DELIVERY_FEE);
+        List<SalesOrderItemEntity> currentItems = List.of(
+                item(1L, "americano-1", "아메리카노", 400, 4),
+                item(2L, "americano-2", "아메리카노", 301, 3),
+                item(3L, "latte", "카페라떼", 300, 3),
+                nonMenuItem,
+                item(5L, "invalid-order-menu", "잘못된 주문 메뉴", 10_000, 10)
+        );
+        when(itemRepository.findAllBySalesOrderIdInOrderBySalesOrderIdAscIdAsc(anyCollection()))
+                .thenAnswer(invocation -> {
+                    Collection<Long> orderIds = invocation.getArgument(0);
+                    return currentItems.stream()
+                            .filter(item -> orderIds.contains(item.getSalesOrderId()))
+                            .toList();
+                });
+        when(businessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(List.of());
+
+        SalesSolutionMetrics metrics = assembler(orderRepository, itemRepository, businessHoursRepository)
+                .assemble(10L, analysisRun, forecast);
+
+        assertThat(metrics.salesSummary().netSales()).isEqualTo(1_001);
+        assertThat(metrics.salesSummary().sellingDays()).isEqualTo(2);
+        assertThat(metrics.salesSummary().dailyAvgNetSales()).isEqualTo(500);
+        assertThat(metrics.salesSummary().period()).isEqualTo("2026-10-01~2026-10-04");
+
+        ArgumentCaptor<LocalDateTime> start = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDateTime> endExclusive = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(orderRepository, times(2))
+                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
+                        eq(10L), start.capture(), endExclusive.capture());
+        assertThat(start.getAllValues().getFirst()).isEqualTo(LocalDate.of(2026, 10, 1).atStartOfDay());
+        assertThat(endExclusive.getAllValues().getFirst()).isEqualTo(LocalDate.of(2026, 10, 5).atStartOfDay());
+    }
+
+    @Test
+    void returnsZeroDailyAverageWhenThereAreNoSellingDays() {
+        SalesOrderRepository orderRepository = mock(SalesOrderRepository.class);
+        SalesOrderItemRepository itemRepository = mock(SalesOrderItemRepository.class);
+        StoreBusinessHoursRepository businessHoursRepository = mock(StoreBusinessHoursRepository.class);
+        AnalysisRunEntity analysisRun = mock(AnalysisRunEntity.class);
+        SalesForecastEntity forecast = mock(SalesForecastEntity.class);
+        when(analysisRun.getPeriodStart()).thenReturn(LocalDate.of(2026, 10, 1));
+        when(analysisRun.getPeriodEnd()).thenReturn(LocalDate.of(2026, 10, 3));
+        when(forecast.getTargetDate()).thenReturn(LocalDate.of(2026, 10, 4));
+        when(orderRepository.findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
+                eq(10L), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+        when(businessHoursRepository.findAllByStoreIdOrderByDayOfWeekAsc(10L)).thenReturn(List.of());
+
+        SalesSolutionMetrics metrics = assembler(orderRepository, itemRepository, businessHoursRepository)
+                .assemble(10L, analysisRun, forecast);
+
+        assertThat(metrics.salesSummary().netSales()).isZero();
+        assertThat(metrics.salesSummary().sellingDays()).isZero();
+        assertThat(metrics.salesSummary().dailyAvgNetSales()).isZero();
     }
 
     @Test
