@@ -140,6 +140,27 @@ class SalesSolutionGenerationServiceTest {
     }
 
     @Test
+    void forwardsDailyAverageNetSalesAndSellingDaysToAiSolutionRequest() {
+        LocalDate targetDate = LocalDate.of(2026, 9, 24);
+        SalesSolutionMetrics metrics = new SalesSolutionMetrics(
+                new SalesSolutionMetrics.SalesSummary(
+                        1_001L, null, "2026-09-01~2026-09-23", 500L, 2),
+                List.of(), List.of(), 1_250_000L, null);
+        givenGenerationContext(targetDate, metrics);
+        when(contextResolver.latestSalesAnalysisId(1L)).thenReturn(Optional.of(56L));
+        when(aiClient.generate(any())).thenReturn(response(targetDate));
+
+        assertThat(service.generateScheduled(1L, targetDate).status())
+                .isEqualTo(SalesSolutionGenerationResult.Status.COMPLETED);
+        org.mockito.ArgumentCaptor<SalesSolutionGenerationRequest> request =
+                org.mockito.ArgumentCaptor.forClass(SalesSolutionGenerationRequest.class);
+        verify(aiClient).generate(request.capture());
+        assertThat(request.getValue().metrics().salesSummary().netSales()).isEqualTo(1_001L);
+        assertThat(request.getValue().metrics().salesSummary().dailyAvgNetSales()).isEqualTo(500L);
+        assertThat(request.getValue().metrics().salesSummary().sellingDays()).isEqualTo(2);
+    }
+
+    @Test
     void continuesWithoutWeatherWhenUnavailable() {
         LocalDate targetDate = LocalDate.of(2026, 9, 24);
         givenGenerationContext(targetDate);

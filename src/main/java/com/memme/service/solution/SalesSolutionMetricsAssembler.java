@@ -82,6 +82,8 @@ public class SalesSolutionMetricsAssembler {
         long currentNetSales = current.menuItems().stream()
                 .mapToLong(SalesOrderItemEntity::getNetAmount)
                 .sum();
+        int sellingDays = sellingDays(current);
+        long dailyAvgNetSales = sellingDays == 0 ? 0 : Math.floorDiv(currentNetSales, sellingDays);
         long previousNetSales = previous.menuItems().stream()
                 .mapToLong(SalesOrderItemEntity::getNetAmount)
                 .sum();
@@ -90,7 +92,9 @@ public class SalesSolutionMetricsAssembler {
                 new SalesSolutionMetrics.SalesSummary(
                         currentNetSales,
                         changeRate(currentNetSales, previousNetSales),
-                        start + "~" + end
+                        start + "~" + end,
+                        dailyAvgNetSales,
+                        sellingDays
                 ),
                 hourlyProfile(current),
                 categoryBreakdown(current, previous, currentNetSales, previousNetSales),
@@ -293,6 +297,15 @@ public class SalesSolutionMetricsAssembler {
                 .filter(item -> item.getItemType() == SalesOrderItemType.MENU)
                 .toList();
         return new PeriodItems(ordersById, menuItems);
+    }
+
+    private int sellingDays(PeriodItems period) {
+        Set<LocalDate> dates = new LinkedHashSet<>();
+        for (SalesOrderItemEntity item : period.menuItems()) {
+            SalesOrderEntity order = period.ordersById().get(item.getSalesOrderId());
+            dates.add(order.getOrderedAt().toLocalDate());
+        }
+        return dates.size();
     }
 
     private List<SalesSolutionMetrics.HourlyPoint> hourlyProfile(PeriodItems period) {
