@@ -225,6 +225,13 @@ ORDER BY SEQ_IN_INDEX;
 
 배포 전 세 테이블과 외래 키·유니크 인덱스가 생성됐는지 확인한 뒤 BE를 배포합니다. 이 변경은 기존 매출 데이터를 수정하지 않습니다.
 
+## 랭킹 재계산 기간별 잠금 (#661)
+
+기존 DB에는 BE 배포 전에 `20261102-add-ranking-recalculation-locks.sql`을 한 번 적용합니다.
+신규 DB는 `docker/mysql/init/07-growth-ranking.sql`에서 같은 `ranking_recalculation_locks` 테이블을 생성합니다.
+이 테이블은 기간 조합별 잠금 행만 보관하며 기존 Snapshot과 매출 데이터를 변경하지 않습니다.
+적용 전 DB 백업 및 테이블 부재를 확인하고, 적용 후 기간 조합 UNIQUE와 InnoDB 엔진을 확인한 뒤 애플리케이션을 배포합니다.
+
 ## V2 기상청 단기예보 요약 저장 (#463)
 
 기존 QA·운영 DB에는 BE 배포 전에 `20261015-add-weather-forecast-summaries.sql`을 한 번 실행합니다.
