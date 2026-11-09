@@ -50,10 +50,9 @@ class RankingSnapshotRecalculationServiceTest {
     }
 
     @Test
-    void serializesConcurrentRecalculationsUntilFirstPersistenceReturns() throws Exception {
+    void allowsConcurrentRecalculationsToReachPersistence() throws Exception {
         CountDownLatch firstEntered = new CountDownLatch(1);
         CountDownLatch allowFirstToFinish = new CountDownLatch(1);
-        CountDownLatch secondSubmitted = new CountDownLatch(1);
         CountDownLatch secondEnteredCalculation = new CountDownLatch(1);
         AtomicInteger active = new AtomicInteger();
         AtomicInteger maximumActive = new AtomicInteger();
@@ -78,19 +77,15 @@ class RankingSnapshotRecalculationServiceTest {
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
             Future<RankingSnapshotRecalculationService.Result> first = executor.submit(service::recalculateCurrentPeriod);
             assertThat(firstEntered.await(5, TimeUnit.SECONDS)).isTrue();
-            Future<RankingSnapshotRecalculationService.Result> second = executor.submit(() -> {
-                secondSubmitted.countDown();
-                return service.recalculateCurrentPeriod();
-            });
-            assertThat(secondSubmitted.await(5, TimeUnit.SECONDS)).isTrue();
-            assertThat(secondEnteredCalculation.await(200, TimeUnit.MILLISECONDS)).isFalse();
+            Future<RankingSnapshotRecalculationService.Result> second = executor.submit(service::recalculateCurrentPeriod);
+            assertThat(secondEnteredCalculation.await(200, TimeUnit.MILLISECONDS)).isTrue();
             allowFirstToFinish.countDown();
             assertThat(first.get(5, TimeUnit.SECONDS)).isEqualTo(RankingSnapshotRecalculationService.Result.COMPLETED);
             assertThat(second.get(5, TimeUnit.SECONDS)).isEqualTo(RankingSnapshotRecalculationService.Result.COMPLETED);
         } finally {
             allowFirstToFinish.countDown();
         }
-        assertThat(maximumActive.get()).isEqualTo(1);
+        assertThat(maximumActive.get()).isEqualTo(2);
     }
 
     @Test
