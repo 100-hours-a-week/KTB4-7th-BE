@@ -33,6 +33,7 @@ public class RankingSnapshotPersistenceService {
     private static final int MAX_NICKNAME_ATTEMPTS = 100;
 
     private final RankingSnapshotRepository snapshotRepository;
+    private final RankingRecalculationLockService recalculationLockService;
     private final RankingEntryRepository entryRepository;
     private final RankingProfileRepository profileRepository;
     private final StoreRepository storeRepository;
@@ -45,6 +46,7 @@ public class RankingSnapshotPersistenceService {
 
     public RankingSnapshotPersistenceService(
             RankingSnapshotRepository snapshotRepository,
+            RankingRecalculationLockService recalculationLockService,
             RankingEntryRepository entryRepository,
             RankingProfileRepository profileRepository,
             StoreRepository storeRepository,
@@ -56,6 +58,7 @@ public class RankingSnapshotPersistenceService {
             RankingGrowthCalculator growthCalculator
     ) {
         this.snapshotRepository = snapshotRepository;
+        this.recalculationLockService = recalculationLockService;
         this.entryRepository = entryRepository;
         this.profileRepository = profileRepository;
         this.storeRepository = storeRepository;
@@ -69,6 +72,7 @@ public class RankingSnapshotPersistenceService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void calculate(RankingPeriodCalculator.PeriodPair period) {
+        recalculationLockService.acquire(period);
         RankingSnapshotEntity snapshot = snapshotRepository.saveAndFlush(RankingSnapshotEntity.create(
                 period.periodStart(),
                 period.periodEnd(),
@@ -97,6 +101,7 @@ public class RankingSnapshotPersistenceService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordFailed(RankingPeriodCalculator.PeriodPair period) {
+        recalculationLockService.acquire(period);
         RankingSnapshotEntity failedSnapshot = RankingSnapshotEntity.create(
                 period.periodStart(),
                 period.periodEnd(),

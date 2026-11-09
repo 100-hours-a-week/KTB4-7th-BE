@@ -52,7 +52,7 @@ public class RankingSnapshotRecalculationService {
         return recalculate(period, "SALES_UPLOAD");
     }
 
-    private synchronized Result recalculate(RankingPeriodCalculator.PeriodPair period, String source) {
+    private Result recalculate(RankingPeriodCalculator.PeriodPair period, String source) {
         Instant startedAt = clock.instant();
         long startedNanos = System.nanoTime();
         log.info("Ranking recalculation started: source={}, executor={}, periodStart={}, periodEnd={}, comparisonStart={}, comparisonEnd={}, startedAt={}",
