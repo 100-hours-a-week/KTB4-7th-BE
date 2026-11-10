@@ -18,6 +18,8 @@ import com.memme.entity.sales.SalesOrderItemType;
 import com.memme.entity.sales.SalesUploadEntity;
 import com.memme.entity.store.StoreBusinessHours;
 import com.memme.repository.sales.SalesDailySummaryRepository;
+import com.memme.repository.sales.SalesOrderBulkInsertRepository;
+import com.memme.repository.sales.SalesOrderBulkInsertRepository.OrderNaturalKey;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesOrderRepository;
 import com.memme.repository.sales.SalesUploadRepository;
@@ -26,11 +28,19 @@ import com.memme.service.sales.DailySalesSummary;
 import com.memme.service.sales.SalesOrder;
 import com.memme.service.sales.SalesOrderItem;
 import com.memme.service.sales.TossPosWorkbookData;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class SalesUploadPersistenceService {
+
+    static final int MAX_LOCK_RETRIES = 2;
+    private static final Logger log = LoggerFactory.getLogger(SalesUploadPersistenceService.class);
 
     private final SalesUploadRepository uploadRepository;
     private final SalesOrderRepository orderRepository;
@@ -38,6 +48,9 @@ public class SalesUploadPersistenceService {
     private final SalesDailySummaryRepository dailySummaryRepository;
     private final StoreBusinessHoursRepository businessHoursRepository;
     private final SalesDailyStatusResolver dailyStatusResolver;
+    private final SalesOrderBulkInsertRepository bulkInsertRepository;
+    private final TransactionTemplate transactionTemplate;
+    private final LockRetryBackoff retryBackoff;
 
     public SalesUploadPersistenceService(
             SalesUploadRepository uploadRepository,
@@ -45,7 +58,10 @@ public class SalesUploadPersistenceService {
             SalesOrderItemRepository itemRepository,
             SalesDailySummaryRepository dailySummaryRepository,
             StoreBusinessHoursRepository businessHoursRepository,
-            SalesDailyStatusResolver dailyStatusResolver
+            SalesDailyStatusResolver dailyStatusResolver,
+            SalesOrderBulkInsertRepository bulkInsertRepository,
+            PlatformTransactionManager transactionManager,
+            LockRetryBackoff retryBackoff
     ) {
         this.uploadRepository = uploadRepository;
         this.orderRepository = orderRepository;
@@ -53,10 +69,35 @@ public class SalesUploadPersistenceService {
         this.dailySummaryRepository = dailySummaryRepository;
         this.businessHoursRepository = businessHoursRepository;
         this.dailyStatusResolver = dailyStatusResolver;
+        this.bulkInsertRepository = bulkInsertRepository;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.retryBackoff = retryBackoff;
     }
 
-    @Transactional
+    /**
+     * 업로드 파일 기간의 기존 주문을 지우고 새 주문·항목·일별 집계를 한 트랜잭션으로 반영한다.
+     * 바깥 트랜잭션이 없으면(웹 Worker 경로) 락 대기 초과·교착 시 짧게 쉬고 다시 시도한다.
+     * 바깥 트랜잭션 안(Outbox 경로)에서는 한 번만 실행하고 재시도는 Outbox 재시도 정책에 맡긴다.
+     */
     public SalesUploadResult replaceCoverage(Long uploadId, Long storeId, TossPosWorkbookData workbookData) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            return replaceCoverageOnce(uploadId, storeId, workbookData);
+        }
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return transactionTemplate.execute(status -> replaceCoverageOnce(uploadId, storeId, workbookData));
+            } catch (CannotAcquireLockException exception) {
+                if (attempt > MAX_LOCK_RETRIES) {
+                    throw exception;
+                }
+                log.warn("Sales upload coverage lock conflict, retrying uploadId={} attempt={}/{}",
+                        uploadId, attempt, MAX_LOCK_RETRIES);
+                retryBackoff.pause(attempt);
+            }
+        }
+    }
+
+    private SalesUploadResult replaceCoverageOnce(Long uploadId, Long storeId, TossPosWorkbookData workbookData) {
         SalesUploadEntity upload = uploadRepository.findById(uploadId)
                 .orElseThrow(() -> new IllegalStateException("매출 업로드를 찾을 수 없습니다: " + uploadId));
         if (!upload.getStoreId().equals(storeId)) {
@@ -65,17 +106,29 @@ public class SalesUploadPersistenceService {
 
         deleteExistingCoverage(storeId, workbookData.periodStart(), workbookData.periodEnd());
 
-        int appliedRecordCount = 0;
+        List<SalesOrderEntity> orders = new ArrayList<>(workbookData.orders().size());
         for (SalesOrder order : workbookData.orders()) {
-            SalesOrderEntity savedOrder = orderRepository.save(toEntity(uploadId, storeId, order));
-            List<SalesOrderItemEntity> savedItems = order.items().stream()
-                    .map(item -> toEntity(savedOrder.getId(), item))
-                    .toList();
-            itemRepository.saveAll(savedItems);
-            appliedRecordCount = Math.addExact(appliedRecordCount, savedItems.size());
+            orders.add(toEntity(uploadId, storeId, order));
         }
+        bulkInsertRepository.insertOrders(orders);
+        Map<OrderNaturalKey, Long> orderIds = bulkInsertRepository.findOrderIdsBySalesUploadId(uploadId);
 
-        rebuildDailySummaries(storeId, workbookData);
+        List<SalesOrderItemEntity> items = new ArrayList<>(workbookData.items().size());
+        List<SalesOrderEntity> itemOrders = new ArrayList<>(workbookData.items().size());
+        for (int index = 0; index < orders.size(); index++) {
+            SalesOrderEntity order = orders.get(index);
+            Long orderId = orderIds.get(naturalKey(order));
+            if (orderId == null) {
+                throw new IllegalStateException("저장한 매출 주문의 ID를 찾을 수 없습니다: " + order.getPosOrderNo());
+            }
+            for (SalesOrderItem item : workbookData.orders().get(index).items()) {
+                items.add(toEntity(orderId, item));
+                itemOrders.add(order);
+            }
+        }
+        int appliedRecordCount = bulkInsertRepository.insertItems(items);
+
+        rebuildDailySummaries(storeId, workbookData, orders, items, itemOrders);
 
         return new SalesUploadResult(
                 upload.getId(),
@@ -84,6 +137,10 @@ public class SalesUploadPersistenceService {
                 workbookData.items().size(),
                 appliedRecordCount
         );
+    }
+
+    private static OrderNaturalKey naturalKey(SalesOrderEntity order) {
+        return new OrderNaturalKey(order.getStoreId(), order.getChannel(), order.getPosOrderNo(), order.getOrderedAt());
     }
 
     private void deleteExistingCoverage(
@@ -147,35 +204,27 @@ public class SalesUploadPersistenceService {
         ));
     }
 
-    private void rebuildDailySummaries(Long storeId, TossPosWorkbookData workbookData) {
+    /**
+     * 방금 저장한 주문·항목으로 일별 집계를 만든다. 기간 안의 기존 주문은 모두 지운 뒤라
+     * DB를 다시 읽은 결과와 같다. 파서가 주문일을 파일 기간 안으로 보장한다.
+     */
+    private void rebuildDailySummaries(
+            Long storeId,
+            TossPosWorkbookData workbookData,
+            List<SalesOrderEntity> orders,
+            List<SalesOrderItemEntity> items,
+            List<SalesOrderEntity> itemOrders
+    ) {
         LocalDate periodStart = workbookData.periodStart();
         LocalDate periodEnd = workbookData.periodEnd();
-        List<SalesOrderEntity> orders = orderRepository
-                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
-                        storeId,
-                        periodStart.atStartOfDay(),
-                        periodEnd.plusDays(1).atStartOfDay()
-                );
-        List<Long> orderIds = orders.stream().map(SalesOrderEntity::getId).toList();
-        List<SalesOrderItemEntity> items = orderIds.isEmpty()
-                ? List.of()
-                : itemRepository.findAllBySalesOrderIdInOrderBySalesOrderIdAscIdAsc(orderIds);
-
-        Map<Long, SalesOrderEntity> ordersById = new HashMap<>();
-        for (SalesOrderEntity order : orders) {
-            ordersById.put(order.getId(), order);
-        }
 
         Map<LocalDate, MutableDailySummary> summaries = new TreeMap<>();
         for (LocalDate date = periodStart; !date.isAfter(periodEnd); date = date.plusDays(1)) {
             summaries.put(date, new MutableDailySummary());
         }
-        for (SalesOrderItemEntity item : items) {
-            SalesOrderEntity order = ordersById.get(item.getSalesOrderId());
-            if (order == null) {
-                throw new IllegalStateException("주문 항목의 상위 주문을 찾을 수 없습니다: " + item.getId());
-            }
-            MutableDailySummary summary = summaries.get(order.getOrderedAt().toLocalDate());
+        for (int index = 0; index < items.size(); index++) {
+            SalesOrderItemEntity item = items.get(index);
+            MutableDailySummary summary = summaryOf(summaries, itemOrders.get(index));
             summary.totalNetAmount = Math.addExact(summary.totalNetAmount, item.getNetAmount());
             if (item.getItemType() == SalesOrderItemType.MENU) {
                 summary.menuNetAmount = Math.addExact(summary.menuNetAmount, item.getNetAmount());
@@ -194,10 +243,9 @@ public class SalesUploadPersistenceService {
         Map<LocalDate, Boolean> hasOrderRowsByDate = new HashMap<>();
         workbookData.items().forEach(item -> hasOrderRowsByDate.put(item.orderDate(), true));
         for (SalesOrderEntity order : orders) {
-            MutableDailySummary activity = summaries.get(order.getOrderedAt().toLocalDate());
-            activity.salesActivityCount = Math.incrementExact(activity.salesActivityCount);
+            MutableDailySummary summary = summaryOf(summaries, order);
+            summary.salesActivityCount = Math.incrementExact(summary.salesActivityCount);
             if (order.isValid()) {
-                MutableDailySummary summary = summaries.get(order.getOrderedAt().toLocalDate());
                 summary.orderCount = Math.incrementExact(summary.orderCount);
             }
         }
@@ -248,6 +296,14 @@ public class SalesUploadPersistenceService {
             changedSummaries.add(summary);
         });
         dailySummaryRepository.saveAll(changedSummaries);
+    }
+
+    private static MutableDailySummary summaryOf(Map<LocalDate, MutableDailySummary> summaries, SalesOrderEntity order) {
+        MutableDailySummary summary = summaries.get(order.getOrderedAt().toLocalDate());
+        if (summary == null) {
+            throw new IllegalStateException("주문일이 파일 기간을 벗어났습니다: " + order.getPosOrderNo());
+        }
+        return summary;
     }
 
     private static final class MutableDailySummary {
