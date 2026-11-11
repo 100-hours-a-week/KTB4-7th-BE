@@ -1,6 +1,7 @@
 package com.memme.service.sales.analysis;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -24,15 +25,13 @@ import com.memme.entity.sales.SalesAiInsightEntity;
 import com.memme.entity.sales.SalesAiInsightStatus;
 import com.memme.entity.sales.SalesDailySummaryEntity;
 import com.memme.entity.sales.SalesForecastEntity;
-import com.memme.entity.sales.SalesOrderEntity;
-import com.memme.entity.sales.SalesOrderItemEntity;
-import com.memme.entity.sales.SalesOrderItemType;
 import com.memme.entity.store.MenuCategory;
 import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesDailySummaryRepository;
 import com.memme.repository.sales.SalesForecastRepository;
 import com.memme.repository.sales.SalesOrderItemRepository;
-import com.memme.repository.sales.SalesOrderRepository;
+import com.memme.repository.sales.SalesOrderItemRepository.HourlySalesAggregate;
+import com.memme.repository.sales.SalesOrderItemRepository.MenuSalesAggregate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,20 +43,17 @@ public class SalesAnalysisService {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
     private final SalesDailySummaryRepository dailySummaryRepository;
-    private final SalesOrderRepository orderRepository;
     private final SalesOrderItemRepository itemRepository;
     private final SalesAiInsightRepository insightRepository;
     private final SalesForecastRepository forecastRepository;
 
     public SalesAnalysisService(
             SalesDailySummaryRepository dailySummaryRepository,
-            SalesOrderRepository orderRepository,
             SalesOrderItemRepository itemRepository,
             SalesAiInsightRepository insightRepository,
             SalesForecastRepository forecastRepository
     ) {
         this.dailySummaryRepository = dailySummaryRepository;
-        this.orderRepository = orderRepository;
         this.itemRepository = itemRepository;
         this.insightRepository = insightRepository;
         this.forecastRepository = forecastRepository;
@@ -98,16 +94,12 @@ public class SalesAnalysisService {
 
         Totals current = totals(summaries);
         Totals comparison = totals(comparisonSummaries);
-        List<SalesOrderEntity> orders = orderRepository
-                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
-                        storeId,
-                        periodStart.atStartOfDay(),
-                        periodEnd.plusDays(1).atStartOfDay()
-                );
-        List<SalesOrderItemEntity> items = loadItems(orders);
-        Map<Long, SalesOrderEntity> ordersById = indexOrders(orders);
+        LocalDateTime startAt = periodStart.atStartOfDay();
+        LocalDateTime endAt = periodEnd.plusDays(1).atStartOfDay();
+        List<MenuSalesAggregate> menuSales = itemRepository.aggregateMenuSales(storeId, startAt, endAt);
+        List<HourlySalesAggregate> hourlySales = itemRepository.aggregateHourlySales(storeId, startAt, endAt);
 
-        List<SalesAnalysisResponse.MenuRanking> menuRankings = menuRankings(items);
+        List<SalesAnalysisResponse.MenuRanking> menuRankings = menuRankings(menuSales);
         SalesAnalysisResponse response = new SalesAnalysisResponse(
                 period,
                 new SalesAnalysisResponse.DateRange(comparisonRange.start(), comparisonRange.end()),
@@ -126,13 +118,13 @@ public class SalesAnalysisService {
                 ),
                 dailySales(periodStart, periodEnd, summaries),
                 menuRankings,
-                hourlySales(items, ordersById),
-                weekdaySales(items, ordersById),
+                hourlySales(hourlySales),
+                weekdaySales(hourlySales),
                 forecast(storeId, periodStart, periodEnd),
                 aiInsight(storeId, YearMonth.from(periodEnd))
         );
 
-        return new SalesAnalysisResult.Completed(response, categories(items));
+        return new SalesAnalysisResult.Completed(response, categories(menuSales, menuRankings));
     }
 
     private SalesAnalysisResult.Empty empty(
@@ -234,23 +226,6 @@ public class SalesAnalysisService {
         );
     }
 
-    private List<SalesOrderItemEntity> loadItems(List<SalesOrderEntity> orders) {
-        if (orders.isEmpty()) {
-            return List.of();
-        }
-        return itemRepository.findAllBySalesOrderIdInOrderBySalesOrderIdAscIdAsc(
-                orders.stream().map(SalesOrderEntity::getId).toList()
-        );
-    }
-
-    private Map<Long, SalesOrderEntity> indexOrders(List<SalesOrderEntity> orders) {
-        Map<Long, SalesOrderEntity> result = new HashMap<>();
-        for (SalesOrderEntity order : orders) {
-            result.put(order.getId(), order);
-        }
-        return result;
-    }
-
     private Totals totals(List<SalesDailySummaryEntity> summaries) {
         long totalSales = 0;
         long orderCount = 0;
@@ -281,19 +256,15 @@ public class SalesAnalysisService {
     }
 
     private List<SalesAnalysisResponse.MenuRanking> menuRankings(
-            List<SalesOrderItemEntity> items
+            List<MenuSalesAggregate> menuSales
     ) {
         Map<String, MutableMenuTotal> totals = new HashMap<>();
-        for (SalesOrderItemEntity item : items) {
-            if (item.getItemType() != SalesOrderItemType.MENU) {
-                continue;
-            }
+        for (MenuSalesAggregate row : menuSales) {
             MutableMenuTotal total = totals.computeIfAbsent(
-                    item.getMenuKey(),
-                    ignored -> new MutableMenuTotal(item.getMenuName())
+                    row.getMenuKey(),
+                    ignored -> new MutableMenuTotal(row)
             );
-            total.sales = Math.addExact(total.sales, item.getNetAmount());
-            total.quantity = Math.addExact(total.quantity, item.getQuantity());
+            total.add(row);
         }
 
         List<MutableMenuTotal> sorted = totals.values().stream()
@@ -314,15 +285,13 @@ public class SalesAnalysisService {
     }
 
     private List<SalesAnalysisResponse.HourlySales> hourlySales(
-            List<SalesOrderItemEntity> items,
-            Map<Long, SalesOrderEntity> ordersById
+            List<HourlySalesAggregate> hourlySales
     ) {
         Map<Integer, Long> totals = new TreeMap<>();
-        for (SalesOrderItemEntity item : items) {
-            SalesOrderEntity order = requireOrder(item, ordersById);
+        for (HourlySalesAggregate row : hourlySales) {
             totals.merge(
-                    order.getOrderedAt().getHour(),
-                    item.getNetAmount(),
+                    row.getSalesHour().intValue(),
+                    exactLong(row.getSalesAmount()),
                     Math::addExact
             );
         }
@@ -335,17 +304,15 @@ public class SalesAnalysisService {
     }
 
     private List<SalesAnalysisResponse.WeekdaySales> weekdaySales(
-            List<SalesOrderItemEntity> items,
-            Map<Long, SalesOrderEntity> ordersById
+            List<HourlySalesAggregate> hourlySales
     ) {
         Map<DayOfWeek, Long> totals = new EnumMap<>(DayOfWeek.class);
         for (DayOfWeek dayOfWeek : DayOfWeek.values()) {
             totals.put(dayOfWeek, 0L);
         }
-        for (SalesOrderItemEntity item : items) {
-            SalesOrderEntity order = requireOrder(item, ordersById);
-            DayOfWeek dayOfWeek = order.getOrderedAt().getDayOfWeek();
-            totals.put(dayOfWeek, Math.addExact(totals.get(dayOfWeek), item.getNetAmount()));
+        for (HourlySalesAggregate row : hourlySales) {
+            DayOfWeek dayOfWeek = row.getSalesDate().getDayOfWeek();
+            totals.put(dayOfWeek, Math.addExact(totals.get(dayOfWeek), exactLong(row.getSalesAmount())));
         }
         return totals.entrySet().stream()
                 .map(entry -> new SalesAnalysisResponse.WeekdaySales(
@@ -355,24 +322,25 @@ public class SalesAnalysisService {
                 .toList();
     }
 
-    private SalesCategoriesResponse categories(List<SalesOrderItemEntity> items) {
+    private SalesCategoriesResponse categories(
+            List<MenuSalesAggregate> menuSales,
+            List<SalesAnalysisResponse.MenuRanking> menuRankings
+    ) {
         Map<MenuCategory, Long> categoryTotals = new EnumMap<>(
                 MenuCategory.class
         );
-        long menuSales = 0;
-        for (SalesOrderItemEntity item : items) {
-            if (item.getItemType() != SalesOrderItemType.MENU) {
-                continue;
-            }
+        long menuSalesTotal = 0;
+        for (MenuSalesAggregate row : menuSales) {
+            long amount = exactLong(row.getSalesAmount());
             categoryTotals.merge(
-                    item.getStandardCategory(),
-                    item.getNetAmount(),
+                    MenuCategory.valueOf(row.getStandardCategory()),
+                    amount,
                     Math::addExact
             );
-            menuSales = Math.addExact(menuSales, item.getNetAmount());
+            menuSalesTotal = Math.addExact(menuSalesTotal, amount);
         }
 
-        long totalMenuSales = menuSales;
+        long totalMenuSales = menuSalesTotal;
         List<SalesCategoriesResponse.Category> categories = categoryTotals.entrySet().stream()
                 .sorted(Map.Entry.<MenuCategory, Long>comparingByValue().reversed()
                         .thenComparing(entry -> entry.getKey().name()))
@@ -383,7 +351,7 @@ public class SalesAnalysisService {
                 ))
                 .toList();
 
-        List<SalesCategoriesResponse.MenuRanking> rankings = menuRankings(items).stream()
+        List<SalesCategoriesResponse.MenuRanking> rankings = menuRankings.stream()
                 .map(ranking -> new SalesCategoriesResponse.MenuRanking(
                         ranking.rank(),
                         ranking.menuName(),
@@ -392,17 +360,6 @@ public class SalesAnalysisService {
                 ))
                 .toList();
         return new SalesCategoriesResponse(categories, rankings);
-    }
-
-    private SalesOrderEntity requireOrder(
-            SalesOrderItemEntity item,
-            Map<Long, SalesOrderEntity> ordersById
-    ) {
-        SalesOrderEntity order = ordersById.get(item.getSalesOrderId());
-        if (order == null) {
-            throw new IllegalStateException("주문 항목의 상위 주문을 찾을 수 없습니다: " + item.getId());
-        }
-        return order;
     }
 
     private DateRange comparisonRange(String periodType, LocalDate start, LocalDate end) {
@@ -483,13 +440,38 @@ public class SalesAnalysisService {
 
     private record DateRange(LocalDate start, LocalDate end) {}
 
+    private static long exactLong(Number value) {
+        if (value instanceof BigDecimal decimal) {
+            return decimal.longValueExact();
+        }
+        if (value instanceof BigInteger integer) {
+            return integer.longValueExact();
+        }
+        return value.longValue();
+    }
+
     private static final class MutableMenuTotal {
-        private final String menuName;
+        private String menuName;
+        private long firstOrderId;
+        private long firstItemId;
         private long sales;
         private long quantity;
 
-        private MutableMenuTotal(String menuName) {
-            this.menuName = menuName;
+        private MutableMenuTotal(MenuSalesAggregate first) {
+            this.menuName = first.getMenuName();
+            this.firstOrderId = first.getFirstOrderId();
+            this.firstItemId = first.getFirstItemId();
+        }
+
+        private void add(MenuSalesAggregate row) {
+            sales = Math.addExact(sales, exactLong(row.getSalesAmount()));
+            quantity = Math.addExact(quantity, exactLong(row.getQuantity()));
+            if (row.getFirstOrderId() < firstOrderId
+                    || (row.getFirstOrderId() == firstOrderId && row.getFirstItemId() < firstItemId)) {
+                menuName = row.getMenuName();
+                firstOrderId = row.getFirstOrderId();
+                firstItemId = row.getFirstItemId();
+            }
         }
 
         private String menuName() {
