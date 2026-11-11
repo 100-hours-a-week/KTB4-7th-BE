@@ -10,6 +10,8 @@ import com.memme.repository.store.StoreOwnershipRepository;
 import com.memme.service.cache.SharedJsonCache;
 import java.time.*;
 import java.util.*;
+import java.util.concurrent.*;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -22,14 +24,14 @@ class SalesAnalysisCacheTest {
     private final SalesAnalysisCacheVersion versions = mock(SalesAnalysisCacheVersion.class);
     private final StringRedisTemplate redis = mock(StringRedisTemplate.class);
     private final ValueOperations<String, String> values = mock(ValueOperations.class);
-    private final Map<String, String> saved = new HashMap<>();
+    private final Map<String, String> saved = new ConcurrentHashMap<>();
     private SalesAnalysisQueryService service;
     private final LocalDate date = LocalDate.of(2026, 10, 28);
 
     @BeforeEach
     void setUp() {
         when(redis.opsForValue()).thenReturn(values);
-        when(values.get(anyString())).thenAnswer(call -> saved.get(call.getArgument(0)));
+        when(values.get(anyString())).thenAnswer(call -> saved.get((String) call.getArgument(0)));
         doAnswer(call -> { saved.put(call.getArgument(0), call.getArgument(1)); return null; })
                 .when(values).set(anyString(), anyString(), any(Duration.class));
         when(owners.existsActiveStoreOwnedBy(301L, 7L)).thenReturn(true);
@@ -87,6 +89,71 @@ class SalesAnalysisCacheTest {
         when(analysis.analyze(301L, "TODAY", date, date)).thenThrow(new IllegalStateException("test"));
         assertThatThrownBy(() -> service.query(7L, 301L, "TODAY", null, null)).isInstanceOf(IllegalStateException.class);
         assertThat(saved).isEmpty();
+    }
+
+    @Test
+    void concurrentMissesForSameKeyAnalyzeOnlyOnce() throws Exception {
+        CountDownLatch leaderStarted = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        when(analysis.analyze(301L, "TODAY", date, date)).thenAnswer(call -> {
+            leaderStarted.countDown();
+            release.await(5, TimeUnit.SECONDS);
+            return completed();
+        });
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        try {
+            Future<SalesAnalysisResult> leader = pool.submit(() -> service.query(7L, 301L, "TODAY", null, null));
+            assertThat(leaderStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            List<Future<SalesAnalysisResult>> waiters = new ArrayList<>();
+            for (int i = 0; i < 3; i++) waiters.add(pool.submit(() -> service.query(7L, 301L, "TODAY", null, null)));
+            Thread.sleep(200);
+            release.countDown();
+            assertThat(leader.get(5, TimeUnit.SECONDS)).isEqualTo(completed());
+            for (var waiter : waiters) assertThat(waiter.get(5, TimeUnit.SECONDS)).isEqualTo(completed());
+        } finally {
+            pool.shutdownNow();
+        }
+        verify(analysis, times(1)).analyze(301L, "TODAY", date, date);
+        verify(owners, times(4)).existsActiveStoreOwnedBy(301L, 7L);
+    }
+
+    @Test
+    void waiterAnalyzesItselfWhenInFlightLeaderFails() throws Exception {
+        CountDownLatch leaderStarted = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        when(analysis.analyze(301L, "TODAY", date, date)).thenAnswer(call -> {
+            leaderStarted.countDown();
+            release.await(5, TimeUnit.SECONDS);
+            throw new IllegalStateException("leader failed");
+        }).thenReturn(completed());
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<SalesAnalysisResult> leader = pool.submit(() -> service.query(7L, 301L, "TODAY", null, null));
+            assertThat(leaderStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            Future<SalesAnalysisResult> waiter = pool.submit(() -> service.query(7L, 301L, "TODAY", null, null));
+            Thread.sleep(200);
+            release.countDown();
+            assertThatThrownBy(() -> leader.get(5, TimeUnit.SECONDS)).hasCauseInstanceOf(IllegalStateException.class);
+            assertThat(waiter.get(5, TimeUnit.SECONDS)).isEqualTo(completed());
+        } finally {
+            pool.shutdownNow();
+        }
+        verify(analysis, times(2)).analyze(301L, "TODAY", date, date);
+    }
+
+    @Test
+    void cacheTtlIsSpreadBetweenFourAndSixMinutes() {
+        service.query(7L, 301L, "TODAY", null, null);
+        ArgumentCaptor<Duration> ttl = ArgumentCaptor.forClass(Duration.class);
+        verify(values).set(anyString(), anyString(), ttl.capture());
+        assertThat(ttl.getValue()).isBetween(Duration.ofMinutes(4), Duration.ofMinutes(6));
+        Set<Duration> seen = new HashSet<>();
+        for (int i = 0; i < 200; i++) {
+            Duration value = SalesAnalysisQueryService.cacheTtl();
+            assertThat(value).isBetween(Duration.ofMinutes(4), Duration.ofMinutes(6));
+            seen.add(value);
+        }
+        assertThat(seen.size()).isGreaterThan(10);
     }
 
     private SalesAnalysisResult.Completed completed() {
