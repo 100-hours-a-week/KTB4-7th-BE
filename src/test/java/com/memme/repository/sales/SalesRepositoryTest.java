@@ -166,6 +166,23 @@ class SalesRepositoryTest {
     }
 
     @Test
+    void readsUploadVersionRowsForOneStoreInIdOrder() {
+        SalesUploadEntity first = uploadRepository.save(completedUpload(
+                1L, "version-1", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), 1));
+        SalesUploadEntity second = uploadRepository.save(completedUpload(
+                1L, "version-2", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), 1));
+        uploadRepository.save(completedUpload(
+                2L, "version-other", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), 1));
+        uploadRepository.flush();
+
+        List<Object[]> rows = uploadRepository.findVersionRowsByStoreId(1L);
+
+        assertThat(rows).extracting(row -> ((Number) row[0]).longValue())
+                .containsExactly(first.getId(), second.getId());
+        assertThat(rows).allSatisfy(row -> assertThat(row[1]).isEqualTo("COMPLETED"));
+    }
+
+    @Test
     void findsItemsForOneOrMultipleOrdersInStableOrder() {
         SalesOrderItemEntity first = itemRepository.save(item(10L, "아메리카노", 2, 8_000));
         SalesOrderItemEntity second = itemRepository.save(item(11L, "카페라떼", 1, 5_000));
