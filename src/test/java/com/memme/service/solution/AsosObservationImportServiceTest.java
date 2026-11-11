@@ -37,6 +37,44 @@ import org.springframework.test.util.ReflectionTestUtils;
 class AsosObservationImportServiceTest {
 
     @Test
+    void 정오_수집_실패_코드를_남기고_다른_관측소_수집을_계속한다() {
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory
+                .getLogger(AsosObservationImportService.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            var conditions = org.mockito.Mockito.mock(com.memme.repository.solution.WeatherCalendarConditionRepository.class);
+            var withNoon = new AsosObservationImportService(stores, stations, observations, conditions, client,
+                    Clock.fixed(Instant.parse("2026-10-18T03:00:00Z"), ZoneId.of("Asia/Seoul")), null);
+            Store seoul = store(20L, "37.5714", "126.9658");
+            Store suwon = store(21L, "37.2723", "126.9853");
+            var seoulStation = WeatherStationEntity.create("KMA_ASOS", "108", seoul.getLatitude(), seoul.getLongitude());
+            var suwonStation = WeatherStationEntity.create("KMA_ASOS", "119", suwon.getLatitude(), suwon.getLongitude());
+            ReflectionTestUtils.setField(seoulStation, "id", 7L);
+            ReflectionTestUtils.setField(suwonStation, "id", 8L);
+            when(stores.findAllByStatus(StoreStatus.ACTIVE)).thenReturn(List.of(seoul, suwon));
+            when(client.stations()).thenReturn(List.of(station("108", "37.5714", "126.9658"),
+                    station("119", "37.2723", "126.9853")));
+            when(stations.findBySourceAndStationCode("KMA_ASOS", "108")).thenReturn(Optional.of(seoulStation));
+            when(stations.findBySourceAndStationCode("KMA_ASOS", "119")).thenReturn(Optional.of(suwonStation));
+            when(client.dailyNoonWeather(eq("108"), any(), any()))
+                    .thenThrow(new com.memme.exception.solution.ExternalDataLookupException("ASOS_LOOKUP_FAILED"));
+
+            withNoon.importForActiveStores();
+
+            verify(client).dailyNoonWeather(eq("119"), any(), any());
+            assertThat(appender.list).hasSize(1);
+            assertThat(appender.list.getFirst().getFormattedMessage())
+                    .contains("station 108", "code=ASOS_LOOKUP_FAILED", "exceptionType=ExternalDataLookupException");
+            assertThat(appender.list.getFirst().getThrowableProxy()).isNull();
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+    }
+
+    @Test
     void 정오_관측을_날짜별로_저장하고_이미_저장된_날짜는_중복_적재하지_않는다() {
         var conditions = org.mockito.Mockito.mock(com.memme.repository.solution.WeatherCalendarConditionRepository.class);
         var withNoon = new AsosObservationImportService(stores, stations, observations, conditions, client,
