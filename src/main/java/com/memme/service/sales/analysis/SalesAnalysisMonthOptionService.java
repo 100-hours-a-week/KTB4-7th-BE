@@ -9,6 +9,7 @@ import com.memme.exception.sales.SalesAnalysisRequestException;
 import com.memme.repository.sales.SalesOrderRepository;
 import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.repository.store.StoreOwnershipRepository;
+import com.memme.service.sales.upload.SalesStoreDataCache;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.HashMap;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,9 +31,18 @@ public class SalesAnalysisMonthOptionService {
     private final SalesUploadRepository uploadRepository;
     private final SalesOrderRepository orderRepository;
     private final StoreOwnershipRepository ownershipRepository;
+    private final SalesStoreDataCache storeDataCache;
 
     public SalesAnalysisMonthOptionService(SalesUploadRepository uploadRepository,
             SalesOrderRepository orderRepository, StoreOwnershipRepository ownershipRepository) {
+        this(uploadRepository, orderRepository, ownershipRepository, null);
+    }
+
+    @Autowired
+    public SalesAnalysisMonthOptionService(SalesUploadRepository uploadRepository,
+            SalesOrderRepository orderRepository, StoreOwnershipRepository ownershipRepository,
+            SalesStoreDataCache storeDataCache) {
+        this.storeDataCache = storeDataCache;
         this.uploadRepository = uploadRepository;
         this.orderRepository = orderRepository;
         this.ownershipRepository = ownershipRepository;
@@ -42,7 +53,10 @@ public class SalesAnalysisMonthOptionService {
             throw new SalesAnalysisRequestException(STORE_OWNER_REQUIRED);
         }
         Map<Long, Set<YearMonth>> orderMonths = new HashMap<>();
-        for (Object[] row : orderRepository.findDistinctUploadMonths(storeId)) {
+        List<Object[]> uploadMonths = storeDataCache == null
+                ? orderRepository.findDistinctUploadMonths(storeId)
+                : storeDataCache.uploadMonths(storeId, () -> orderRepository.findDistinctUploadMonths(storeId));
+        for (Object[] row : uploadMonths) {
             Long uploadId = ((Number) row[0]).longValue();
             int year = ((Number) row[1]).intValue();
             int month = ((Number) row[2]).intValue();
