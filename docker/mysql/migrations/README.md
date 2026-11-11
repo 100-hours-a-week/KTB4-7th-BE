@@ -1,5 +1,13 @@
 # 기존 DB 마이그레이션 안내
 
+## 매장별 최신 주문 ID 인덱스
+
+기존 QA·운영 DB에는 `20261111-add-sales-orders-store-id-index.sql`을 Primary에서 한 번 적용합니다.
+적용 전 `idx_sales_orders_store_id_id` 부재를 확인합니다. 신규 DB는 `init/02-sales-core.sql`에 같은 인덱스가 있습니다.
+행을 수정하지 않는 보조 인덱스이며 `ALGORITHM=INPLACE, LOCK=NONE`으로 서비스 중 적용할 수 있습니다.
+적용 후 `EXPLAIN SELECT MAX(id) FROM sales_orders WHERE store_id = ?`가 `Select tables optimized away`인지,
+Replica에도 같은 인덱스가 생겼는지 확인합니다. 되돌릴 때는 `ALTER TABLE sales_orders DROP INDEX idx_sales_orders_store_id_id`를 실행합니다.
+
 ## 메뉴판·매출 카테고리 6종 통일 (#598, #600)
 
 운영의 구 12종 native ENUM에는 `BEVERAGE`·`OTHER`가 없어 분류 SQL만 적용하면 1265 오류가 발생합니다 (#630).
