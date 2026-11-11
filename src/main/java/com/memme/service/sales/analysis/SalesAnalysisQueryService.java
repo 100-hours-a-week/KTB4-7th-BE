@@ -11,6 +11,12 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.memme.dto.sales.SalesAvailableMonthsResponse;
 import com.memme.dto.sales.SalesPeriod;
@@ -26,6 +32,11 @@ import static com.memme.exception.sales.SalesAnalysisRequestException.Reason.STO
 @Service
 @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 public class SalesAnalysisQueryService {
+    static final long CACHE_TTL_MIN_SECONDS = 240;
+    static final long CACHE_TTL_MAX_SECONDS = 360;
+    static final long IN_FLIGHT_WAIT_MILLIS = 5_000;
+    private final ConcurrentHashMap<String, CompletableFuture<SalesAnalysisResult>> inFlight =
+            new ConcurrentHashMap<>();
     private final SalesAnalysisService analysisService;
     private final SalesDailySummaryRepository dailySummaryRepository;
     private final StoreOwnershipRepository ownershipRepository;
@@ -74,13 +85,58 @@ public class SalesAnalysisQueryService {
         String version = cacheVersion.read(storeId, period.startDate(), period.endDate());
         String key = "sales:analysis:v1:" + storeId + ":" + period.type() + ":"
                 + period.startDate() + ":" + period.endDate() + ":" + version;
+        var hit = readCached(key);
+        if (hit != null) return hit;
+        CompletableFuture<SalesAnalysisResult> mine = new CompletableFuture<>();
+        CompletableFuture<SalesAnalysisResult> running = inFlight.putIfAbsent(key, mine);
+        if (running != null) {
+            SalesAnalysisResult shared = awaitInFlight(running);
+            if (shared != null) return shared;
+            return analyzeAndCache(key, storeId, period);
+        }
+        try {
+            SalesAnalysisResult result = readCached(key);
+            if (result == null) result = analyzeAndCache(key, storeId, period);
+            mine.complete(result);
+            return result;
+        } catch (RuntimeException | Error exception) {
+            mine.completeExceptionally(exception);
+            throw exception;
+        } finally {
+            inFlight.remove(key, mine);
+        }
+    }
+
+    private SalesAnalysisResult.Completed readCached(String key) {
         var hit = cache.get(key, SalesAnalysisResult.Completed.class);
         if (hit.isPresent() && hit.get().analysis() != null && hit.get().categories() != null) return hit.get();
+        return null;
+    }
+
+    private SalesAnalysisResult analyzeAndCache(String key, Long storeId, SalesPeriod period) {
         SalesAnalysisResult result = analysisService.analyze(storeId, period.type(), period.startDate(), period.endDate());
         if (result instanceof SalesAnalysisResult.Completed completed) {
-            cache.put(key, completed, Duration.ofMinutes(5));
+            cache.put(key, completed, cacheTtl());
         }
         return result;
+    }
+
+    // 같은 키를 이미 계산 중인 요청이 있으면 그 결과를 함께 쓴다. 실패하거나 오래 걸리면 직접 계산한다.
+    private SalesAnalysisResult awaitInFlight(CompletableFuture<SalesAnalysisResult> running) {
+        try {
+            return running.get(IN_FLIGHT_WAIT_MILLIS, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return null;
+        } catch (ExecutionException | TimeoutException exception) {
+            return null;
+        }
+    }
+
+    // 키들이 같은 순간에 만료되지 않도록 만료 시간을 4~6분 사이로 흩는다.
+    static Duration cacheTtl() {
+        return Duration.ofSeconds(ThreadLocalRandom.current()
+                .nextLong(CACHE_TTL_MIN_SECONDS, CACHE_TTL_MAX_SECONDS + 1));
     }
 
     public SalesPeriod resolvePeriod(String type, String startDate, String endDate) {
