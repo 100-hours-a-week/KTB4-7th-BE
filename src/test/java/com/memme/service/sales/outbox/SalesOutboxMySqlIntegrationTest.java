@@ -82,6 +82,48 @@ class SalesOutboxMySqlIntegrationTest {
     }
     @BeforeEach void cleanQueue() { jobs.deleteAllInBatch(); }
 
+    @Test void heartbeatSkipsActiveWriteWithoutBlockingOrLosingOwnership() throws Exception {
+        var fixture = fixture();
+        var claim = coordinator.claimNext("writer").orElseThrow();
+        var locked = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var pool = Executors.newFixedThreadPool(2);
+        var writing = pool.submit(() -> coordinator.write(claim, job -> {
+            locked.countDown();
+            try {
+                if (!release.await(15, TimeUnit.SECONDS)) throw new IllegalStateException("write release timeout");
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(interrupted);
+            }
+            return null;
+        }));
+        try {
+            assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
+            var beating = pool.submit(() -> coordinator.heartbeat(claim));
+            beating.get(2, TimeUnit.SECONDS);
+            assertThat(coordinator.claimNext("competitor")).isEmpty();
+        } finally {
+            release.countDown();
+            try { writing.get(10, TimeUnit.SECONDS); }
+            finally { pool.shutdownNow(); }
+        }
+        coordinator.heartbeat(claim);
+        assertThat(processor.process(claim, () -> true)).isEqualTo("DONE");
+        assertThat(job(fixture).getAttemptCount()).isEqualTo(1);
+    }
+
+    @Test void heartbeatRejectsExpiredAndReplacedClaims() throws Exception {
+        fixture();
+        var old = coordinator.claimNext("old").orElseThrow();
+        expire(old);
+        assertThatThrownBy(() -> coordinator.heartbeat(old)).isInstanceOf(SalesOutboxOwnershipLostException.class);
+        var replacement = coordinator.claimNext("replacement").orElseThrow();
+        assertThatThrownBy(() -> coordinator.heartbeat(old)).isInstanceOf(SalesOutboxOwnershipLostException.class);
+        coordinator.heartbeat(replacement);
+        assertThat(processor.process(replacement, () -> true)).isEqualTo("DONE");
+    }
+
     @Test void receiptAndOutboxAreAtomicAndBoundToOriginalRun() throws Exception {
         var fixture = fixture();
         var job = job(fixture);

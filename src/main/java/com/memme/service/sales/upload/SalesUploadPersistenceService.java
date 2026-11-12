@@ -40,6 +40,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class SalesUploadPersistenceService {
 
     static final int MAX_LOCK_RETRIES = 2;
+    static final int WRITE_BUFFER_SIZE = 500;
     private static final Logger log = LoggerFactory.getLogger(SalesUploadPersistenceService.class);
 
     private final SalesUploadRepository uploadRepository;
@@ -106,29 +107,40 @@ public class SalesUploadPersistenceService {
 
         deleteExistingCoverage(storeId, workbookData.periodStart(), workbookData.periodEnd());
 
-        List<SalesOrderEntity> orders = new ArrayList<>(workbookData.orders().size());
-        for (SalesOrder order : workbookData.orders()) {
-            orders.add(toEntity(uploadId, storeId, order));
+        List<SalesOrder> orders = workbookData.orders();
+        for (int start = 0; start < orders.size(); start += WRITE_BUFFER_SIZE) {
+            int end = Math.min(start + WRITE_BUFFER_SIZE, orders.size());
+            bulkInsertRepository.insertOrders(orders.subList(start, end).stream()
+                    .map(order -> toEntity(uploadId, storeId, order)).toList());
         }
-        bulkInsertRepository.insertOrders(orders);
         Map<OrderNaturalKey, Long> orderIds = bulkInsertRepository.findOrderIdsBySalesUploadId(uploadId);
+        if (orderIds.size() != orders.size()) {
+            throw new IllegalStateException("저장된 주문 건수가 일치하지 않습니다.");
+        }
 
-        List<SalesOrderItemEntity> items = new ArrayList<>(workbookData.items().size());
-        List<SalesOrderEntity> itemOrders = new ArrayList<>(workbookData.items().size());
-        for (int index = 0; index < orders.size(); index++) {
-            SalesOrderEntity order = orders.get(index);
-            Long orderId = orderIds.get(naturalKey(order));
+        int appliedRecordCount = 0;
+        List<SalesOrderItemEntity> pendingItems = new ArrayList<>(WRITE_BUFFER_SIZE);
+        for (SalesOrder order : orders) {
+            OrderNaturalKey key = new OrderNaturalKey(storeId,
+                    SalesOrderChannel.valueOf(order.key().channel().name()),
+                    order.key().posOrderNo(), order.key().orderedAt());
+            Long orderId = orderIds.get(key);
             if (orderId == null) {
-                throw new IllegalStateException("저장한 매출 주문의 ID를 찾을 수 없습니다: " + order.getPosOrderNo());
+                throw new IllegalStateException("저장한 매출 주문의 ID를 찾을 수 없습니다: " + order.key().posOrderNo());
             }
-            for (SalesOrderItem item : workbookData.orders().get(index).items()) {
-                items.add(toEntity(orderId, item));
-                itemOrders.add(order);
+            for (SalesOrderItem item : order.items()) {
+                pendingItems.add(toEntity(orderId, item));
+                if (pendingItems.size() == WRITE_BUFFER_SIZE) {
+                    appliedRecordCount = Math.addExact(appliedRecordCount, bulkInsertRepository.insertItems(pendingItems));
+                    pendingItems.clear();
+                }
             }
         }
-        int appliedRecordCount = bulkInsertRepository.insertItems(items);
+        if (!pendingItems.isEmpty()) {
+            appliedRecordCount = Math.addExact(appliedRecordCount, bulkInsertRepository.insertItems(pendingItems));
+        }
 
-        rebuildDailySummaries(storeId, workbookData, orders, items, itemOrders);
+        rebuildDailySummaries(storeId, workbookData);
 
         return new SalesUploadResult(
                 upload.getId(),
@@ -137,10 +149,6 @@ public class SalesUploadPersistenceService {
                 workbookData.items().size(),
                 appliedRecordCount
         );
-    }
-
-    private static OrderNaturalKey naturalKey(SalesOrderEntity order) {
-        return new OrderNaturalKey(order.getStoreId(), order.getChannel(), order.getPosOrderNo(), order.getOrderedAt());
     }
 
     private void deleteExistingCoverage(
@@ -204,31 +212,23 @@ public class SalesUploadPersistenceService {
         ));
     }
 
-    /**
-     * 방금 저장한 주문·항목으로 일별 집계를 만든다. 기간 안의 기존 주문은 모두 지운 뒤라
-     * DB를 다시 읽은 결과와 같다. 파서가 주문일을 파일 기간 안으로 보장한다.
-     */
-    private void rebuildDailySummaries(
-            Long storeId,
-            TossPosWorkbookData workbookData,
-            List<SalesOrderEntity> orders,
-            List<SalesOrderItemEntity> items,
-            List<SalesOrderEntity> itemOrders
-    ) {
+    private void rebuildDailySummaries(Long storeId, TossPosWorkbookData workbookData) {
         LocalDate periodStart = workbookData.periodStart();
         LocalDate periodEnd = workbookData.periodEnd();
-
         Map<LocalDate, MutableDailySummary> summaries = new TreeMap<>();
         for (LocalDate date = periodStart; !date.isAfter(periodEnd); date = date.plusDays(1)) {
             summaries.put(date, new MutableDailySummary());
         }
-        for (int index = 0; index < items.size(); index++) {
-            SalesOrderItemEntity item = items.get(index);
-            MutableDailySummary summary = summaryOf(summaries, itemOrders.get(index));
-            summary.totalNetAmount = Math.addExact(summary.totalNetAmount, item.getNetAmount());
-            if (item.getItemType() == SalesOrderItemType.MENU) {
-                summary.menuNetAmount = Math.addExact(summary.menuNetAmount, item.getNetAmount());
-                summary.menuQuantity = Math.addExact(summary.menuQuantity, item.getQuantity());
+        for (SalesOrder order : workbookData.orders()) {
+            MutableDailySummary summary = summaryOf(summaries, order);
+            summary.salesActivityCount = Math.incrementExact(summary.salesActivityCount);
+            if (order.valid()) summary.orderCount = Math.incrementExact(summary.orderCount);
+            for (SalesOrderItem item : order.items()) {
+                summary.totalNetAmount = Math.addExact(summary.totalNetAmount, item.netAmount());
+                if (item.itemType() == com.memme.service.sales.SalesItemType.MENU) {
+                    summary.menuNetAmount = Math.addExact(summary.menuNetAmount, item.netAmount());
+                    summary.menuQuantity = Math.addExact(summary.menuQuantity, item.quantity());
+                }
             }
         }
 
@@ -242,14 +242,6 @@ public class SalesUploadPersistenceService {
 
         Map<LocalDate, Boolean> hasOrderRowsByDate = new HashMap<>();
         workbookData.items().forEach(item -> hasOrderRowsByDate.put(item.orderDate(), true));
-        for (SalesOrderEntity order : orders) {
-            MutableDailySummary summary = summaryOf(summaries, order);
-            summary.salesActivityCount = Math.incrementExact(summary.salesActivityCount);
-            if (order.isValid()) {
-                summary.orderCount = Math.incrementExact(summary.orderCount);
-            }
-        }
-
         Map<LocalDate, SalesDailySummaryEntity> existingByDate = new HashMap<>();
         dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
                 storeId,
@@ -298,10 +290,10 @@ public class SalesUploadPersistenceService {
         dailySummaryRepository.saveAll(changedSummaries);
     }
 
-    private static MutableDailySummary summaryOf(Map<LocalDate, MutableDailySummary> summaries, SalesOrderEntity order) {
-        MutableDailySummary summary = summaries.get(order.getOrderedAt().toLocalDate());
+    private static MutableDailySummary summaryOf(Map<LocalDate, MutableDailySummary> summaries, SalesOrder order) {
+        MutableDailySummary summary = summaries.get(order.key().orderedAt().toLocalDate());
         if (summary == null) {
-            throw new IllegalStateException("주문일이 파일 기간을 벗어났습니다: " + order.getPosOrderNo());
+            throw new IllegalStateException("주문일이 파일 기간을 벗어났습니다: " + order.key().posOrderNo());
         }
         return summary;
     }

@@ -66,7 +66,20 @@ public class SalesUploadOutboxCoordinator {
         });
     }
 
-    public void heartbeat(SalesUploadOutboxClaim claim) { write(claim, job -> null); }
+    public void heartbeat(SalesUploadOutboxClaim claim) {
+        transactions.executeWithoutResult(tx -> {
+            // A writer holding this store lock also excludes every competing claim.
+            // It renews the lease before commit; waiting here would only block that writer's heartbeat.
+            if (jobs.tryLockStore(claim.storeId()).isEmpty()) return;
+            var job = jobs.lockJob(claim.id()).orElseThrow(SalesOutboxOwnershipLostException::new);
+            var now = clock.now();
+            if (!job.owns(claim, now) || !job.getId().equals(jobs.firstActiveId(job.getStoreId()))) {
+                throw new SalesOutboxOwnershipLostException();
+            }
+            job.heartbeat(now);
+            jobs.flush();
+        });
+    }
     public long leaseRecoveries() { return leaseRecoveries.sum(); }
     private record Selection(SalesUploadOutboxClaim claim, boolean recovered) {}
     public void rejected(SalesUploadOutboxClaim claim) { write(claim, job -> { job.rejected(clock.now()); return null; }); }

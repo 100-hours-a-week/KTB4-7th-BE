@@ -250,6 +250,87 @@ class SalesUploadPersistenceServiceTest {
         return values;
     }
 
+    @Test
+    void batchesAcrossBoundariesKeepEveryDetailOnItsNaturalKeyOrder() {
+        long storeId = 812L;
+        var data = bulkData(501, false);
+        Long uploadId = createValidatingUpload(storeId, "bulk");
+        AtomicInteger maxOrders = new AtomicInteger();
+        AtomicInteger maxItems = new AtomicInteger();
+        var bounded = new SalesOrderBulkInsertRepository(jdbcTemplate) {
+            @Override
+            public int insertOrders(List<SalesOrderEntity> batch) {
+                maxOrders.accumulateAndGet(batch.size(), Math::max);
+                return super.insertOrders(batch);
+            }
+            @Override
+            public int insertItems(List<com.memme.entity.sales.SalesOrderItemEntity> batch) {
+                maxItems.accumulateAndGet(batch.size(), Math::max);
+                return super.insertItems(batch);
+            }
+        };
+        var result = serviceWith(bounded, new AtomicInteger()).replaceCoverage(uploadId, storeId, data);
+        assertThat(maxOrders).hasValue(SalesUploadPersistenceService.WRITE_BUFFER_SIZE);
+        assertThat(maxItems).hasValue(SalesUploadPersistenceService.WRITE_BUFFER_SIZE);
+        assertThat(result.appliedRecordCount()).isEqualTo(1002);
+        var orders = orderRepository.findAllBySalesUploadIdOrderByOrderedAtAsc(uploadId);
+        assertThat(orders).hasSize(501);
+        for (int i = 0; i < orders.size(); i++) {
+            var order = orders.get(i);
+            LocalDateTime storedAt = jdbcTemplate.queryForObject("SELECT ordered_at FROM sales_orders WHERE id=?",
+                    (rs, row) -> rs.getObject(1, LocalDateTime.class), order.getId());
+            int inputIndex = (int) java.time.Duration.between(data.periodStart().atStartOfDay(), storedAt).getSeconds() * 2
+                    + (order.getChannel() == com.memme.entity.sales.SalesOrderChannel.POS ? 0 : 1);
+            assertThat(order.getPosOrderNo()).isEqualTo("shared-order-number");
+            assertThat(itemRepository.findAllBySalesOrderIdOrderByIdAsc(order.getId()))
+                    .extracting(com.memme.entity.sales.SalesOrderItemEntity::getMenuName)
+                    .containsExactly("menu-" + inputIndex, "extra-" + inputIndex);
+        }
+        var summary = dailySummaryRepository.findByStoreIdAndSalesDate(storeId, data.periodStart()).orElseThrow();
+        assertThat(summary.getTotalNetAmount()).isEqualTo(1_002_000);
+        assertThat(summary.getMenuNetAmount()).isEqualTo(1_002_000);
+        assertThat(summary.getMenuQuantity()).isEqualTo(1002);
+        assertThat(summary.getOrderCount()).isEqualTo(501);
+        assertThat(summary.getSalesActivityCount()).isEqualTo(501);
+    }
+
+    @Test
+    void failureAfterAnItemBatchRestoresPreviousCoverageAndSummary() {
+        long storeId = 813L;
+        var original = workbookData();
+        Long originalUpload = createValidatingUpload(storeId, "original");
+        persistenceService.replaceCoverage(originalUpload, storeId, original);
+        var before = orderRepository.findAllBySalesUploadIdOrderByOrderedAtAsc(originalUpload)
+                .stream().map(com.memme.entity.sales.SalesOrderEntity::getId).toList();
+        Long failingUpload = createValidatingUpload(storeId, "invalid");
+        assertThatThrownBy(() -> persistenceService.replaceCoverage(failingUpload, storeId, bulkData(501, true)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("linePrice");
+        assertThat(orderRepository.findAllBySalesUploadIdOrderByOrderedAtAsc(failingUpload)).isEmpty();
+        assertThat(orderRepository.findAllBySalesUploadIdOrderByOrderedAtAsc(originalUpload))
+                .extracting(com.memme.entity.sales.SalesOrderEntity::getId).containsExactlyElementsOf(before);
+        assertThat(itemRepository.countCurrentItemsByStoreId(storeId)).isEqualTo(3);
+        assertThat(dailySummaryRepository.findByStoreIdAndSalesDate(storeId, original.periodStart())
+                .orElseThrow().getTotalNetAmount()).isEqualTo(1000);
+    }
+
+    private TossPosWorkbookData bulkData(int count, boolean invalidLast) {
+        var date = LocalDate.of(2026, 9, 1);
+        List<SalesOrder> orders = new ArrayList<>();
+        List<SalesOrderItem> items = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            var time = date.atStartOfDay().plusSeconds(i / 2);
+            var channel = i % 2 == 0 ? SalesChannel.POS : SalesChannel.KIOSK;
+            var first = item(date, SalesOrderStatus.COMPLETED, channel, "shared-order-number", time,
+                    "menu-" + i, 1, 1000, 1000, 1000);
+            var extra = item(date, SalesOrderStatus.COMPLETED, channel, "shared-order-number", time,
+                    "extra-" + i, 1, invalidLast && i == count - 1 ? 999 : 1000, 1000, 1000);
+            orders.add(new SalesOrder(first.orderKey(), true, List.of(first, extra)));
+            items.add(first);
+            items.add(extra);
+        }
+        return new TossPosWorkbookData(date, date, orders, items, List.of());
+    }
+
     private Long createValidatingUpload(long storeId, String suffix) {
         SalesUploadEntity upload = SalesUploadEntity.pending(
                 storeId,
