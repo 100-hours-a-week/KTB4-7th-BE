@@ -43,6 +43,14 @@ public interface SalesUploadRepository extends JpaRepository<SalesUploadEntity, 
 
     Optional<SalesUploadEntity> findFirstByStoreIdOrderByUploadedAtDesc(Long storeId);
 
+    @Query(value = """
+            select id, status, processing_phase, processed_at
+            from sales_uploads
+            where store_id = :storeId
+            order by id
+            """, nativeQuery = true)
+    List<Object[]> findVersionRowsByStoreId(@Param("storeId") Long storeId);
+
     Optional<SalesUploadEntity> findFirstByStoreIdAndStatusOrderByUploadedAtDesc(
             Long storeId,
             SalesUploadStatus status

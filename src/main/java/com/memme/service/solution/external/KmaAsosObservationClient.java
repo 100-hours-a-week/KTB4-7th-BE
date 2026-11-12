@@ -8,6 +8,8 @@ import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpTimeoutException;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -17,6 +19,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
@@ -24,12 +28,14 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 @Service
 public class KmaAsosObservationClient {
 
+    private static final Logger log = LoggerFactory.getLogger(KmaAsosObservationClient.class);
     private static final String BASE_URL = "https://apis.data.go.kr";
     private static final String PATH = "/1360000/AsosDalyInfoService/getWthrDataList";
     private static final String HOURLY_PATH = "/1360000/AsosHourlyInfoService/getWthrDataList";
@@ -117,8 +123,9 @@ public class KmaAsosObservationClient {
     }
 
     private JsonNode fetchPage(String stationCode, LocalDate from, LocalDate to, int page) {
+        String requestType = "DAILY_RAIN";
         if (serviceKey.isBlank()) {
-            throw new ExternalDataLookupException("ASOS_KEY_MISSING");
+            throw failure(requestType, stationCode, from, to, page, "ASOS_KEY_MISSING", null, null, false);
         }
         URI uri;
         try {
@@ -128,34 +135,46 @@ public class KmaAsosObservationClient {
                     + "&startDt=" + from.format(DATE) + "&endDt=" + to.format(DATE)
                     + "&stnIds=" + stationCode);
         } catch (IllegalArgumentException exception) {
-            throw new ExternalDataLookupException("ASOS_KEY_INVALID");
+            throw failure(requestType, stationCode, from, to, page, "ASOS_KEY_INVALID", null, null, false);
         }
         String raw;
+        int httpStatus;
         try {
-            raw = restClient.get().uri(uri).retrieve().body(String.class);
+            var response = restClient.get().uri(uri).retrieve().toEntity(String.class);
+            raw = response.getBody();
+            httpStatus = response.getStatusCode().value();
+        } catch (RestClientResponseException exception) {
+            throw failure(requestType, stationCode, from, to, page, "ASOS_LOOKUP_FAILED",
+                    exception.getStatusCode().value(), null, false);
         } catch (RestClientException exception) {
-            throw new ExternalDataLookupException("ASOS_LOOKUP_FAILED");
+            throw failure(requestType, stationCode, from, to, page, "ASOS_LOOKUP_FAILED",
+                    null, null, isTimeout(exception));
         }
         try {
             JsonNode response = JSON.readTree(raw).path("response");
-            if (!"00".equals(response.path("header").path("resultCode").asString())) {
-                throw new ExternalDataLookupException("ASOS_PROVIDER_ERROR");
+            String providerCode = response.path("header").path("resultCode").asString();
+            if (!"00".equals(providerCode)) {
+                throw failure(requestType, stationCode, from, to, page, "ASOS_PROVIDER_ERROR",
+                        httpStatus, providerCode, false);
             }
             JsonNode body = response.path("body");
             if (!body.isObject()) {
-                throw new ExternalDataLookupException("ASOS_INVALID_RESPONSE");
+                throw failure(requestType, stationCode, from, to, page, "ASOS_INVALID_RESPONSE",
+                        httpStatus, null, false);
             }
             return body;
         } catch (ExternalDataLookupException exception) {
             throw exception;
         } catch (Exception exception) {
-            throw new ExternalDataLookupException("ASOS_INVALID_RESPONSE");
+            throw failure(requestType, stationCode, from, to, page, "ASOS_INVALID_RESPONSE",
+                    httpStatus, null, false);
         }
     }
 
     private JsonNode fetchNoonPage(String stationCode, LocalDate from, LocalDate to, int page) {
+        String requestType = "NOON_WEATHER";
         if (serviceKey.isBlank()) {
-            throw new ExternalDataLookupException("ASOS_KEY_MISSING");
+            throw failure(requestType, stationCode, from, to, page, "ASOS_KEY_MISSING", null, null, false);
         }
         URI uri;
         try {
@@ -166,29 +185,64 @@ public class KmaAsosObservationClient {
                     + "&endDt=" + to.format(DATE) + "&endHh=12"
                     + "&stnIds=" + stationCode);
         } catch (IllegalArgumentException exception) {
-            throw new ExternalDataLookupException("ASOS_KEY_INVALID");
+            throw failure(requestType, stationCode, from, to, page, "ASOS_KEY_INVALID", null, null, false);
         }
         String raw;
+        int httpStatus;
         try {
-            raw = restClient.get().uri(uri).retrieve().body(String.class);
+            var response = restClient.get().uri(uri).retrieve().toEntity(String.class);
+            raw = response.getBody();
+            httpStatus = response.getStatusCode().value();
+        } catch (RestClientResponseException exception) {
+            throw failure(requestType, stationCode, from, to, page, "ASOS_LOOKUP_FAILED",
+                    exception.getStatusCode().value(), null, false);
         } catch (RestClientException exception) {
-            throw new ExternalDataLookupException("ASOS_LOOKUP_FAILED");
+            throw failure(requestType, stationCode, from, to, page, "ASOS_LOOKUP_FAILED",
+                    null, null, isTimeout(exception));
         }
         try {
             JsonNode response = JSON.readTree(raw).path("response");
-            if (!"00".equals(response.path("header").path("resultCode").asString())) {
-                throw new ExternalDataLookupException("ASOS_PROVIDER_ERROR");
+            String providerCode = response.path("header").path("resultCode").asString();
+            if (!"00".equals(providerCode)) {
+                throw failure(requestType, stationCode, from, to, page, "ASOS_PROVIDER_ERROR",
+                        httpStatus, providerCode, false);
             }
             JsonNode body = response.path("body");
             if (!body.isObject()) {
-                throw new ExternalDataLookupException("ASOS_INVALID_RESPONSE");
+                throw failure(requestType, stationCode, from, to, page, "ASOS_INVALID_RESPONSE",
+                        httpStatus, null, false);
             }
             return body;
         } catch (ExternalDataLookupException exception) {
             throw exception;
         } catch (Exception exception) {
-            throw new ExternalDataLookupException("ASOS_INVALID_RESPONSE");
+            throw failure(requestType, stationCode, from, to, page, "ASOS_INVALID_RESPONSE",
+                    httpStatus, null, false);
         }
+    }
+
+    // Only controlled codes and request coordinates are logged. Exceptions and URLs may contain keys.
+    private static ExternalDataLookupException failure(
+            String requestType, String stationCode, LocalDate from, LocalDate to, int page,
+            String code, Integer httpStatus, String providerCode, boolean timeout
+    ) {
+        String safeProviderCode = providerCode == null ? "UNAVAILABLE"
+                : providerCode.matches("[0-9]{2}") ? providerCode : "UNRECOGNIZED";
+        log.warn("ASOS request failed: type={}, station={}, from={}, to={}, page={}, code={}, "
+                        + "httpStatus={}, providerCode={}, timeout={}",
+                requestType, stationCode, from, to, page, code,
+                httpStatus == null ? "UNAVAILABLE" : httpStatus, safeProviderCode, timeout);
+        return new ExternalDataLookupException(code);
+    }
+
+    private static boolean isTimeout(Throwable exception) {
+        Throwable cause = exception;
+        for (int depth = 0; cause != null && depth < 16; depth++, cause = cause.getCause()) {
+            if (cause instanceof HttpTimeoutException || cause instanceof SocketTimeoutException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void addRain(Map<LocalDate, BigDecimal> rain, JsonNode item, String stationCode,

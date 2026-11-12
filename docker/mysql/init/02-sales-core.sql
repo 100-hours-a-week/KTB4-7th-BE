@@ -36,6 +36,7 @@ CREATE TABLE sales_orders (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uk_sales_orders_natural_key (store_id, channel, pos_order_no, ordered_at),
+  KEY idx_sales_orders_store_id_id (store_id, id),
   CONSTRAINT fk_sales_orders_upload FOREIGN KEY (sales_upload_id) REFERENCES sales_uploads(id),
   CONSTRAINT fk_sales_orders_store FOREIGN KEY (store_id) REFERENCES stores(id)
 ) ENGINE=InnoDB;

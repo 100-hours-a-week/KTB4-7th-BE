@@ -1,6 +1,7 @@
 package com.memme.service.solution;
 
 import com.memme.entity.sales.SalesUploadStatus;
+import com.memme.exception.solution.ExternalDataLookupException;
 import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.entity.solution.WeatherObservationEntity;
 import com.memme.entity.solution.WeatherStationEntity;
@@ -141,8 +142,10 @@ public class AsosObservationImportService {
             try {
                 inserted += importMissingNoonConditions(target.station(), target.startDate(), end);
             } catch (RuntimeException exception) {
-                log.warn("ASOS noon weather import failed for station {}: {}",
-                        target.station().getStationCode(), exception.getClass().getSimpleName());
+                log.warn("ASOS noon weather import failed for station {}: code={}, exceptionType={}",
+                        target.station().getStationCode(),
+                        exception instanceof ExternalDataLookupException lookup ? lookup.code() : "UNEXPECTED",
+                        exception.getClass().getSimpleName());
             }
         }
         return inserted;

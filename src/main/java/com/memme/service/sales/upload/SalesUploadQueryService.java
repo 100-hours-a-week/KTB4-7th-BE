@@ -24,6 +24,7 @@ import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesOrderItemRepository;
 import com.memme.repository.sales.SalesUploadRepository;
 import com.memme.repository.store.StoreOwnershipRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -46,6 +47,7 @@ public class SalesUploadQueryService {
     private final SalesAiInsightRepository insightRepository;
     private final StoreOwnershipRepository storeOwnershipRepository;
     private final SalesAnalysisRepository salesAnalysisRepository;
+    private final SalesStoreDataCache storeDataCache;
 
     public SalesUploadQueryService(
             SalesUploadRepository uploadRepository,
@@ -55,6 +57,21 @@ public class SalesUploadQueryService {
             StoreOwnershipRepository storeOwnershipRepository,
             SalesAnalysisRepository salesAnalysisRepository
     ) {
+        this(uploadRepository, salesOrderItemRepository, analysisRunRepository, insightRepository,
+                storeOwnershipRepository, salesAnalysisRepository, null);
+    }
+
+    @Autowired
+    public SalesUploadQueryService(
+            SalesUploadRepository uploadRepository,
+            SalesOrderItemRepository salesOrderItemRepository,
+            AnalysisRunRepository analysisRunRepository,
+            SalesAiInsightRepository insightRepository,
+            StoreOwnershipRepository storeOwnershipRepository,
+            SalesAnalysisRepository salesAnalysisRepository,
+            SalesStoreDataCache storeDataCache
+    ) {
+        this.storeDataCache = storeDataCache;
         this.uploadRepository = uploadRepository;
         this.salesOrderItemRepository = salesOrderItemRepository;
         this.analysisRunRepository = analysisRunRepository;
@@ -160,7 +177,10 @@ public class SalesUploadQueryService {
     private SalesUploadHistoryResponse.Connection connection(Long storeId) {
         SalesUploadEntity latest = uploadRepository.findFirstByStoreIdOrderByUploadedAtDesc(storeId)
                 .orElse(null);
-        long totalApplied = salesOrderItemRepository.countCurrentItemsByStoreId(storeId);
+        long totalApplied = storeDataCache == null
+                ? salesOrderItemRepository.countCurrentItemsByStoreId(storeId)
+                : storeDataCache.appliedItemCount(storeId,
+                        () -> salesOrderItemRepository.countCurrentItemsByStoreId(storeId));
         return new SalesUploadHistoryResponse.Connection(
                 latest == null ? null : toOffsetDateTime(latest),
                 totalApplied,

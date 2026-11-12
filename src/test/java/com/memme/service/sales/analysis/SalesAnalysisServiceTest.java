@@ -1,5 +1,6 @@
 package com.memme.service.sales.analysis;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -10,19 +11,18 @@ import com.memme.entity.sales.SalesAiInsightEntity;
 import com.memme.entity.sales.SalesAiInsightStatus;
 import com.memme.entity.sales.SalesDailySummaryEntity;
 import com.memme.entity.sales.SalesForecastEntity;
-import com.memme.entity.sales.SalesOrderEntity;
-import com.memme.entity.sales.SalesOrderItemEntity;
-import com.memme.entity.sales.SalesOrderItemType;
 import com.memme.entity.store.MenuCategory;
 import com.memme.repository.sales.SalesAiInsightRepository;
 import com.memme.repository.sales.SalesDailySummaryRepository;
 import com.memme.repository.sales.SalesForecastRepository;
 import com.memme.repository.sales.SalesOrderItemRepository;
-import com.memme.repository.sales.SalesOrderRepository;
+import com.memme.repository.sales.SalesOrderItemRepository.HourlySalesAggregate;
+import com.memme.repository.sales.SalesOrderItemRepository.MenuSalesAggregate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -31,7 +31,6 @@ import static org.mockito.Mockito.when;
 class SalesAnalysisServiceTest {
 
     private SalesDailySummaryRepository dailySummaryRepository;
-    private SalesOrderRepository orderRepository;
     private SalesOrderItemRepository itemRepository;
     private SalesAiInsightRepository insightRepository;
     private SalesForecastRepository forecastRepository;
@@ -40,13 +39,11 @@ class SalesAnalysisServiceTest {
     @BeforeEach
     void setUp() {
         dailySummaryRepository = mock(SalesDailySummaryRepository.class);
-        orderRepository = mock(SalesOrderRepository.class);
         itemRepository = mock(SalesOrderItemRepository.class);
         insightRepository = mock(SalesAiInsightRepository.class);
         forecastRepository = mock(SalesForecastRepository.class);
         service = new SalesAnalysisService(
                 dailySummaryRepository,
-                orderRepository,
                 itemRepository,
                 insightRepository,
                 forecastRepository
@@ -71,30 +68,17 @@ class SalesAnalysisServiceTest {
                 storeId, comparisonStart, comparisonEnd
         )).thenReturn(List.of(comparisonDay));
 
-        SalesOrderEntity morning = order(11L, LocalDateTime.of(2026, 9, 1, 9, 0));
-        SalesOrderEntity afternoon = order(12L, LocalDateTime.of(2026, 9, 1, 13, 0));
-        SalesOrderEntity nextDay = order(13L, LocalDateTime.of(2026, 9, 2, 13, 0));
-        when(orderRepository
-                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
-                        storeId,
-                        start.atStartOfDay(),
-                        end.plusDays(1).atStartOfDay()
-                )).thenReturn(List.of(morning, afternoon, nextDay));
-        SalesOrderItemEntity americano = item(
-                101L, 11L, "americano", "아메리카노", 2, 1_000,
-                MenuCategory.COFFEE
-        );
-        SalesOrderItemEntity canceledAmericano = item(
-                102L, 12L, "americano", "아메리카노", -1, -200,
-                MenuCategory.COFFEE
-        );
-        SalesOrderItemEntity earlGrey = item(
-                103L, 13L, "earl-grey", "얼그레이", 1, 500,
-                MenuCategory.TEA
-        );
-        when(itemRepository.findAllBySalesOrderIdInOrderBySalesOrderIdAscIdAsc(
-                List.of(11L, 12L, 13L)
-        )).thenReturn(List.of(americano, canceledAmericano, earlGrey));
+        LocalDateTime startAt = start.atStartOfDay();
+        LocalDateTime endAt = end.plusDays(1).atStartOfDay();
+        when(itemRepository.aggregateMenuSales(storeId, startAt, endAt)).thenReturn(List.of(
+                menuRow("americano", MenuCategory.COFFEE, 800, 1, 11L, 101L, "아메리카노"),
+                menuRow("earl-grey", MenuCategory.TEA, 500, 1, 13L, 103L, "얼그레이")
+        ));
+        when(itemRepository.aggregateHourlySales(storeId, startAt, endAt)).thenReturn(List.of(
+                hourRow(start, 9, 1_000),
+                hourRow(start, 13, -200),
+                hourRow(end, 13, 500)
+        ));
 
         SalesAnalysisResult result = service.analyze(storeId, "THIS_MONTH", start, end);
 
@@ -144,10 +128,6 @@ class SalesAnalysisServiceTest {
         when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
                 storeId, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2)
         )).thenReturn(List.of());
-        when(orderRepository
-                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
-                        storeId, start.atStartOfDay(), end.plusDays(1).atStartOfDay()
-                )).thenReturn(List.of());
         when(forecastRepository.findAllByStoreIdAndTargetDateBetweenOrderByTargetDateAsc(
                 storeId, start, end
         )).thenReturn(List.of(
@@ -183,7 +163,7 @@ class SalesAnalysisServiceTest {
             assertThat(empty.analysis().kpis()).isNull();
             assertThat(empty.analysis().dailySales()).isEmpty();
         });
-        verifyNoInteractions(orderRepository, itemRepository);
+        verifyNoInteractions(itemRepository);
     }
 
     @Test
@@ -197,12 +177,6 @@ class SalesAnalysisServiceTest {
         when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
                 storeId, date.minusDays(1), date.minusDays(1)
         )).thenReturn(List.of());
-        when(orderRepository
-                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
-                        storeId,
-                        date.atStartOfDay(),
-                        date.plusDays(1).atStartOfDay()
-                )).thenReturn(List.of());
 
         service.analyze(storeId, "TODAY", date, date);
 
@@ -212,12 +186,10 @@ class SalesAnalysisServiceTest {
         verify(dailySummaryRepository).findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
                 storeId, date.minusDays(1), date.minusDays(1)
         );
-        verify(orderRepository)
-                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
-                        storeId,
-                        date.atStartOfDay(),
-                        date.plusDays(1).atStartOfDay()
-                );
+        verify(itemRepository).aggregateMenuSales(
+                storeId, date.atStartOfDay(), date.plusDays(1).atStartOfDay());
+        verify(itemRepository).aggregateHourlySales(
+                storeId, date.atStartOfDay(), date.plusDays(1).atStartOfDay());
     }
 
     @Test
@@ -235,10 +207,6 @@ class SalesAnalysisServiceTest {
         when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
                 storeId, comparisonStart, comparisonEnd
         )).thenReturn(List.of(comparisonSummary));
-        when(orderRepository
-                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
-                        storeId, start.atStartOfDay(), end.plusDays(1).atStartOfDay()
-                )).thenReturn(List.of());
 
         SalesAnalysisResult result = service.analyze(storeId, "CUSTOM", start, end);
 
@@ -268,10 +236,6 @@ class SalesAnalysisServiceTest {
         when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
                 storeId, comparisonStart, comparisonEnd
         )).thenReturn(List.of(comparisonSummary));
-        when(orderRepository
-                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
-                        storeId, start.atStartOfDay(), end.plusDays(1).atStartOfDay()
-                )).thenReturn(List.of());
 
         SalesAnalysisResult result = service.analyze(storeId, "CUSTOM", start, end);
 
@@ -294,12 +258,6 @@ class SalesAnalysisServiceTest {
         when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
                 storeId, date.minusDays(1), date.minusDays(1)
         )).thenReturn(List.of());
-        when(orderRepository
-                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
-                        storeId,
-                        date.atStartOfDay(),
-                        date.plusDays(1).atStartOfDay()
-                )).thenReturn(List.of());
 
         SalesAiInsightEntity insight = mock(SalesAiInsightEntity.class);
         when(insight.getStatus()).thenReturn(SalesAiInsightStatus.COMPLETED);
@@ -332,12 +290,6 @@ class SalesAnalysisServiceTest {
         when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
                 storeId, date.minusDays(1), date.minusDays(1)
         )).thenReturn(List.of());
-        when(orderRepository
-                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
-                        storeId,
-                        date.atStartOfDay(),
-                        date.plusDays(1).atStartOfDay()
-                )).thenReturn(List.of());
 
         SalesAiInsightEntity insight = mock(SalesAiInsightEntity.class);
         when(insight.getStatus()).thenReturn(SalesAiInsightStatus.FAILED);
@@ -367,12 +319,6 @@ class SalesAnalysisServiceTest {
         when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
                 storeId, date.minusDays(1), date.minusDays(1)
         )).thenReturn(List.of());
-        when(orderRepository
-                .findAllByStoreIdAndOrderedAtGreaterThanEqualAndOrderedAtLessThanOrderByOrderedAtAsc(
-                        storeId,
-                        date.atStartOfDay(),
-                        date.plusDays(1).atStartOfDay()
-                )).thenReturn(List.of());
 
         SalesAiInsightEntity insight = mock(SalesAiInsightEntity.class);
         when(insight.getStatus()).thenReturn(SalesAiInsightStatus.INSUFFICIENT_DATA);
@@ -391,6 +337,84 @@ class SalesAnalysisServiceTest {
         });
     }
 
+    @Test
+    void 같은_메뉴가_여러_분류로_나뉘어도_순위는_합산하고_이름은_가장_먼저_나온_상품으로_정한다() {
+        long storeId = 301L;
+        LocalDate date = LocalDate.of(2026, 9, 7);
+        stubSalesDay(storeId, date);
+        when(itemRepository.aggregateMenuSales(storeId, date.atStartOfDay(), date.plusDays(1).atStartOfDay()))
+                .thenReturn(List.of(
+                        menuRow("americano", MenuCategory.COFFEE, 300, 1, 20L, 205L, "아메리카노(R)"),
+                        menuRow("americano", MenuCategory.BEVERAGE, 400, 2, 12L, 130L, "아메리카노"),
+                        menuRow("latte", MenuCategory.COFFEE, 700, 1, 15L, 150L, "카페라떼")
+                ));
+
+        SalesAnalysisResult result = service.analyze(storeId, "TODAY", date, date);
+
+        assertThat(result).isInstanceOfSatisfying(SalesAnalysisResult.Completed.class, completed -> {
+            assertThat(completed.analysis().menuRankings())
+                    .extracting(ranking -> ranking.rank() + ":" + ranking.menuName() + ":"
+                            + ranking.salesAmount() + ":" + ranking.quantity())
+                    .containsExactly("1:아메리카노:700:3", "2:카페라떼:700:1");
+            assertThat(completed.categories().categories())
+                    .extracting(category -> category.categoryName() + ":" + category.netSales())
+                    .containsExactly("커피:1000", "음료:400");
+            assertThat(completed.categories().menuRankings())
+                    .extracting(ranking -> ranking.menuName())
+                    .containsExactly("아메리카노", "카페라떼");
+        });
+    }
+
+    @Test
+    void 요일별_매출은_날짜의_요일로_합산하고_월요일부터_7개를_돌려준다() {
+        long storeId = 301L;
+        LocalDate start = LocalDate.of(2026, 9, 7);
+        LocalDate end = LocalDate.of(2026, 9, 13);
+        stubSalesDay(storeId, start, end);
+        when(itemRepository.aggregateHourlySales(storeId, start.atStartOfDay(), end.plusDays(1).atStartOfDay()))
+                .thenReturn(List.of(
+                        hourRow(start, 9, 100),
+                        hourRow(start, 10, 20),
+                        hourRow(end, 10, 50)
+                ));
+
+        SalesAnalysisResult result = service.analyze(storeId, "CUSTOM", start, end);
+
+        assertThat(result).isInstanceOfSatisfying(SalesAnalysisResult.Completed.class, completed -> {
+            assertThat(completed.analysis().weekdaySales())
+                    .extracting(weekday -> weekday.dayOfWeek() + ":" + weekday.salesAmount())
+                    .containsExactly("MONDAY:120", "TUESDAY:0", "WEDNESDAY:0", "THURSDAY:0",
+                            "FRIDAY:0", "SATURDAY:0", "SUNDAY:50");
+            assertThat(completed.analysis().hourlySales())
+                    .extracting(hourly -> hourly.hour() + ":" + hourly.salesAmount())
+                    .containsExactly("9:100", "10:70");
+        });
+    }
+
+    @Test
+    void 집계_금액이_long_범위를_넘으면_예외가_난다() {
+        long storeId = 301L;
+        LocalDate date = LocalDate.of(2026, 9, 7);
+        stubSalesDay(storeId, date);
+        when(itemRepository.aggregateMenuSales(storeId, date.atStartOfDay(), date.plusDays(1).atStartOfDay()))
+                .thenReturn(List.of(new MenuRow("americano", "COFFEE",
+                        new BigDecimal("9223372036854775808"), 1, 1L, 1L, "아메리카노")));
+
+        assertThatThrownBy(() -> service.analyze(storeId, "TODAY", date, date))
+                .isInstanceOf(ArithmeticException.class);
+    }
+
+    private void stubSalesDay(long storeId, LocalDate date) {
+        stubSalesDay(storeId, date, date);
+    }
+
+    private void stubSalesDay(long storeId, LocalDate start, LocalDate end) {
+        SalesDailySummaryEntity salesDay = summary(start, 100, 1);
+        when(dailySummaryRepository.findAllByStoreIdAndSalesDateBetweenOrderBySalesDateAsc(
+                storeId, start, end
+        )).thenReturn(List.of(salesDay));
+    }
+
     private SalesDailySummaryEntity summary(LocalDate date, long sales, int orderCount) {
         SalesDailySummaryEntity summary = mock(SalesDailySummaryEntity.class);
         when(summary.getSalesDate()).thenReturn(date);
@@ -399,32 +423,35 @@ class SalesAnalysisServiceTest {
         return summary;
     }
 
-    private SalesOrderEntity order(long id, LocalDateTime orderedAt) {
-        SalesOrderEntity order = mock(SalesOrderEntity.class);
-        when(order.getId()).thenReturn(id);
-        when(order.getOrderedAt()).thenReturn(orderedAt);
-        return order;
+    private MenuSalesAggregate menuRow(
+            String menuKey,
+            MenuCategory category,
+            long salesAmount,
+            long quantity,
+            long firstOrderId,
+            long firstItemId,
+            String menuName
+    ) {
+        return new MenuRow(menuKey, category.name(), salesAmount, quantity, firstOrderId, firstItemId, menuName);
     }
 
-    private SalesOrderItemEntity item(
-            long id,
-            long orderId,
-            String menuKey,
-            String menuName,
-            int quantity,
-            long netAmount,
-            MenuCategory category
-    ) {
-        SalesOrderItemEntity item = mock(SalesOrderItemEntity.class);
-        when(item.getId()).thenReturn(id);
-        when(item.getSalesOrderId()).thenReturn(orderId);
-        when(item.getItemType()).thenReturn(SalesOrderItemType.MENU);
-        when(item.getMenuKey()).thenReturn(menuKey);
-        when(item.getMenuName()).thenReturn(menuName);
-        when(item.getQuantity()).thenReturn(quantity);
-        when(item.getNetAmount()).thenReturn(netAmount);
-        when(item.getStandardCategory()).thenReturn(category);
-        return item;
+    private HourlySalesAggregate hourRow(LocalDate date, int hour, long salesAmount) {
+        return new HourRow(date, hour, salesAmount);
+    }
+
+    private record MenuRow(
+            String getMenuKey,
+            String getStandardCategory,
+            Number getSalesAmount,
+            Number getQuantity,
+            Long getFirstOrderId,
+            Long getFirstItemId,
+            String getMenuName
+    ) implements MenuSalesAggregate {
+    }
+
+    private record HourRow(LocalDate getSalesDate, Number getSalesHour, Number getSalesAmount)
+            implements HourlySalesAggregate {
     }
 
     private SalesForecastEntity forecast(
