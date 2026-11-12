@@ -25,6 +25,7 @@ import com.memme.service.sales.storage.SalesFileStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
+import org.springframework.dao.CannotAcquireLockException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -163,6 +164,22 @@ class SalesUploadProcessingServiceTest {
                 "필수 시트가 없습니다."
         );
         verify(persistenceService, never()).replaceCoverage(any(), any(), any());
+    }
+
+    @Test
+    void lockConflictAfterPersistenceRetriesMarksUploadFailed() throws Exception {
+        var date = LocalDate.of(2026, 9, 1);
+        prepareSuccessfulProcessing(date, date);
+        when(persistenceService.replaceCoverage(any(), any(), any()))
+                .thenThrow(new CannotAcquireLockException("Lock wait timeout exceeded"));
+
+        assertThatThrownBy(() -> service.process(12L))
+                .isInstanceOf(SalesUploadProcessingException.class)
+                .hasCauseInstanceOf(CannotAcquireLockException.class);
+
+        verify(lifecycleService).markFailed(12L, "UPLOAD_PROCESSING_ERROR", "업로드 처리 중 오류가 발생했습니다.");
+        verify(lifecycleService, never()).markCompleted(any(), any(Integer.class));
+        verify(analysisService, never()).analyze(any(), any(), any(), any());
     }
 
     @Test
