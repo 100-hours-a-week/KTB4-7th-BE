@@ -59,6 +59,13 @@ management:
       slo:
         "[http.server.requests]": 100ms,300ms,1s,3s,10s
 
+ranking:
+  recalculation:
+    lock-provider: ${RANKING_RECALCULATION_LOCK_PROVIDER:mysql}
+    lock-wait-timeout: ${RANKING_RECALCULATION_LOCK_WAIT_TIMEOUT:30s}
+    lock-watchdog-timeout: ${RANKING_RECALCULATION_LOCK_WATCHDOG_TIMEOUT:30s}
+    lock-key-prefix: ${RANKING_RECALCULATION_LOCK_KEY_PREFIX:memme:ranking:recalculation:lock:v1}
+
 sentry:
   dsn: ${SENTRY_DSN:}
   environment: ${SENTRY_ENVIRONMENT:local}

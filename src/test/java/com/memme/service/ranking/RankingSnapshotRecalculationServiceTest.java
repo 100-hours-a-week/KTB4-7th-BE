@@ -4,6 +4,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -11,6 +13,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.memme.exception.ranking.RankingRecalculationLockException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -137,6 +140,84 @@ class RankingSnapshotRecalculationServiceTest {
                 .contains("Ranking recalculation failed: source=SALES_UPLOAD")
                 .contains("Ranking recalculation finished: source=SALES_UPLOAD")
                 .contains("result=FAILED");
+    }
+
+    @Test
+    void reportsLockFailureWithoutStartingPersistenceOrWritingFailedSnapshot(CapturedOutput output) {
+        RankingRecalculationLockExecutor failingExecutor = new RankingRecalculationLockExecutor() {
+            @Override
+            public <T> T execute(RankingPeriodCalculator.PeriodPair period, java.util.function.Supplier<T> operation) {
+                throw new RankingRecalculationLockException(
+                        RankingRecalculationLockException.Reason.ACQUISITION_TIMEOUT,
+                        "lock timed out"
+                );
+            }
+        };
+        service = new RankingSnapshotRecalculationService(persistenceService, failingExecutor,
+                Clock.fixed(Instant.parse("2026-10-10T03:00:00Z"), ZoneOffset.UTC));
+
+        RankingSnapshotRecalculationService.Result result = service.recalculateCurrentPeriod();
+
+        assertThat(result).isEqualTo(RankingSnapshotRecalculationService.Result.LOCK_FAILED);
+        org.mockito.Mockito.verifyNoInteractions(persistenceService);
+        assertThat(output).contains("Ranking recalculation lock failed")
+                .contains("reason=ACQUISITION_TIMEOUT")
+                .contains("result=LOCK_FAILED");
+    }
+
+    @Test
+    void reportsReleaseFailureAfterCommittedCalculationWithoutWritingFailedSnapshot(CapturedOutput output) {
+        RankingRecalculationLockExecutor releaseFailingExecutor = new RankingRecalculationLockExecutor() {
+            @Override
+            public <T> T execute(RankingPeriodCalculator.PeriodPair period, java.util.function.Supplier<T> operation) {
+                T result = operation.get();
+                throw new RankingRecalculationLockException(
+                        RankingRecalculationLockException.Reason.RELEASE_FAILED,
+                        "release failed after operation"
+                );
+            }
+        };
+        service = new RankingSnapshotRecalculationService(persistenceService, releaseFailingExecutor,
+                Clock.fixed(Instant.parse("2026-10-10T03:00:00Z"), ZoneOffset.UTC));
+
+        RankingSnapshotRecalculationService.Result result = service.recalculateCurrentPeriod();
+
+        assertThat(result).isEqualTo(RankingSnapshotRecalculationService.Result.LOCK_FAILED);
+        verify(persistenceService).calculate(any());
+        org.mockito.Mockito.verify(persistenceService, org.mockito.Mockito.never()).recordFailed(any());
+        assertThat(output).contains("reason=RELEASE_FAILED")
+                .contains("result=LOCK_FAILED");
+    }
+
+    @Test
+    void holdsTheSelectedLockAcrossCalculateAndFailedSnapshotRecording() {
+        List<String> events = new ArrayList<>();
+        RankingRecalculationLockExecutor recordingExecutor = new RankingRecalculationLockExecutor() {
+            @Override
+            public <T> T execute(RankingPeriodCalculator.PeriodPair period, java.util.function.Supplier<T> operation) {
+                events.add("lock-acquired");
+                try {
+                    return operation.get();
+                } finally {
+                    events.add("lock-released");
+                }
+            }
+        };
+        doAnswer(invocation -> {
+            events.add("calculate");
+            throw new IllegalStateException("calculation failed");
+        }).when(persistenceService).calculate(any());
+        doAnswer(invocation -> {
+            events.add("record-failed");
+            return null;
+        }).when(persistenceService).recordFailed(any());
+        service = new RankingSnapshotRecalculationService(persistenceService, recordingExecutor,
+                Clock.fixed(Instant.parse("2026-10-10T03:00:00Z"), ZoneOffset.UTC));
+
+        RankingSnapshotRecalculationService.Result result = service.recalculateCurrentPeriod();
+
+        assertThat(result).isEqualTo(RankingSnapshotRecalculationService.Result.FAILED);
+        assertThat(events).containsExactly("lock-acquired", "calculate", "record-failed", "lock-released");
     }
 
 }
