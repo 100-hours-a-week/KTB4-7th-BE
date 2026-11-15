@@ -21,6 +21,7 @@ jobs:
       TEST_REDIS_ENABLED: "true"
       TEST_REDIS_HOST: 127.0.0.1
       TEST_REDIS_PORT: 6379
+      TEST_REDIS_LOCK_ENABLED: "true"
       TEST_REDIS_USERNAME: app
       TEST_REDIS_PASSWORD: redis-integration-test
       TEST_REDIS_CONTROL_USERNAME: control
