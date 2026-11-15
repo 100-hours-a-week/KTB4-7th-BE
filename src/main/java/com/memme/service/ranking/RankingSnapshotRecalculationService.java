@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Objects;
 
+import com.memme.exception.ranking.RankingRecalculationLockException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,20 +17,31 @@ public class RankingSnapshotRecalculationService {
     private static final Logger log = LoggerFactory.getLogger(RankingSnapshotRecalculationService.class);
     private static final String EXECUTOR = executorId();
     private final RankingSnapshotPersistenceService persistenceService;
+    private final RankingRecalculationLockExecutor lockExecutor;
     private final Clock clock;
 
     @Autowired
     public RankingSnapshotRecalculationService(
-            RankingSnapshotPersistenceService persistenceService
+            RankingSnapshotPersistenceService persistenceService,
+            RankingRecalculationLockExecutor lockExecutor
     ) {
-        this(persistenceService, Clock.systemUTC());
+        this(persistenceService, lockExecutor, Clock.systemUTC());
     }
 
     RankingSnapshotRecalculationService(
             RankingSnapshotPersistenceService persistenceService,
             Clock clock
     ) {
+        this(persistenceService, new NoOpRankingRecalculationLockExecutor(), clock);
+    }
+
+    RankingSnapshotRecalculationService(
+            RankingSnapshotPersistenceService persistenceService,
+            RankingRecalculationLockExecutor lockExecutor,
+            Clock clock
+    ) {
         this.persistenceService = persistenceService;
+        this.lockExecutor = lockExecutor;
         this.clock = clock;
     }
 
@@ -60,8 +72,22 @@ public class RankingSnapshotRecalculationService {
                 period.comparisonEnd(), startedAt);
         Result result;
         try {
+            result = lockExecutor.execute(period, () -> recalculateWhileLocked(period, source));
+        } catch (RankingRecalculationLockException exception) {
+            log.error("Ranking recalculation lock failed: source={}, executor={}, periodStart={}, periodEnd={}, reason={}",
+                    source, EXECUTOR, period.periodStart(), period.periodEnd(), exception.getReason(), exception);
+            result = Result.LOCK_FAILED;
+        }
+        log.info("Ranking recalculation finished: source={}, executor={}, periodStart={}, periodEnd={}, startedAt={}, finishedAt={}, durationMs={}, result={}",
+                source, EXECUTOR, period.periodStart(), period.periodEnd(), startedAt, clock.instant(),
+                java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos), result);
+        return result;
+    }
+
+    private Result recalculateWhileLocked(RankingPeriodCalculator.PeriodPair period, String source) {
+        try {
             persistenceService.calculate(period);
-            result = Result.COMPLETED;
+            return Result.COMPLETED;
         } catch (RuntimeException exception) {
             log.error("Ranking recalculation failed: source={}, executor={}, periodStart={}, periodEnd={}",
                     source, EXECUTOR, period.periodStart(), period.periodEnd(), exception);
@@ -71,12 +97,8 @@ public class RankingSnapshotRecalculationService {
                 exception.addSuppressed(recordException);
                 log.error("Could not persist failed growth ranking snapshot", recordException);
             }
-            result = Result.FAILED;
         }
-        log.info("Ranking recalculation finished: source={}, executor={}, periodStart={}, periodEnd={}, startedAt={}, finishedAt={}, durationMs={}, result={}",
-                source, EXECUTOR, period.periodStart(), period.periodEnd(), startedAt, clock.instant(),
-                java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos), result);
-        return result;
+        return Result.FAILED;
     }
 
     private static String executorId() {
@@ -91,6 +113,7 @@ public class RankingSnapshotRecalculationService {
     public enum Result {
         COMPLETED,
         FAILED,
+        LOCK_FAILED,
         SKIPPED_NOT_AFFECTED
     }
 }

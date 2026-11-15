@@ -34,6 +34,7 @@ public class RankingSnapshotPersistenceService {
 
     private final RankingSnapshotRepository snapshotRepository;
     private final RankingRecalculationLockService recalculationLockService;
+    private final RankingRecalculationLockProperties lockProperties;
     private final RankingEntryRepository entryRepository;
     private final RankingProfileRepository profileRepository;
     private final StoreRepository storeRepository;
@@ -55,10 +56,12 @@ public class RankingSnapshotPersistenceService {
             AnalysisRunRepository analysisRunRepository,
             SalesDailyStatusResolver dailyStatusResolver,
             RankingSalesPeriodAggregator periodAggregator,
-            RankingGrowthCalculator growthCalculator
+            RankingGrowthCalculator growthCalculator,
+            RankingRecalculationLockProperties lockProperties
     ) {
         this.snapshotRepository = snapshotRepository;
         this.recalculationLockService = recalculationLockService;
+        this.lockProperties = lockProperties;
         this.entryRepository = entryRepository;
         this.profileRepository = profileRepository;
         this.storeRepository = storeRepository;
@@ -72,7 +75,7 @@ public class RankingSnapshotPersistenceService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void calculate(RankingPeriodCalculator.PeriodPair period) {
-        recalculationLockService.acquire(period);
+        acquireMysqlLockWhenSelected(period);
         RankingSnapshotEntity snapshot = snapshotRepository.saveAndFlush(RankingSnapshotEntity.create(
                 period.periodStart(),
                 period.periodEnd(),
@@ -101,7 +104,7 @@ public class RankingSnapshotPersistenceService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordFailed(RankingPeriodCalculator.PeriodPair period) {
-        recalculationLockService.acquire(period);
+        acquireMysqlLockWhenSelected(period);
         RankingSnapshotEntity failedSnapshot = RankingSnapshotEntity.create(
                 period.periodStart(),
                 period.periodEnd(),
@@ -112,6 +115,12 @@ public class RankingSnapshotPersistenceService {
         failedSnapshot.start();
         failedSnapshot.fail();
         snapshotRepository.saveAndFlush(failedSnapshot);
+    }
+
+    private void acquireMysqlLockWhenSelected(RankingPeriodCalculator.PeriodPair period) {
+        if (lockProperties.getLockProvider() == RankingRecalculationLockProperties.Provider.MYSQL) {
+            recalculationLockService.acquire(period);
+        }
     }
 
     private int nextRevision(RankingPeriodCalculator.PeriodPair period) {
